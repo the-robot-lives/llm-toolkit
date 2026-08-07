@@ -1,19 +1,20 @@
 # Architecture Summary
 
-Local-first tool for indexing, searching, editing, and extracting artifacts from AI coding-agent transcripts — evolving from a Claude Code log browser into agent-watch-dog, a multi-harness session-continuity tool (Claude + Codex importers live; Gemini/OpenCode/Aider stubbed). Three interfaces (REST API, browser SPA, terminal TUI) backed by a single SQLite database with FTS5 and sqlite-vec for full-text + semantic search. Chokidar file watching for incremental re-indexing. Self-contained pnpm/TypeScript project inside the Noizu Infra monorepo (`utilities/agent/llm-toolkit/`); its own `make install` symlinks `bin/llm-toolkit` into `~/.local/bin` (no k8-lib or .infra-config.yaml dependency).
+Local-first tool (**llm-toolkit** / *Claude Assist*) for indexing, searching, editing, and extracting artifacts from AI coding-agent transcripts — evolving into **agent-watch-dog** multi-harness session continuity (Claude + Codex importers live; Gemini/OpenCode/Aider stubbed). Three conversation interfaces (Hono REST API, React SPA, Ink TUI) share one SQLite DB (FTS5 + sqlite-vec). Embedded **skill-manage** Rust crate manages provider skills/agents/commands via symlinks. Self-contained at `Portfolio/Apps/AI/llm-toolkit`; `make install` → `~/.local/bin/llm-toolkit` (no k8-lib / .infra-config.yaml).
 
 ## Components
 
-- **API** (Hono) — IndexerService retains raw transcript events and derives universal messages into SQLite (harness-aware schema, FTS5/vec0 virtual tables); EmbeddingService (all-MiniLM-L6-v2, 384-dim); SearchService (FTS5 + cosine); LlmService (Anthropic SDK + OpenAI-compatible: OpenAI, LiteLLM/inference.noizu.com, Groq, Cerebras, DeepSeek, ZAI); editor/operations (versioned edits, clone/rehome/archive/tag); converter/exporter (agents, skills, runbooks, fine-tuning datasets); harness transfer/transform + session workflow. Routes: conversations, search, datasets, prompts, projects, tags, config, index, llm.
-- **Web** (React + Vite + Tailwind) — SPA: Explore (search/browse), thread viewer, editor, project detail, datasets, prompts, tags, Safety Watch stub
-- **CLI** (Ink) — TUI commands: search, list, show, index; interactive mode
-- **Shared** — TypeScript types (UniversalMessage, AgentHarness), JSONL parsers, API auto-launcher
-- **bin/llm-toolkit** — bash launcher (API + Web/TUI), zellij-aware
+- **API** (Hono) — IndexerService (raw events → universal → flat messages; optional LLM work-item extraction; chokidar); StorageService (harness-aware schema, FTS5/vec0, settings); EmbeddingService (MiniLM 384-dim); SearchService; LlmService (Anthropic + OpenAI-compatible providers); editor/operations (versioned edits, clone/rehome/archive/tag); converter/exporter (artifacts + fine-tune datasets); harness-transform (Claude/Codex export payloads); harness-transfer + session-workflow (transfer/memory stubs). Routes: conversations, search, datasets, prompts, projects, tags, config, index, llm, health.
+- **Web** (React + Vite + Tailwind) — Explore (unified search/browse), thread viewer/editor/convert/continue, projects, datasets, prompts, tags, settings, Safety Watch stub, style guide.
+- **CLI** (Ink) — One-shots: `recent` (direct DB), `search`, `list`, `show`, `index`; full interactive TUI (Explore, Thread, Projects, Datasets, Convert, Edit, Continue, Safety Watch, Settings, …).
+- **Shared** — Types (`UniversalMessage`, `AgentHarness`, …), JSONL parsers, `ensureApi()`.
+- **skill-manage** — Rust symlink enable/disable/audit + YAML catalog/work-types; `llm-toolkit skill …`.
+- **bin/llm-toolkit** — zellij-aware API+web launcher, skill proxy, CLI dispatch.
 
 ## Key Decisions
 
-- Local-first: SQLite + local embeddings; LLM features optionally call external providers
-- JSONL as source of truth; database is a derived index; edits are versioned, never destructive
-- Raw transcript events preserved before normalization; harness transfer via Universal format, never provider-to-provider
-- Monorepo with pnpm workspaces for shared types
-- Hono over Express; sqlite-vec over pgvector (graceful degradation if unavailable)
+- Local-first SQLite + local embeddings; external LLM optional
+- JSONL source of truth; DB derived; non-destructive versioned edits
+- Raw events retained before universal normalization; transfer via Universal only
+- Claude/Codex transform exporters implemented; transfer façade / memory hooks still planned
+- Hono + sqlite-vec (graceful degrade); pnpm workspaces + embedded Rust skill linker

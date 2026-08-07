@@ -12,6 +12,7 @@ skill-manage/
 │   ├── catalog.rs              #   catalog.yaml
 │   ├── audit.rs                #   audit checks
 │   ├── status.rs               #   status summary
+│   ├── context.rs              #   context-budget helpers
 │   └── tui/                    #   ratatui TUI
 │       ├── mod.rs
 │       ├── app.rs
@@ -20,11 +21,16 @@ skill-manage/
 │   ├── config.example.yaml
 │   └── catalog.example.yaml
 ├── docs/                       # documentation
+│   ├── howto/
+│   ├── PROJ-ARCH.md (+ summary)
+│   ├── PROJ-FAQ.md (+ summary)
+│   ├── PROJ-HOWTO.md (+ summary)
 │   ├── PROJ-LAYOUT.md
 │   └── PROJ-LAYOUT.summary.md
-├── .gitignore                  # ignores /target/, /coverage/
-├── Cargo.toml                  # package manifest
-├── Cargo.lock                  # locked deps
-├── Makefile                    # compile/test/install
-└── README.md                   # start here
+├── .gitignore
+├── Cargo.toml
+├── Cargo.lock
+├── CHANGELOG.md
+├── Makefile
+└── README.md
 ```

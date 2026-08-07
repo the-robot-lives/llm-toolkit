@@ -5,9 +5,10 @@ Ink-based terminal UI for browsing, searching, and editing conversations from th
 ```
 cli/
 ├── src/
-│   ├── commands/               # One-shot CLI subcommands (Ink components)
-│   │   ├── index.tsx           #   Default/help command
+│   ├── commands/               # One-shot CLI subcommands
+│   │   ├── index.tsx           #   Rebuild search index / help
 │   │   ├── list.tsx            #   List conversations
+│   │   ├── recent.ts           #   Recent conversations (time window; no API required)
 │   │   ├── search.tsx          #   Search conversations
 │   │   └── show.tsx            #   Display a single conversation
 │   ├── interactive/            # Full-screen interactive TUI application

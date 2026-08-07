@@ -1,71 +1,70 @@
 # Agent Watch Dog Architecture
 
-`agent-watch-dog` is the evolution of `llm-toolkit` from a Claude Code log browser into a local-first session continuity tool for multiple agent harnesses. Its core job is to index transcripts, retain raw provider records for audit and replay, normalize conversations into a universal message format, and prepare future workflows for memory extraction and harness-to-harness transfer.
+`agent-watch-dog` is the evolution of `llm-toolkit` from a Claude Code log browser into a local-first **session continuity** tool for multiple agent harnesses. Goals: index transcripts, retain raw provider records, normalize to a universal message format, support continuation/transfer, and leave room for memory extraction and Safety Watch.
 
 ## Harnesses
 
-A harness is the runtime or client that produced a session transcript.
+A harness is the runtime/client that produced a session transcript.
 
-| Harness | Status | Notes |
-|---------|--------|-------|
-| `claude` | importer implemented | Reads Claude Code JSONL records from configured sources. |
-| `codex` | importer implemented | Reads Codex JSONL sessions and session metadata. |
-| `gemini` | stubbed | TODO: collect real transcripts and validate format before parsing. |
-| `opencode` | stubbed | TODO: collect real transcripts and validate format before parsing. |
-| `aider` | stubbed | TODO: collect real transcripts and validate format before parsing. |
-| `other` | stubbed | Reserved for future user-defined adapters. |
+| Harness | Importer | Universal → harness export | Notes |
+|---------|----------|----------------------------|-------|
+| `claude` | implemented | transform implemented | Claude Code JSONL under `~/.claude/projects` by default |
+| `codex` | implemented | transform implemented | Codex sessions under `~/.codex/sessions` by default |
+| `gemini` | stubbed | stubbed | Need real transcripts before parsing |
+| `opencode` | stubbed | stubbed | Need real transcripts before parsing |
+| `aider` | stubbed | stubbed | Need real transcripts before parsing |
+| `other` | stubbed | stubbed | Reserved for user-defined adapters |
 
-Default source registration only includes Claude and Codex paths. Gemini, OpenCode, Aider, and Other may be configured explicitly, but their importers intentionally no-op until real transcript examples are available.
+Default source registration includes Claude and Codex only. Other harnesses may be configured explicitly; importers intentionally no-op until formats are validated.
 
-## Raw Transcript Retention
+## Raw transcript retention
 
-Provider transcripts are stored as raw events in `raw_transcript_events`. This is separate from searchable messages. Raw retention is important because provider formats contain quirks that may matter later: hidden metadata, tool call ids, parent ids, model names, partial response records, session state, and provider-specific resume hints.
+Provider transcripts land in `raw_transcript_events`, separate from searchable `messages`. Raw retention matters for hidden metadata, tool call ids, parent ids, model names, partial responses, session state, and resume hints.
 
-The rule is:
+Rules:
 
 1. Never assume normalized text is enough for replay.
 2. Preserve the raw event before deriving universal messages.
 3. Re-parse from raw events when adapter behavior changes.
 
-## Universal Message Format
+## Universal message format
 
-`UniversalMessage` is the canonical cross-harness representation used for memory, transfer, and future continuation workflows. It keeps:
+`UniversalMessage` is the canonical cross-harness representation for memory, transfer, and continuation. It keeps:
 
-- a normalized role: `system`, `developer`, `user`, `assistant`, or `tool`
-- structured content blocks such as `text`, `thinking`, `tool_use`, `tool_result`, `image`, `audio`, `document`, and `unknown`
-- provenance: source harness, source path, raw index, and parent id when available
-- provider hints for reconstruction where practical
+- normalized role: `system`, `developer`, `user`, `assistant`, or `tool`
+- content blocks: `text`, `thinking`, `redacted_thinking`, `tool_use`, `tool_result`, `image`, `audio`, `document`, `unknown`
+- provenance: harness, source path, raw index, parent id
+- provider hints / metadata for reconstruction
 
-Search still uses a flattened `messages` table. Universal messages are the structured layer; raw transcript events are the audit/replay layer.
+Search still uses flattened `messages`. Universal messages are the structured layer; raw events are the audit/replay layer.
 
-## Harness Transfer
-
-The transfer model is:
+## Transform vs transfer
 
 ```text
-Source Harness Transcript -> Raw Events -> UniversalThread -> Target Harness Payload
+Source harness transcript
+  → raw events
+  → UniversalThread / UniversalMessage
+  → harness-transform export (Claude / Codex payloads)
+  → (planned) harness-transfer write / resume into target harness
 ```
 
-This avoids direct provider-to-provider conversions such as `codex -> claude`. Each adapter should implement two boundaries:
+- **harness-transform** (`harness-transform.ts`) — Implemented exporters build Claude message payloads and Codex JSONL event streams from universal messages, collecting unsupported-block notices. Import into universal prefers the indexer normalizer path rather than ad-hoc re-import.
+- **harness-transfer** (`harness-transfer.ts`) — Façade still returns pending warnings for all targets until compatibility tests and write-back semantics are complete. Do not treat transfer as production-ready.
 
-- importer: `Harness -> Universal`
-- exporter: `Universal -> Harness`
-
-Exporter stubs exist for Claude, Codex, Gemini, OpenCode, Aider, and Other, but they are intentionally placeholders until continuation semantics and transcript samples are validated. The universal format should remain stable enough that new providers can be added without rewriting the storage model.
+Session workflow (`session-workflow.ts`) builds continuation payloads (`continue` | `transfer`) and marks export readiness from transform support; memory hooks remain stubs.
 
 ## Safety Watch
 
-Safety Watch is currently a UI and architecture stub only. It is not an enforcement boundary and does not grant, deny, monitor, or revoke filesystem permissions yet.
+Safety Watch is a UI and architecture stub only. It does not enforce, grant, deny, or revoke filesystem permissions.
 
-Planned concerns include folder-level sensitivity, environment posture such as dev/stage/prod, quick enable/disable profiles, audit review, and context-sensitive permission recommendations.
+Planned concerns: folder-level sensitivity, env posture (dev/stage/prod), enable/disable profiles, audit review, context-sensitive permission recommendations.
 
-## Memory Hooks
+## Memory hooks
 
-Memory extraction is intentionally deferred to a separate architecture discussion. The storage layer now has enough structure for memory hooks to consume canonical messages and raw provenance, but no durable memory policy should be implemented until the plan covers:
+Memory extraction is deferred. Storage has structure for hooks to consume canonical messages + raw provenance, but no durable memory policy should land until design covers:
 
-- what should be remembered
-- what must never be retained
-- session compression strategy
-- review and correction workflow
-- memory scope by harness, project, folder, and sensitivity
+- what to remember vs never retain
+- session compression
+- review / correction workflow
+- scope by harness, project, folder, sensitivity
 - how continuation payloads cite or attach memory

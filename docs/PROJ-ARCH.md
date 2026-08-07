@@ -2,9 +2,11 @@
 
 ## Overview
 
-Claude-assist is a local-first tool for searching, browsing, editing, and extracting reusable artifacts from AI coding-agent conversation logs. Originally a Claude Code log browser, it is evolving into **agent-watch-dog** — a session-continuity tool for multiple agent harnesses (Claude Code and Codex importers implemented; Gemini, OpenCode, Aider stubbed). It reads JSONL transcripts from configured sources (e.g. `~/.claude/projects/`), indexes them into a SQLite database with full-text and vector search, and exposes the data through three interfaces: a REST API, a browser UI, and a terminal TUI.
+**llm-toolkit** (product name *Claude Assist*) is a local-first tool for searching, browsing, editing, and extracting reusable artifacts from AI coding-agent conversation logs. It is evolving into **agent-watch-dog** — multi-harness session continuity across Claude Code, Codex, and future harnesses (Gemini / OpenCode / Aider stubbed). It indexes harness JSONL transcripts into SQLite with FTS5 + vector search, and exposes the corpus through a REST API, browser SPA, and Ink TUI.
 
-It lives at `utilities/agent/llm-toolkit/` in the Noizu Infra monorepo but is a self-contained pnpm/TypeScript project — it does not use the shared `share/k8-lib` shell library or `.infra-config.yaml` build metadata. Its own `Makefile` (`make install`) installs pnpm deps and symlinks `bin/llm-toolkit` into `~/.local/bin`, matching the monorepo's utilities-on-PATH convention.
+The repo also embeds **skill-manage**, a Rust CLI/TUI that enables/disables provider skills, agents, and slash commands via managed symlinks. The bash launcher (`bin/llm-toolkit`) starts API + web (zellij-aware), proxies `llm-toolkit skill …` to the skill-manage binary, and dispatches conversation CLI commands.
+
+It lives at `Portfolio/Apps/AI/llm-toolkit` in the Noizu Infra monorepo as a self-contained pnpm + Rust project — no `share/k8-lib` or `.infra-config.yaml` deploy metadata. `make install` installs pnpm deps, builds skill-manage, installs completions, and symlinks `bin/llm-toolkit` into `~/.local/bin`.
 
 ## System Diagram
 
@@ -12,89 +14,131 @@ It lives at `utilities/agent/llm-toolkit/` in the Noizu Infra monorepo but is a 
 graph TB
     subgraph Sources
         CC["Claude Code JSONL<br/>~/.claude/projects/"]
-        CX["Codex JSONL sessions"]
+        CX["Codex JSONL<br/>~/.codex/sessions/"]
+        SK["Skill/agent/command trees<br/>configured source roots"]
     end
 
-    subgraph API["API Server (Hono + Node)"]
-        IDX[IndexerService] -->|raw events + universal msgs| DB[(SQLite + sqlite-vec)]
-        EMB[EmbeddingService] -->|vectors| DB
-        SRH[SearchService] -->|FTS + cosine| DB
-        STO[StorageService] -->|CRUD| DB
-        LLM[LlmService] -->|multi-provider completions| EXT["Anthropic / OpenAI / LiteLLM / Groq / ..."]
-        XFR[Harness Transfer/Transform]
-        IDX -->|watch| CC
+    subgraph API["API Server — Hono + Node"]
+        IDX[IndexerService]
+        EMB[EmbeddingService]
+        SRH[SearchService]
+        STO[StorageService]
+        LLM[LlmService]
+        XFR[Harness transform / transfer]
+        SESS[Session workflow]
+        IDX -->|raw + universal + flat msgs| DB[(SQLite + FTS5 + sqlite-vec)]
+        EMB -->|384-dim vectors| DB
+        SRH --> DB
+        STO --> DB
+        LLM -->|optional completions| EXT["Anthropic / OpenAI-compatible"]
+        IDX -->|watch chokidar| CC
         IDX --> CX
     end
 
     subgraph Clients
-        WEB["Web UI (React + Vite)"]
-        CLI["CLI (Ink TUI)"]
+        WEB["Web SPA — React + Vite"]
+        CLI["CLI / Ink TUI"]
+        BIN["bin/llm-toolkit launcher"]
+    end
+
+    subgraph SkillManage["skill-manage — Rust"]
+        SM[link / audit / catalog / TUI]
+        SM --> SK
+        SM --> DEST["Provider install dirs<br/>~/.claude · ~/.codex · ~/.grok"]
     end
 
     WEB -->|fetch /api/*| API
     CLI -->|fetch /api/*| API
+    BIN --> WEB
+    BIN --> API
+    BIN -->|skill subcommand| SkillManage
 ```
 
 ## Core Components
 
 | Component | Package | Purpose |
 |-----------|---------|---------|
-| StorageService | api | SQLite persistence — WAL mode, sqlite-vec vectors, harness-aware schema + migrations |
-| IndexerService | api | Scans harness sources, retains raw transcript events, derives universal messages, watches for changes |
-| EmbeddingService | api | Local embeddings via `all-MiniLM-L6-v2` (384-dim) |
-| SearchService | api | Full-text search (FTS5) + semantic search (cosine similarity) |
-| LlmService | api | Multi-provider LLM completions — Anthropic SDK + OpenAI-compatible (OpenAI, LiteLLM/`inference.noizu.com`, Groq, Cerebras, DeepSeek, ZAI) |
-| Editor / Operations | api | Non-destructive thread editing (versioned); clone, rehome, archive, tag |
+| StorageService | api | SQLite WAL store: harness-aware schema, FTS5, sqlite-vec, migrations |
+| IndexerService | api | Scans sources, retains raw events, derives universal + flat messages, optional work-item extraction, chokidar watch |
+| EmbeddingService | api | Local embeddings via `all-MiniLM-L6-v2` (384-dim) through `@huggingface/transformers` |
+| SearchService | api | FTS5 full-text + semantic (cosine / sqlite-vec) search |
+| LlmService | api | Multi-provider completions: Anthropic SDK + OpenAI-compatible (OpenAI, LiteLLM/`inference.noizu.com`, Groq, Cerebras, DeepSeek, ZAI) |
+| Editor / Operations | api | Non-destructive versioned edits; clone, rehome, archive, tag |
 | Converter / Exporter | api | Extract agents/skills/commands/runbooks; export datasets (OpenAI, Anthropic, raw JSONL) |
-| Harness transfer/transform | api | `Harness → Universal → Harness` adapter boundaries (exporters stubbed) |
-| Session workflow | api | Session continuity workflows across harnesses |
-| Hono routes | api | conversations, search, datasets, prompts, projects, tags, config, index, llm |
-| Web UI | web | React SPA — Explore (unified search/browse), thread viewer, editor, project detail, datasets, prompts, Safety Watch stub |
-| CLI | cli | Ink-based TUI — search, list, show, index commands; interactive mode |
-| Shared types | shared | TypeScript types (incl. `UniversalMessage`, `AgentHarness`), JSONL parsers, API launcher |
-| bin/llm-toolkit | root | Launcher script — starts API + Web/TUI, zellij-aware pane layout, port health-check |
+| Harness transform | api | Claude/Codex `Universal → Harness` export payloads; import path prefers indexer normalizer |
+| Harness transfer | api | Cross-harness transfer façade (still pending full exporter wiring) |
+| Session workflow | api | Continue / transfer continuation payloads + memory-hook stubs |
+| Hono routes | api | conversations, search, datasets, prompts, projects, tags, config, index, llm, health |
+| Web UI | web | React SPA — Explore (search/browse), thread, edit, convert, continue, projects, datasets, prompts, tags, settings, Safety Watch stub, style guide |
+| CLI | cli | One-shots (`recent`, `search`, `list`, `show`, `index`) + full-screen Ink interactive TUI |
+| Shared | shared | Types (`UniversalMessage`, `AgentHarness`, …), JSONL parsers, `ensureApi()` launcher |
+| skill-manage | skill-manage/ | Rust symlink manager for skills/agents/commands across providers |
+| bin/llm-toolkit | root | Launcher: zellij API+web layout, skill proxy, CLI dispatch |
 
 ## Data Flow
 
-Harness transcripts are discovered by the IndexerService, preserved as raw events, normalized into universal messages, and stored in SQLite. Messages are embedded for semantic search via `all-MiniLM-L6-v2`. Clients query via REST. File watching (chokidar) enables incremental re-indexing.
+Harness transcripts are discovered by IndexerService, stored as **raw events**, normalized into **universal messages**, flattened into search **messages**, and optionally embedded. Clients talk only to the local REST API (`localhost:3100`). File watching enables incremental re-index. skill-manage is a separate local filesystem tool (no SQLite).
 
 -> *See [arch/data-flow.md](arch/data-flow.md) for details*
 
 ## Storage
 
-Single SQLite database at `~/.llm-toolkit/llm-toolkit.db`. WAL journal mode for concurrent reads. sqlite-vec extension for vector similarity search (graceful degradation if unavailable). Core tables plus FTS5 and vec0 virtual tables; `raw_transcript_events` retains provider-native records for audit and replay, and conversations carry a `harness` column.
+Single SQLite DB at `~/.llm-toolkit/llm-toolkit.db` (`LLM_TOOLKIT_DATA_DIR`; legacy `CLAUDE_ASSIST_*` env aliases still accepted). WAL mode; sqlite-vec optional with graceful degradation. Tables cover conversations/messages, universal + raw layers, work items, edits, datasets, prompts, project/tag metadata, settings, FTS5, and vec0.
 
 -> *See [arch/storage.md](arch/storage.md) for details*
 
 ## Multi-Harness (agent-watch-dog)
 
-The multi-harness layer models each transcript producer (Claude, Codex, Gemini, ...) as a harness with importer/exporter boundaries around a canonical `UniversalMessage` format. Raw provider events are always retained before normalization; harness-to-harness transfer goes through the universal layer rather than direct provider-to-provider conversion. Safety Watch and memory extraction are documented stubs.
+Each transcript producer is a **harness** with importer/exporter boundaries around canonical `UniversalMessage`. Raw events are always retained. Claude and Codex importers are live; Gemini / OpenCode / Aider / other are stubbed. Transform-layer exporters exist for Claude and Codex; the transfer façade and memory hooks remain planned/stubbed.
 
 -> *See [arch/agent-watch-dog.md](arch/agent-watch-dog.md) for details*
 
+## skill-manage
+
+Embedded Rust crate: discovers skills/agents/commands from configured source roots, classifies install status per provider, and enables/disables via symlinks only (non-destructive; `--replace` backs up real paths). YAML catalog supports tags, work-type bundles, and editor profiles. Invoked as `llm-toolkit skill …` or standalone after build.
+
+-> *Nested docs: [skill-manage/docs/PROJ-ARCH.md](../skill-manage/docs/PROJ-ARCH.md)*
+
+## Infrastructure / Runtime
+
+| Concern | Notes |
+|---------|--------|
+| Deploy | Local developer tool — not a k8s/Helm service |
+| Install | `make install` → deps, skill-manage release build, completions, `~/.local/bin/llm-toolkit` |
+| API port | `3100` (`PORT` / `LLM_TOOLKIT_API_PORT`) |
+| Web port | `5173` (Vite; `LLM_TOOLKIT_WEB_PORT`) |
+| Data dir | `~/.llm-toolkit` (DB + config) |
+| CORS | Web origin `http://localhost:5173` only |
+| Bind | Localhost API; no auth — intended for single-user local use |
+
 ## Key Design Decisions
 
-- **Local-first**: No external services required for core features — SQLite + local embeddings run entirely on the user's machine (LLM features optionally call external providers)
-- **JSONL as source of truth**: Reads harness-native formats directly; database is a derived index — edits create versions, never mutate source files
-- **Raw before universal**: Preserve raw transcript events prior to normalization so adapters can be re-run and sessions replayed
-- **Hono over Express**: Lightweight, Web Standards-based HTTP framework
-- **sqlite-vec over pgvector**: Keeps the single-binary philosophy; no database server needed
-- **Monorepo with pnpm workspaces**: Shared types between api/cli/web without publishing
+- **Local-first** — Core search/index needs no external services; LLM features optional
+- **JSONL as source of truth** — DB is a derived index; edits create versions, never mutate source transcripts
+- **Raw before universal** — Preserve provider-native events for re-parse, audit, and replay
+- **Universal transfer path** — Never direct provider-to-provider conversion
+- **Hono + sqlite-vec** — Lightweight HTTP; single-file DB philosophy (vec degrades if extension missing)
+- **pnpm workspaces + embedded Rust** — Shared TS types across clients; skill linking stays a fast native binary
+- **Launcher-centric UX** — One PATH entry for web, TUI, API, and skill management
 
 ## Technology Stack
 
 | Layer | Technology |
 |-------|------------|
 | Runtime | Node.js (tsx) |
-| API framework | Hono |
+| API | Hono + @hono/node-server |
 | Database | better-sqlite3 + sqlite-vec |
-| Embeddings | @huggingface/transformers (all-MiniLM-L6-v2) |
-| LLM providers | @anthropic-ai/sdk + OpenAI-compatible endpoints |
-| File watching | chokidar |
-| Web framework | React 18 + React Router |
-| Build tool | Vite |
-| Styling | Tailwind CSS |
-| CLI framework | Ink (React for terminals) |
-| Package manager | pnpm workspaces |
-| Language | TypeScript (strict) |
+| Embeddings | @huggingface/transformers (`all-MiniLM-L6-v2`) |
+| LLM | @anthropic-ai/sdk + openai (compatible endpoints) |
+| Watch | chokidar |
+| Web | React 18, Vite 6, React Router 7, Tailwind 3.4 |
+| Markdown | react-markdown, remark-gfm, rehype-katex, Mermaid, syntax highlighter |
+| CLI | Ink 5 (React for terminals) |
+| skill-manage | Rust (clap + ratatui) |
+| Packages | pnpm workspaces |
+| Language | TypeScript (strict) + Rust |
 | Launcher | bash (`bin/llm-toolkit`, zellij-aware) |
+
+## Layout
+
+Directory tree and package layout: [PROJ-LAYOUT.md](PROJ-LAYOUT.md) · per-package: [layout/api.md](layout/api.md), [layout/cli.md](layout/cli.md), [layout/web.md](layout/web.md), [layout/shared.md](layout/shared.md).

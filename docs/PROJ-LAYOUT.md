@@ -1,44 +1,68 @@
 # Project Layout
 
+pnpm monorepo (Claude Assist / llm-toolkit): search, browse, edit, and extract artifacts from coding-agent conversations. TypeScript packages under `packages/`; embedded Rust skill linker under `skill-manage/`.
+
 ```
 llm-toolkit/
-├── bin/                            # Executable entry point
-│   └── llm-toolkit               #   Launcher script (API + Web/TUI, zellij-aware)
-├── packages/                       # Monorepo workspaces (pnpm)
-│   ├── api/                        #   REST API server → [layout/api.md](layout/api.md)
-│   ├── cli/                        #   Interactive TUI client → [layout/cli.md](layout/cli.md)
-│   ├── shared/                     #   Shared types and parsers → [layout/shared.md](layout/shared.md)
-│   └── web/                        #   Browser UI (Vite + React) → [layout/web.md](layout/web.md)
-├── design/                         # Visual design assets
-│   ├── logos/                      #   SVG logo variants + preview
-│   ├── mockup-*.svg                #   Page mockups (dashboard, search, thread)
-│   ├── SITEMAP.md                  #   Information architecture
-│   ├── style-guide.md              #   Design system tokens and rules
-│   └── README.md                   #   Design overview
-├── docs/                           # Project documentation
-│   ├── arch/                       #   Architecture detail pages (data-flow, storage, agent-watch-dog)
-│   ├── layout/                     #   Layout detail pages
-│   ├── PROJ-ARCH.md                #   Architecture overview
-│   ├── PROJ-ARCH.summary.md        #   Architecture summary
-│   ├── PROJ-LAYOUT.md              #   This file — project structure
-│   └── PROJ-LAYOUT.summary.md      #   Layout summary
-├── .gemini/                        # Gemini Code Assist review config
-│   ├── config.yaml                 #   Reviewer settings
-│   └── styleguide.md               #   Review style guide
-├── .gitignore                      # Ignored files
-├── INSTALL.md                      # Setup and installation guide
-├── Makefile                        # install/uninstall/dev — symlinks bin/llm-toolkit → ~/.local/bin
-├── package.json                    # Root workspace — scripts: dev:api, dev:web, dev:cli
-├── pnpm-lock.yaml                  # Lockfile
-├── pnpm-workspace.yaml             # Workspace config (packages/*)
-├── tsconfig.base.json              # Shared TypeScript config
-└── README.md                       # Project overview
+├── bin/                              # Installed launcher
+│   └── llm-toolkit                   #   bash: api/web (zellij), CLI, skill-manage proxy
+├── packages/                         # pnpm workspaces (pnpm-workspace.yaml → packages/*)
+│   ├── api/                          #   Hono REST API + SQLite/FTS/vectors → [layout/api.md](layout/api.md)
+│   ├── cli/                          #   Ink TUI + one-shot commands → [layout/cli.md](layout/cli.md)
+│   ├── shared/                       #   Types, JSONL parsers, API launcher → [layout/shared.md](layout/shared.md)
+│   └── web/                          #   Vite + React + Tailwind SPA → [layout/web.md](layout/web.md)
+├── skill-manage/                     # Rust CLI/TUI — skills/agents/commands symlink manager
+│   ├── src/                          #   clap + ratatui sources (main, link, catalog, audit, tui/…)
+│   ├── schema/                       #   config.example.yaml, catalog.example.yaml
+│   ├── docs/                         #   Nested PROJ-* docs → skill-manage/docs/PROJ-LAYOUT.md
+│   ├── Cargo.toml                    #   crate manifest
+│   ├── Makefile                      #   cargo build/test/install helpers
+│   └── README.md                     #   skill-manage usage
+├── completions/                      # Shell completions for launcher + skill surface
+│   ├── llm-toolkit.bash              #   bash-completion v2
+│   └── _llm-toolkit                  #   zsh (fpath site-functions)
+├── design/                           # Visual design assets
+│   ├── logos/                        #   SVG logo variants + preview.html
+│   ├── mockup-*.svg                  #   dashboard, search, thread viewer mockups
+│   ├── SITEMAP.md                    #   Information architecture
+│   ├── style-guide.md                #   Design system tokens/rules
+│   └── README.md                     #   Design overview
+├── docs/                             # Project documentation (this tree)
+│   ├── arch/                         #   Detail: data-flow, storage, agent-watch-dog
+│   ├── howto/                        #   Task guides (provider, convert, edit, export, manage)
+│   ├── layout/                       #   Per-package trees (api, cli, shared, web)
+│   ├── PROJ-ARCH.md                  #   Architecture overview
+│   ├── PROJ-ARCH.summary.md
+│   ├── PROJ-FAQ.md
+│   ├── PROJ-FAQ.summary.md
+│   ├── PROJ-HOWTO.md
+│   ├── PROJ-HOWTO.summary.md
+│   ├── PROJ-LAYOUT.md                #   This file
+│   └── PROJ-LAYOUT.summary.md
+├── project-management/               # Product/PM artifacts (not runtime)
+│   ├── components/                   #   UI component specs (01–40 + index.yaml)
+│   ├── personas/                     #   Persona briefs (P-001… + index.yaml)
+│   ├── screens/                      #   Screen/TUI/CLI output specs (01–42 + index.yaml)
+│   ├── user-stories/                 #   US-001…US-100 + index.yaml
+│   ├── ROADMAP.md
+│   └── README.md
+├── .gitignore                        # node_modules, dist, *.db, coverage, …
+├── CHANGELOG.md                      # Release notes
+├── INSTALL.md                        # Setup and install guide
+├── Makefile                          # compile/test/install/completions (skill-manage + symlink)
+├── package.json                      # Root workspace scripts: dev:api, dev:web, dev:cli
+├── pnpm-lock.yaml                    # Lockfile — setup-required
+├── pnpm-workspace.yaml               # packages/* workspace config
+├── tsconfig.base.json                # Shared TypeScript base config
+└── README.md                         # Project overview — start here
 ```
 
 ## Key Files Requiring Setup
 
 | File | Action |
 |------|--------|
-| `Makefile` | Run `make install` to install deps + symlink `llm-toolkit` |
-| `pnpm-lock.yaml` | Or run `pnpm install` manually after clone |
-| `INSTALL.md` | Follow for first-time setup |
+| `pnpm-lock.yaml` / `package.json` | `pnpm install` (Node ≥ 18, pnpm ≥ 8) |
+| `Makefile` | `make install` → deps + `~/.local/bin/llm-toolkit` + completions + skill-manage schema share |
+| `INSTALL.md` | First-time setup walkthrough |
+| `skill-manage` config | `skill-manage init-config` / env vars — see `skill-manage/docs/PROJ-LAYOUT.md` |
+| Runtime data | Default DB dir `~/.llm-toolkit/` (auto-created on API boot) |
