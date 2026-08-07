@@ -2,11 +2,11 @@
 
 ## Overview
 
-**llm-toolkit** (product name *Claude Assist*) is a local-first tool for searching, browsing, editing, and extracting reusable artifacts from AI coding-agent conversation logs. It is evolving into **agent-watch-dog** — multi-harness session continuity across Claude Code, Codex, and future harnesses (Gemini / OpenCode / Aider stubbed). It indexes harness JSONL transcripts into SQLite with FTS5 + vector search, and exposes the corpus through a REST API, browser SPA, and Ink TUI.
+**llm-toolkit** (product name *Claude Assist*) is a local-first developer tool for searching, browsing, editing, and extracting reusable artifacts from AI coding-agent conversation logs. It is evolving into **agent-watch-dog** — multi-harness session continuity across Claude Code, Codex, and future harnesses (Gemini / OpenCode / Aider stubbed). Harness JSONL transcripts are indexed into SQLite (FTS5 + optional sqlite-vec embeddings) and served through a REST API, browser SPA, and Ink TUI.
 
-The repo also embeds **skill-manage**, a Rust CLI/TUI that enables/disables provider skills, agents, and slash commands via managed symlinks. The bash launcher (`bin/llm-toolkit`) starts API + web (zellij-aware), proxies `llm-toolkit skill …` to the skill-manage binary, and dispatches conversation CLI commands.
+The repo also embeds **skill-manage**, a Rust CLI/TUI that enables/disables provider skills, agents, and slash commands via managed symlinks. The bash launcher (`bin/llm-toolkit`) starts API + web (zellij-aware when available), proxies `llm-toolkit skill …` to the skill-manage binary, and dispatches conversation CLI commands to the TypeScript Ink entrypoint.
 
-It lives at `Portfolio/Apps/AI/llm-toolkit` in the Noizu Infra monorepo as a self-contained pnpm + Rust project — no `share/k8-lib` or `.infra-config.yaml` deploy metadata. `make install` installs pnpm deps, builds skill-manage, installs completions, and symlinks `bin/llm-toolkit` into `~/.local/bin`.
+It lives at `Portfolio/Apps/AI/llm-toolkit` in the Noizu Infra monorepo as a self-contained pnpm + Rust project — no `share/k8-lib` or `.infra-config.yaml` deploy metadata. `make install` installs pnpm deps, builds skill-manage, installs shell completions, and symlinks `bin/llm-toolkit` into `~/.local/bin`.
 
 ## System Diagram
 
@@ -52,6 +52,7 @@ graph TB
     BIN --> WEB
     BIN --> API
     BIN -->|skill subcommand| SkillManage
+    BIN -->|conversation cmds| CLI
 ```
 
 ## Core Components
@@ -65,19 +66,19 @@ graph TB
 | LlmService | api | Multi-provider completions: Anthropic SDK + OpenAI-compatible (OpenAI, LiteLLM/`inference.noizu.com`, Groq, Cerebras, DeepSeek, ZAI) |
 | Editor / Operations | api | Non-destructive versioned edits; clone, rehome, archive, tag |
 | Converter / Exporter | api | Extract agents/skills/commands/runbooks; export datasets (OpenAI, Anthropic, raw JSONL) |
-| Harness transform | api | Claude/Codex `Universal → Harness` export payloads; import path prefers indexer normalizer |
-| Harness transfer | api | Cross-harness transfer façade (still pending full exporter wiring) |
+| Harness transform | api | Claude/Codex `Universal → Harness` export payloads; import prefers indexer normalizer |
+| Harness transfer | api | Cross-harness transfer façade — still pending for all targets (incl. Claude/Codex write-back) |
 | Session workflow | api | Continue / transfer continuation payloads + memory-hook stubs |
 | Hono routes | api | conversations, search, datasets, prompts, projects, tags, config, index, llm, health |
 | Web UI | web | React SPA — Explore (search/browse), thread, edit, convert, continue, projects, datasets, prompts, tags, settings, Safety Watch stub, style guide |
-| CLI | cli | One-shots (`recent`, `search`, `list`, `show`, `index`) + full-screen Ink interactive TUI |
+| CLI | cli | One-shots (`recent`, `search`, `list`, `show`, `index`, …) + full-screen Ink interactive TUI |
 | Shared | shared | Types (`UniversalMessage`, `AgentHarness`, …), JSONL parsers, `ensureApi()` launcher |
 | skill-manage | skill-manage/ | Rust symlink manager for skills/agents/commands across providers |
 | bin/llm-toolkit | root | Launcher: zellij API+web layout, skill proxy, CLI dispatch |
 
 ## Data Flow
 
-Harness transcripts are discovered by IndexerService, stored as **raw events**, normalized into **universal messages**, flattened into search **messages**, and optionally embedded. Clients talk only to the local REST API (`localhost:3100`). File watching enables incremental re-index. skill-manage is a separate local filesystem tool (no SQLite).
+Harness transcripts are discovered by IndexerService, stored as **raw events**, normalized into **universal messages**, flattened into search **messages**, and optionally embedded. Clients talk only to the local REST API (`localhost:3100`), except `llm-toolkit recent`, which reads SQLite directly for a fast, no-server path. File watching enables incremental re-index. skill-manage is a separate local filesystem tool (no conversation SQLite).
 
 -> *See [arch/data-flow.md](arch/data-flow.md) for details*
 
@@ -89,13 +90,13 @@ Single SQLite DB at `~/.llm-toolkit/llm-toolkit.db` (`LLM_TOOLKIT_DATA_DIR`; leg
 
 ## Multi-Harness (agent-watch-dog)
 
-Each transcript producer is a **harness** with importer/exporter boundaries around canonical `UniversalMessage`. Raw events are always retained. Claude and Codex importers are live; Gemini / OpenCode / Aider / other are stubbed. Transform-layer exporters exist for Claude and Codex; the transfer façade and memory hooks remain planned/stubbed.
+Each transcript producer is a **harness** with importer/exporter boundaries around canonical `UniversalMessage`. Raw events are always retained. Claude and Codex importers are live; Gemini / OpenCode / Aider / other are stubbed. Transform-layer exporters exist for Claude and Codex; the transfer façade and memory hooks remain planned/stubbed (transfer returns pending warnings even for Claude/Codex until write-back + compatibility tests land).
 
 -> *See [arch/agent-watch-dog.md](arch/agent-watch-dog.md) for details*
 
 ## skill-manage
 
-Embedded Rust crate: discovers skills/agents/commands from configured source roots, classifies install status per provider, and enables/disables via symlinks only (non-destructive; `--replace` backs up real paths). YAML catalog supports tags, work-type bundles, and editor profiles. Invoked as `llm-toolkit skill …` or standalone after build.
+Embedded Rust crate: discovers skills/agents/commands from configured source roots, classifies install status per provider, and enables/disables via symlinks only (non-destructive; `--replace` backs up real paths). YAML catalog supports tags, work-type bundles, and editor profiles. Invoked as `llm-toolkit skill …` or standalone after `make compile`.
 
 -> *Nested docs: [skill-manage/docs/PROJ-ARCH.md](../skill-manage/docs/PROJ-ARCH.md)*
 
@@ -108,8 +109,9 @@ Embedded Rust crate: discovers skills/agents/commands from configured source roo
 | API port | `3100` (`PORT` / `LLM_TOOLKIT_API_PORT`) |
 | Web port | `5173` (Vite; `LLM_TOOLKIT_WEB_PORT`) |
 | Data dir | `~/.llm-toolkit` (DB + config) |
+| Default index sources | Claude `~/.claude/projects`, Codex `~/.codex/sessions` |
 | CORS | Web origin `http://localhost:5173` only |
-| Bind | Localhost API; no auth — intended for single-user local use |
+| Bind | Localhost API; no auth — single-user local use |
 
 ## Key Design Decisions
 
@@ -135,7 +137,7 @@ Embedded Rust crate: discovers skills/agents/commands from configured source roo
 | Markdown | react-markdown, remark-gfm, rehype-katex, Mermaid, syntax highlighter |
 | CLI | Ink 5 (React for terminals) |
 | skill-manage | Rust (clap + ratatui) |
-| Packages | pnpm workspaces |
+| Packages | pnpm workspaces (`packages/*`) |
 | Language | TypeScript (strict) + Rust |
 | Launcher | bash (`bin/llm-toolkit`, zellij-aware) |
 
