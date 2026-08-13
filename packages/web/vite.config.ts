@@ -76,6 +76,7 @@ export default defineConfig({
   plugins: [react(), ensureApiPlugin()],
   server: {
     port: 5173,
+    host: true,
     proxy: {
       "/api": "http://localhost:3100",
     },
