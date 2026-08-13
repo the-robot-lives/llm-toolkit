@@ -19,11 +19,25 @@ export function HarnessProvider({ children }: { children: React.ReactNode }) {
   const setHarness = (next: AgentHarness) => {
     setHarnessState(next);
     writeStoredHarness(next);
+    emitHarnessChanged(next);
   };
 
   useEffect(() => {
     writeStoredHarness(harness);
   }, [harness]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onSet = (event: Event) => {
+      const next = (event as CustomEvent<string>).detail;
+      if (isAgentHarness(next)) {
+        setHarnessState(next);
+        writeStoredHarness(next);
+      }
+    };
+    window.addEventListener("llm-toolkit-set-harness", onSet);
+    return () => window.removeEventListener("llm-toolkit-set-harness", onSet);
+  }, []);
 
   return (
     <HarnessContext.Provider value={{ harness, setHarness }}>
@@ -54,4 +68,9 @@ function writeStoredHarness(harness: AgentHarness): void {
   const storage = window.localStorage;
   if (!storage || typeof storage.setItem !== "function") return;
   storage.setItem("agent-watchdog:harness", harness);
+}
+
+function emitHarnessChanged(harness: AgentHarness): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("llm-toolkit-harness-changed", { detail: harness }));
 }

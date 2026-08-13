@@ -2,13 +2,14 @@
 
 Extracted from `project-management/user-stories/` (100 stories), `design/SITEMAP.md`, `design/style-guide.md`, and the shipped source (`packages/web/src`, `packages/cli/src`, `skill-manage/src/tui`). Covers all three product surfaces: the web app, the CLI's Ink interactive TUI, and skill-manage's ratatui TUI, plus one-shot CLI command output that isn't part of either interactive surface.
 
-**Total: 42 screens**
+**Total: 43 screens**
 
 ## By Surface
 
 | Surface | Count | Description |
 |---------|-------|-------------|
 | `web` | 15 | `packages/web/src` React app (React Router) |
+| `macos` | 1 | Native SwiftUI host that loads the web console (`apps/macos`) |
 | `cli-ink` | 14 | `packages/cli/src/interactive` full-screen Ink TUI (`llm-toolkit interactive`) |
 | `cli-command` | 8 | One-shot Ink/plain commands with no persistent screen (`recent`, `search`, `list`, `show`, `index`, install/first-run, skill-manage `audit`/`context`) |
 | `tui-ratatui` | 5 | `skill-manage/src/tui` ratatui interface (`skill-manage tui`) |
@@ -23,6 +24,7 @@ Extracted from `project-management/user-stories/` (100 stories), `design/SITEMAP
 | Admin | SCR-12, SCR-13, SCR-26, SCR-29 |
 | Onboarding / Core | SCR-14, SCR-27 |
 | Internal / Meta | SCR-15, SCR-28 |
+| Desktop | SCR-43 |
 | Indexing & Ingestion | SCR-34 |
 | Onboarding | SCR-35 |
 | skill-manage (core) | SCR-36, SCR-37, SCR-38, SCR-40 |
@@ -32,7 +34,7 @@ Extracted from `project-management/user-stories/` (100 stories), `design/SITEMAP
 
 | Type | When Used | Count | Screens |
 |------|-----------|-------|---------|
-| `primary` | Main feature screens, most important views | 28 | SCR-01, 03, 04, 05, 07, 08, 10, 11, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 28, 30, 31, 32, 33, 34, 36, 37, 41, 42 |
+| `primary` | Main feature screens, most important views | 29 | SCR-01, 03, 04, 05, 07, 08, 10, 11, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 28, 30, 31, 32, 33, 34, 36, 37, 41, 42, 43 |
 | `dashboard` | Data overview screens, home screens | 4 | SCR-02, 09, 13, 29 |
 | `settings` | Configuration, preferences | 4 | SCR-12, 14, 26, 27 |
 | `modal` | Overlays, dialogs, drawers | 3 | SCR-38, 39, 40 |

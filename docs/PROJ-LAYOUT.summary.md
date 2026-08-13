@@ -11,7 +11,10 @@ llm-toolkit/
 │   ├── shared/                 # Types, parsers, API launcher
 │   │   └── src/{parsers,types}/
 │   └── web/                    # Vite + React + Tailwind SPA
-│       └── src/{components,context,hooks,pages,services}/
+│       └── src/{components,context,hooks,pages,services,hostBridge.ts}/
+├── apps/
+│   └── macos/                  # Native Mac host (SwiftUI + WKWebView)
+│       └── Sources/{LLMToolkitKit,LLMToolkit} + Tests
 ├── skill-manage/               # Rust skill/agent/command linker (own docs/)
 │   ├── src/ + tui/
 │   └── schema/

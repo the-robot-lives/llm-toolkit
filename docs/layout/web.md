@@ -6,10 +6,11 @@ Vite + React + Tailwind single-page app for browsing, searching, and editing con
 web/
 ├── src/
 │   ├── components/             # Shared UI components
-│   │   ├── Layout.tsx          #   App shell — sidebar, navigation, content area
+│   │   ├── Layout.tsx          #   App shell — sidebar, navigation, content area (hides chrome for Mac host)
 │   │   └── MarkdownView.tsx    #   Markdown renderer for conversation messages
+│   ├── hostBridge.ts           # Mac-host detection + navigation/chrome flags
 │   ├── context/                # React contexts
-│   │   └── HarnessContext.tsx  #   Active harness selection state
+│   │   └── HarnessContext.tsx  #   Active harness selection state + desktop events
 │   ├── hooks/                  # React hooks
 │   │   └── useApi.ts           #   API client hook (fetch wrapper)
 │   ├── pages/                  # Route-level page components

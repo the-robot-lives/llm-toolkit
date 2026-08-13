@@ -3,6 +3,8 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## [Unreleased]
+- Native macOS app (`apps/macos`) hosts the full web console with SwiftUI chrome, menus, server supervisor, and route parity for every implemented SPA page
+- Web Layout/Harness grow a Mac-host bridge (`hostBridge.ts`) so the desktop shell can hide web chrome, navigate, and switch harnesses
 - NPL architecture/layout docs refreshed: `docs/PROJ-ARCH.md`, `docs/PROJ-LAYOUT.md`, summaries, and per-package `docs/layout/{api,cli,web}.md` (commit `ff72b3565bf`, 2026-07-16)
 
 ## [m3-tui-and-provider-config] — 2026-06-27 — tag: `utilities-agent-claude-assist/m3-tui-and-provider-config`

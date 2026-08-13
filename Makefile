@@ -2,7 +2,7 @@
 #
 # `compile`/`test`/`install` are dispatched by ../../mk/subdirs.mk.
 
-.PHONY: compile test install install-completions uninstall clean dev
+.PHONY: compile test install install-completions uninstall clean dev macos macos-run macos-app
 
 PROJ_DIR := $(shell cd "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))" && pwd)
 PREFIX   ?= $(HOME)/.local
@@ -61,3 +61,13 @@ clean:
 
 dev: ## Launch (same as running llm-toolkit)
 	"$(PROJ_DIR)/bin/llm-toolkit"
+
+macos: ## Test + build the native Mac host
+	$(MAKE) -C "$(PROJ_DIR)/apps/macos" test
+	$(MAKE) -C "$(PROJ_DIR)/apps/macos" build
+
+macos-run: ## Launch the native Mac host (attaches to or starts the web console)
+	$(MAKE) -C "$(PROJ_DIR)/apps/macos" run
+
+macos-app: ## Assemble apps/macos/.build/LLM Toolkit.app
+	$(MAKE) -C "$(PROJ_DIR)/apps/macos" app

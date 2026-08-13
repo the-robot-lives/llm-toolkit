@@ -2,7 +2,7 @@
 
 ## Overview
 
-**llm-toolkit** (product name *Claude Assist*) is a local-first developer tool for searching, browsing, editing, and extracting reusable artifacts from AI coding-agent conversation logs. It is evolving into **agent-watch-dog** — multi-harness session continuity across Claude Code, Codex, and future harnesses (Gemini / OpenCode / Aider stubbed). Harness JSONL transcripts are indexed into SQLite (FTS5 + optional sqlite-vec embeddings) and served through a REST API, browser SPA, and Ink TUI.
+**llm-toolkit** (product name *Claude Assist*) is a local-first developer tool for searching, browsing, editing, and extracting reusable artifacts from AI coding-agent conversation logs. It is evolving into **agent-watch-dog** — multi-harness session continuity across Claude Code, Codex, and future harnesses (Gemini / OpenCode / Aider stubbed). Harness JSONL transcripts are indexed into SQLite (FTS5 + optional sqlite-vec embeddings) and served through a REST API, browser SPA, Ink TUI, and a native macOS host that embeds the SPA.
 
 The repo also embeds **skill-manage**, a Rust CLI/TUI that enables/disables provider skills, agents, and slash commands via managed symlinks. The bash launcher (`bin/llm-toolkit`) starts API + web (zellij-aware when available), proxies `llm-toolkit skill …` to the skill-manage binary, and dispatches conversation CLI commands to the TypeScript Ink entrypoint.
 
@@ -37,6 +37,7 @@ graph TB
 
     subgraph Clients
         WEB["Web SPA — React + Vite"]
+        MAC["macOS app — SwiftUI + WKWebView"]
         CLI["CLI / Ink TUI"]
         BIN["bin/llm-toolkit launcher"]
     end
@@ -48,6 +49,8 @@ graph TB
     end
 
     WEB -->|fetch /api/*| API
+    MAC -->|hosts :5173 + menus| WEB
+    MAC -->|health / clone / archive / index| API
     CLI -->|fetch /api/*| API
     BIN --> WEB
     BIN --> API
@@ -71,6 +74,7 @@ graph TB
 | Session workflow | api | Continue / transfer continuation payloads + memory-hook stubs |
 | Hono routes | api | conversations, search, datasets, prompts, projects, tags, config, index, llm, health |
 | Web UI | web | React SPA — Explore (search/browse), thread, edit, convert, continue, projects, datasets, prompts, tags, settings, Safety Watch stub, style guide |
+| macOS host | apps/macos | SwiftUI + WKWebView frame around the SPA; native menus/sidebar; starts or attaches to local API/web |
 | CLI | cli | One-shots (`recent`, `search`, `list`, `show`, `index`, …) + full-screen Ink interactive TUI |
 | Shared | shared | Types (`UniversalMessage`, `AgentHarness`, …), JSONL parsers, `ensureApi()` launcher |
 | skill-manage | skill-manage/ | Rust symlink manager for skills/agents/commands across providers |

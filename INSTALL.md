@@ -14,6 +14,18 @@ pnpm install
 
 This installs all workspace dependencies across the four packages (`api`, `cli`, `web`, `shared`).
 
+### macOS app
+
+The native Mac host lives at `apps/macos` and is not part of `pnpm install`.
+After the JS stack is installed:
+
+```bash
+make macos              # swift test + debug build
+make macos-run          # launch (starts pnpm dev:web if needed)
+```
+
+Requires macOS 14+ and Swift 5.10+. See `apps/macos/README.md`.
+
 ## Development
 
 ### Run everything

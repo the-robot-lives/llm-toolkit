@@ -317,3 +317,11 @@ graph TD
 
 ### No Auth Gates
 All pages are local-only. No authentication required — the tool runs on localhost.
+
+---
+
+## macOS host
+
+`apps/macos` is not a new sitemap. It is a native window that loads this same graph
+at `http://127.0.0.1:5173`. The Swift `ConsoleRoute` catalog is a 1:1 copy of
+`packages/web/src/App.tsx`. Merge remains absent until the web route exists.

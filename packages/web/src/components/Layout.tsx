@@ -1,6 +1,7 @@
-import React from "react";
-import { Outlet, NavLink } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { HarnessProvider, useHarness, type AgentHarness } from "../context/HarnessContext.js";
+import { getHostWindow, isNativeMacHost } from "../hostBridge.js";
 
 const navGroups = [
   {
@@ -32,10 +33,36 @@ export function Layout() {
 
 function LayoutShell() {
   const { harness, setHarness } = useHarness();
+  const navigate = useNavigate();
+  const [nativeChrome, setNativeChrome] = useState(isNativeMacHost);
+
+  useEffect(() => {
+    const host = getHostWindow();
+    if (!host) return;
+
+    const onNavigate = (event: Event) => {
+      const path = (event as CustomEvent<string>).detail;
+      if (typeof path === "string" && path.length > 0) {
+        navigate(path);
+      }
+    };
+    const onChrome = (event: Event) => {
+      setNativeChrome(Boolean((event as CustomEvent<boolean>).detail));
+    };
+
+    host.__LLM_TOOLKIT_NAVIGATE__ = (path: string) => navigate(path);
+    host.addEventListener("llm-toolkit-navigate", onNavigate);
+    host.addEventListener("llm-toolkit-native-chrome", onChrome);
+    return () => {
+      delete host.__LLM_TOOLKIT_NAVIGATE__;
+      host.removeEventListener("llm-toolkit-navigate", onNavigate);
+      host.removeEventListener("llm-toolkit-native-chrome", onChrome);
+    };
+  }, [navigate]);
 
   return (
-    <div className="flex h-screen flex-col bg-void">
-      {/* Navbar — same family as sidebar, slightly lifted */}
+    <div className={`flex h-screen flex-col bg-void${nativeChrome ? " llm-toolkit-native-host" : ""}`}>
+      {!nativeChrome && (
       <header className="flex h-14 shrink-0 items-center border-b border-border-subtle bg-canvas px-5">
         <span className="font-mono text-sm font-medium text-glow tracking-wide">agent-watch-dog</span>
         <div className="ml-6 flex h-8 items-center rounded-md border border-border-subtle bg-void p-0.5">
@@ -65,9 +92,10 @@ function LayoutShell() {
           </span>
         </div>
       </header>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar — canvas (dark charcoal), crisp border */}
+        {!nativeChrome && (
         <nav className="flex w-[220px] shrink-0 flex-col border-r border-border-subtle bg-canvas py-4">
           {navGroups.map((group, gi) => (
             <div key={group.label ?? gi}>
@@ -106,8 +134,8 @@ function LayoutShell() {
             Settings
           </NavLink>
         </nav>
+        )}
 
-        {/* Main content — surface (lifted charcoal), clearly brighter than sidebar */}
         <main className="flex-1 overflow-y-auto bg-surface">
           <div className="p-8">
             <Outlet />

@@ -339,3 +339,11 @@ screens:
     category: skill-manage (audit)
     file: 42-skill-manage-context-budget-output.md
     user_stories: [US-095]
+  - id: SCR-43
+    name: macOS Console Host
+    slug: macos-console
+    surface: macos
+    type: primary
+    category: Desktop
+    file: 43-macos-console.md
+    user_stories: [US-021, US-022, US-029, US-035, US-041, US-047, US-053, US-070, US-073]

@@ -5,7 +5,8 @@ Local-first tool (**llm-toolkit** / *Claude Assist*) for indexing, searching, ed
 ## Components
 
 - **API** (Hono) — IndexerService (raw events → universal → flat messages; optional LLM work-item extraction; chokidar); StorageService (harness-aware schema, FTS5/vec0, settings); EmbeddingService (MiniLM 384-dim); SearchService; LlmService (Anthropic + OpenAI-compatible providers); editor/operations (versioned edits, clone/rehome/archive/tag); converter/exporter (artifacts + fine-tune datasets); harness-transform (Claude/Codex export payloads); harness-transfer + session-workflow (transfer/memory stubs — transfer pending for all targets). Routes: conversations, search, datasets, prompts, projects, tags, config, index, llm, health.
-- **Web** (React + Vite + Tailwind) — Explore (unified search/browse), thread viewer/editor/convert/continue, projects, datasets, prompts, tags, settings, Safety Watch stub, style guide.
+- **Web** (React + Vite + Tailwind) — Explore (unified search/browse), thread viewer/editor/convert/continue, projects, datasets, prompts, tags, settings, Safety Watch stub, style guide. `hostBridge.ts` lets the Mac app hide chrome and drive navigation/harness.
+- **macOS** (SwiftUI + WKWebView) — Native window around the same SPA; starts or attaches to `:5173`/`:3100`; menus and sidebar cover every implemented web route.
 - **CLI** (Ink) — One-shots: `recent` (direct DB), `search`, `list`, `show`, `index`, …; full interactive TUI (Explore, Thread, Projects, Datasets, Convert, Edit, Continue, Safety Watch, Settings, …).
 - **Shared** — Types (`UniversalMessage`, `AgentHarness`, …), JSONL parsers, `ensureApi()`.
 - **skill-manage** — Rust symlink enable/disable/audit + YAML catalog/work-types; `llm-toolkit skill …`.

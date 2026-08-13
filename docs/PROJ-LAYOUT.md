@@ -11,6 +11,8 @@ llm-toolkit/
 │   ├── cli/                          #   Ink TUI + one-shot commands → [layout/cli.md](layout/cli.md)
 │   ├── shared/                       #   Types, JSONL parsers, API launcher → [layout/shared.md](layout/shared.md)
 │   └── web/                          #   Vite + React + Tailwind SPA → [layout/web.md](layout/web.md)
+├── apps/
+│   └── macos/                        #   Native Mac host → [layout/macos.md](layout/macos.md)
 ├── skill-manage/                     # Rust CLI/TUI — skills/agents/commands symlink manager
 │   ├── src/                          #   clap + ratatui sources (main, link, catalog, audit, tui/…)
 │   ├── schema/                       #   config.example.yaml, catalog.example.yaml
@@ -30,7 +32,7 @@ llm-toolkit/
 ├── docs/                             # Project documentation (this tree)
 │   ├── arch/                         #   Detail: data-flow, storage, agent-watch-dog
 │   ├── howto/                        #   Task guides (provider, convert, edit, export, manage)
-│   ├── layout/                       #   Per-package trees (api, cli, shared, web)
+│   ├── layout/                       #   Per-package trees (api, cli, shared, web, macos)
 │   ├── PROJ-ARCH.md                  #   Architecture overview
 │   ├── PROJ-ARCH.summary.md
 │   ├── PROJ-FAQ.md
@@ -66,3 +68,4 @@ llm-toolkit/
 | `INSTALL.md` | First-time setup walkthrough |
 | `skill-manage` config | `skill-manage init-config` / env vars — see `skill-manage/docs/PROJ-LAYOUT.md` |
 | Runtime data | Default DB dir `~/.llm-toolkit/` (auto-created on API boot) |
+| `apps/macos` | `make macos` / `make macos-run` (Swift 5.10+, macOS 14+) |

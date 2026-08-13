@@ -100,7 +100,9 @@ llm-toolkit/
 │   ├── shared/         # Types, JSONL parser, API launcher
 │   ├── api/            # Hono server, SQLite storage, FTS5 + vector search, indexer
 │   ├── cli/            # Ink (React for terminals) — search, list, show, index
-│   └── web/            # React + Vite + Tailwind — 10 pages, markdown rendering
+│   └── web/            # React + Vite + Tailwind — console screens
+├── apps/
+│   └── macos/          # Native Mac host — full web-console parity
 ├── design/             # Style guide, mockups, logos, sitemap
 └── package.json        # pnpm workspace root
 ```
@@ -115,8 +117,9 @@ llm-toolkit/
                     │
                     ▼
                 API Server (Hono, port 3100)
-                 ╱          ╲
-           CLI (Ink)     Web UI (Vite, port 5173)
+                 ╱          │          ╲
+           CLI (Ink)    Web UI      macOS app
+                       (Vite :5173) (WKWebView host)
 ```
 
 ### Tech Stack
@@ -157,6 +160,20 @@ Six tables across three concerns:
 | `/datasets` | Dataset list and creation |
 | `/datasets/:name` | Dataset entries, quality labels, export |
 | `/settings` | Index paths, embedding provider, reindex |
+
+## macOS app
+
+Native host at `apps/macos`. Same console as the browser — every implemented
+web route — inside a SwiftUI window.
+
+```bash
+make macos-run          # from this repo
+# or:
+make -C apps/macos run
+```
+
+See [apps/macos/README.md](apps/macos/README.md). Requires the local API/web
+stack (`pnpm dev:web`); the app starts it when it is not already running.
 
 ## API Endpoints
 
