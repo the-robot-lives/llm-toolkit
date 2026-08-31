@@ -113,6 +113,7 @@ const MODEL_PLACEHOLDERS: Record<string, string> = {
   litellm: "claude-sonnet-4-6",
   groq: "llama-3.3-70b",
   deepseek: "deepseek-chat",
+  zai: "glm-5.3-flash",
 };
 
 function selectedOptionIndex(options: MenuOption[], value: string | undefined): number {
@@ -266,7 +267,21 @@ export function SettingsPage() {
       setUiMode("browse");
       showAction(`Embedding provider set to ${value}`);
     } else if (uiMode === "select-llm") {
-      setConfig(value ? { ...config, llm: { ...config.llm, provider: value } } : { ...config, llm: undefined });
+      if (!value) {
+        setConfig({ ...config, llm: undefined });
+      } else if (value === "zai") {
+        setConfig({
+          ...config,
+          llm: {
+            ...config.llm,
+            provider: "zai",
+            model: "glm-5.3-flash",
+            baseUrl: "https://api.z.ai/api/coding/paas/v4",
+          },
+        });
+      } else {
+        setConfig({ ...config, llm: { ...config.llm, provider: value } });
+      }
       setDirty(true);
       setUiMode("browse");
       showAction(value ? `LLM provider set to ${value}` : "LLM provider cleared");
@@ -289,7 +304,7 @@ export function SettingsPage() {
   const indexStatus = idxData?.data;
   const lastIndexed = indexStatus?.lastIndexed ? new Date(indexStatus.lastIndexed).toLocaleString() : "Never";
   const llmProvider = activeConfig.llm?.provider ?? "";
-  const llmNeedsBaseUrl = llmProvider === "ollama" || llmProvider === "litellm" || llmProvider === "custom";
+  const llmNeedsBaseUrl = llmProvider === "ollama" || llmProvider === "litellm" || llmProvider === "custom" || llmProvider === "zai";
 
   const sectionActions: Record<Section, ActionButton[]> = {
     index: [

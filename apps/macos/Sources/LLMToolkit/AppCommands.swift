@@ -22,10 +22,14 @@ struct AppCommands: Commands {
             destination("Safety Watch", item: .safetyWatch, key: "2")
             destination("Datasets", item: .datasets, key: "3")
             destination("Prompts", item: .prompts, key: "4")
-            destination("Tags", item: .tags, key: "5")
-            destination("Projects", item: .projects, key: "6")
-            destination("Settings", item: .settings, key: "7")
-            destination("Style Guide", item: .styleGuide, key: "8")
+            destination("Skills", item: .skills, key: "5")
+            Button("Agents") { model?.open(.agents) }
+            Button("Commands") { model?.open(.commands) }
+            Button("MCP") { model?.open(.mcp) }
+            destination("Tags", item: .tags, key: "6")
+            destination("Projects", item: .projects, key: "7")
+            destination("Settings", item: .settings, key: "8")
+            destination("Style Guide", item: .styleGuide, key: "9")
         }
 
         CommandMenu("Harness") {

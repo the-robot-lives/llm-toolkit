@@ -21,7 +21,7 @@ Set the provider's key before starting the API; it overlays whatever's saved in 
 | Groq | `GROQ_API_KEY` |
 | Cerebras | `CEREBRAS_API_KEY` |
 | DeepSeek | `DEEPSEEK_API_KEY` |
-| Z.ai | `ZAI_API_KEY` |
+| Z.ai | `ZAI_API_KEY` (Coding Plan uses `https://api.z.ai/api/coding/paas/v4`; general pay-as-you-go uses `https://api.z.ai/api/paas/v4`) |
 | LiteLLM | `LITELLM_API_KEY` (falls back to `OPENAI_API_KEY` if unset) |
 | Ollama | `OLLAMA_BASE_URL` (overrides baseUrl; no key needed) |
 | LiteLLM base URL | `LITELLM_BASE_URL` |

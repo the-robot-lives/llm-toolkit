@@ -20,7 +20,7 @@ const PROVIDER_DEFAULTS: Record<string, { envKey?: string; baseUrl?: string; mod
   groq: { envKey: "GROQ_API_KEY", baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b", label: "groq" },
   cerebras: { envKey: "CEREBRAS_API_KEY", baseUrl: "https://api.cerebras.ai/v1", model: "llama-3.3-70b", label: "cerebras" },
   deepseek: { envKey: "DEEPSEEK_API_KEY", baseUrl: "https://api.deepseek.com", model: "deepseek-chat", label: "deepseek" },
-  zai: { envKey: "ZAI_API_KEY", baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4", label: "zai" },
+  zai: { envKey: "ZAI_API_KEY", baseUrl: "https://api.z.ai/api/coding/paas/v4", model: "glm-5.3-flash", label: "zai" },
 };
 
 class AnthropicProvider implements LlmProvider {
@@ -133,8 +133,10 @@ class OpenAICompatibleProvider implements LlmProvider {
     });
 
     const choice = response.choices[0];
+    const message = choice?.message as { content?: string | null; reasoning_content?: string } | undefined;
+    const content = (message?.content && message.content.trim()) || message?.reasoning_content || "";
     return {
-      content: choice?.message?.content ?? "",
+      content,
       model: response.model,
       provider: this.providerLabel,
       usage: response.usage

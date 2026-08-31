@@ -2,9 +2,11 @@ import { Hono } from "hono";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { AppConfig } from "@llm-toolkit/shared";
+import type { AppConfig, ArtifactKind, SkillsConfig } from "@llm-toolkit/shared";
 import type { StorageService } from "../services/storage.ts";
 import type { LlmService } from "../services/llm.ts";
+import { defaultSkillsConfig, migrateSkillsConfig } from "../services/skills.ts";
+import { resolveKindConfig } from "../services/artifacts.ts";
 
 const CONFIG_KEY = "app_config";
 
@@ -16,6 +18,10 @@ const DEFAULTS: AppConfig = {
   ],
   embedding: { provider: "local", model: "all-MiniLM-L6-v2" },
   server: { port: 3100, host: "localhost" },
+  skills: defaultSkillsConfig(),
+  agents: defaultSkillsConfig(),
+  commands: defaultSkillsConfig(),
+  mcp: defaultSkillsConfig(),
 };
 
 const LLM_ENV_KEYS: Record<string, string> = {
@@ -87,7 +93,7 @@ function migrateLegacyConfig(storage: StorageService): Partial<AppConfig> {
   }
 }
 
-function loadConfig(storage: StorageService): AppConfig {
+export function loadConfig(storage: StorageService): AppConfig {
   let dbConfig: Partial<AppConfig> = {};
   const raw = storage.getSetting(CONFIG_KEY);
   if (raw) {
@@ -106,8 +112,34 @@ function loadConfig(storage: StorageService): AppConfig {
     merged.indexSources = merged.indexPaths.map((path) => ({ harness: "claude", path, format: "jsonl" }));
   }
   if (dbConfig.llm) merged.llm = dbConfig.llm;
+  merged.skills = migrateSkillsConfig(dbConfig.skills);
+  merged.agents = resolveKindConfig("agents", merged.skills, dbConfig.agents);
+  merged.commands = resolveKindConfig("commands", merged.skills, dbConfig.commands);
+  merged.mcp = resolveKindConfig("mcp", merged.skills, dbConfig.mcp);
 
   return applyEnvOverlays(merged);
+}
+
+export function persistSkillsConfig(storage: StorageService, skills: SkillsConfig): AppConfig {
+  return persistArtifactConfig(storage, "skills", skills);
+}
+
+export function persistArtifactConfig(storage: StorageService, kind: ArtifactKind, config: SkillsConfig): AppConfig {
+  const current = loadConfig(storage);
+  current[kind] = migrateSkillsConfig(config);
+  persistConfig(storage, current);
+  return sanitizeForResponse(current);
+}
+
+function persistConfig(storage: StorageService, current: AppConfig): void {
+  const toStore = structuredClone(current);
+  const embEnvKey = LLM_ENV_KEYS[toStore.embedding.provider];
+  if (embEnvKey && process.env[embEnvKey]) delete toStore.embedding.apiKey;
+  if (toStore.llm?.provider) {
+    const llmEnvKey = LLM_ENV_KEYS[toStore.llm.provider];
+    if (llmEnvKey && process.env[llmEnvKey]) delete toStore.llm.apiKey;
+  }
+  storage.setSetting(CONFIG_KEY, JSON.stringify(toStore));
 }
 
 // ⟦𓁫𓉳𓉎𓅅⟧ createConfigRoutes :: auto-generated pointer for public function createConfigRoutes
@@ -134,16 +166,20 @@ export function createConfigRoutes(storage: StorageService, llmService: LlmServi
       if (isMaskedKey(updates.llm.apiKey)) delete updates.llm.apiKey;
       current.llm = { ...current.llm, ...updates.llm };
     }
-
-    // Persist to SQLite (strip env-overlay keys so they don't leak into DB)
-    const toStore = structuredClone(current);
-    const embEnvKey = LLM_ENV_KEYS[toStore.embedding.provider];
-    if (embEnvKey && process.env[embEnvKey]) delete toStore.embedding.apiKey;
-    if (toStore.llm?.provider) {
-      const llmEnvKey = LLM_ENV_KEYS[toStore.llm.provider];
-      if (llmEnvKey && process.env[llmEnvKey]) delete toStore.llm.apiKey;
+    if (updates.skills) {
+      current.skills = migrateSkillsConfig({ ...current.skills, ...updates.skills });
     }
-    storage.setSetting(CONFIG_KEY, JSON.stringify(toStore));
+    if (updates.agents) {
+      current.agents = migrateSkillsConfig({ ...current.agents, ...updates.agents });
+    }
+    if (updates.commands) {
+      current.commands = migrateSkillsConfig({ ...current.commands, ...updates.commands });
+    }
+    if (updates.mcp) {
+      current.mcp = migrateSkillsConfig({ ...current.mcp, ...updates.mcp });
+    }
+
+    persistConfig(storage, current);
 
     // Hot-reconfigure LLM service if LLM config changed
     if (updates.llm) {
@@ -156,4 +192,4 @@ export function createConfigRoutes(storage: StorageService, llmService: LlmServi
   return routes;
 }
 
-export { loadConfig };
+

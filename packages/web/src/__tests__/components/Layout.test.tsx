@@ -20,6 +20,10 @@ describe("Layout", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText("Explore")).toBeInTheDocument();
+    expect(screen.getByText("Skills")).toBeInTheDocument();
+    expect(screen.getByText("Agents")).toBeInTheDocument();
+    expect(screen.getByText("Commands")).toBeInTheDocument();
+    expect(screen.getByText("MCP")).toBeInTheDocument();
     expect(screen.getByText("Datasets")).toBeInTheDocument();
     expect(screen.getByText("Prompts")).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();

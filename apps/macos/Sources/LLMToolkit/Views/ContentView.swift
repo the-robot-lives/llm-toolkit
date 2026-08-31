@@ -38,6 +38,18 @@ struct ContentView: View {
         .onDisappear {
             model.stop()
         }
+        .alert("Toolkit error", isPresented: errorAlertPresented) {
+            Button("OK", role: .cancel) { model.lastError = nil }
+        } message: {
+            Text(model.lastError ?? "")
+        }
+    }
+
+    private var errorAlertPresented: Binding<Bool> {
+        Binding(
+            get: { model.lastError != nil && model.health.isReady },
+            set: { if !$0 { model.lastError = nil } }
+        )
     }
 
     @ToolbarContentBuilder

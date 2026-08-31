@@ -13,6 +13,10 @@ import { Tags } from "./pages/Tags.js";
 import { Projects } from "./pages/Projects.js";
 import { ProjectDetail } from "./pages/ProjectDetail.js";
 import { Settings } from "./pages/Settings.js";
+import { Skills } from "./pages/Skills.js";
+import { Agents } from "./pages/Agents.js";
+import { Commands } from "./pages/Commands.js";
+import { Mcp } from "./pages/Mcp.js";
 import { StyleGuide } from "./pages/StyleGuide.js";
 import { SafetyWatch } from "./pages/SafetyWatch.js";
 
@@ -32,6 +36,14 @@ export function App() {
         <Route path="datasets" element={<Datasets />} />
         <Route path="datasets/:name" element={<DatasetDetail />} />
         <Route path="prompts" element={<Prompts />} />
+        <Route path="skills" element={<Skills />} />
+        <Route path="skills/:name" element={<Skills />} />
+        <Route path="agents" element={<Agents />} />
+        <Route path="agents/:name" element={<Agents />} />
+        <Route path="commands" element={<Commands />} />
+        <Route path="commands/:name" element={<Commands />} />
+        <Route path="mcp" element={<Mcp />} />
+        <Route path="mcp/:name" element={<Mcp />} />
         <Route path="tags" element={<Tags />} />
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:slug" element={<ProjectDetail />} />

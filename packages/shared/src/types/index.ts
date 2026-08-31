@@ -384,6 +384,114 @@ export interface LlmConfig {
   apiType?: "openai" | "anthropic";
 }
 
+export type SkillDestinationKind = "global" | "project";
+
+export type SkillInstallStatus = "enabled" | "disabled" | "foreign" | "real" | "broken";
+
+export type SkillProvider = "claude" | "codex" | "grok" | "gemini" | "opencode";
+
+export type ArtifactKind = "skills" | "agents" | "commands" | "mcp";
+
+export type ArtifactLinkStyle = "dir" | "file" | "config";
+
+export type McpConfigFormat = "claude-json" | "mcp-json" | "toml-mcp" | "json-mcpServers" | "opencode-json";
+
+export interface SkillProviderSpec {
+  id: SkillProvider;
+  title: string;
+  /** Home-level skills dir, using ~ */
+  globalDir: string;
+  /** Project-relative skills dir */
+  projectDir: string;
+}
+
+export interface ArtifactDestSpec {
+  /** Home-level dest (dir or config file), using ~ */
+  global: string;
+  /** Project-relative dest (dir or config file) */
+  project: string;
+  style: ArtifactLinkStyle;
+  /** Destination filename suffix for file-style kinds (e.g. ".md") */
+  suffix?: string;
+  format?: McpConfigFormat;
+}
+
+export const SKILL_PROVIDER_ORDER: SkillProvider[] = ["claude", "codex", "grok", "gemini", "opencode"];
+
+export const ARTIFACT_KIND_ORDER: ArtifactKind[] = ["skills", "agents", "commands", "mcp"];
+
+const PROVIDER_TITLES: Record<SkillProvider, string> = {
+  claude: "Claude",
+  codex: "Codex",
+  grok: "Grok",
+  gemini: "Gemini",
+  opencode: "OpenCode",
+};
+
+export const ARTIFACT_DEST_SPECS: Record<SkillProvider, Record<ArtifactKind, ArtifactDestSpec>> = {
+  claude: {
+    skills: { global: "~/.claude/skills", project: ".claude/skills", style: "dir" },
+    agents: { global: "~/.claude/agents", project: ".claude/agents", style: "file", suffix: ".md" },
+    commands: { global: "~/.claude/commands", project: ".claude/commands", style: "file", suffix: ".md" },
+    mcp: { global: "~/.claude.json", project: ".mcp.json", style: "config", format: "claude-json" },
+  },
+  codex: {
+    skills: { global: "~/.codex/skills", project: ".codex/skills", style: "dir" },
+    agents: { global: "~/.codex/agents", project: ".codex/agents", style: "file", suffix: ".md" },
+    commands: { global: "~/.codex/commands", project: ".codex/commands", style: "file", suffix: ".md" },
+    mcp: { global: "~/.codex/config.toml", project: ".codex/config.toml", style: "config", format: "toml-mcp" },
+  },
+  grok: {
+    skills: { global: "~/.grok/skills", project: ".grok/skills", style: "dir" },
+    agents: { global: "~/.grok/agents", project: ".grok/agents", style: "file", suffix: ".md" },
+    commands: { global: "~/.grok/commands", project: ".grok/commands", style: "file", suffix: ".md" },
+    mcp: { global: "~/.grok/config.toml", project: ".grok/config.toml", style: "config", format: "toml-mcp" },
+  },
+  gemini: {
+    skills: { global: "~/.gemini/skills", project: ".gemini/skills", style: "dir" },
+    agents: { global: "~/.gemini/agents", project: ".gemini/agents", style: "file", suffix: ".md" },
+    commands: { global: "~/.gemini/commands", project: ".gemini/commands", style: "file", suffix: ".md" },
+    mcp: { global: "~/.gemini/settings.json", project: ".gemini/settings.json", style: "config", format: "json-mcpServers" },
+  },
+  opencode: {
+    skills: { global: "~/.config/opencode/skills", project: ".opencode/skills", style: "dir" },
+    agents: { global: "~/.config/opencode/agents", project: ".opencode/agents", style: "file", suffix: ".md" },
+    commands: { global: "~/.config/opencode/commands", project: ".opencode/commands", style: "file", suffix: ".md" },
+    mcp: { global: "~/.config/opencode/opencode.jsonc", project: "opencode.json", style: "config", format: "opencode-json" },
+  },
+};
+
+export const SKILL_PROVIDER_SPECS: Record<SkillProvider, SkillProviderSpec> = {
+  claude: { id: "claude", title: PROVIDER_TITLES.claude, globalDir: ARTIFACT_DEST_SPECS.claude.skills.global, projectDir: ARTIFACT_DEST_SPECS.claude.skills.project },
+  codex: { id: "codex", title: PROVIDER_TITLES.codex, globalDir: ARTIFACT_DEST_SPECS.codex.skills.global, projectDir: ARTIFACT_DEST_SPECS.codex.skills.project },
+  grok: { id: "grok", title: PROVIDER_TITLES.grok, globalDir: ARTIFACT_DEST_SPECS.grok.skills.global, projectDir: ARTIFACT_DEST_SPECS.grok.skills.project },
+  gemini: { id: "gemini", title: PROVIDER_TITLES.gemini, globalDir: ARTIFACT_DEST_SPECS.gemini.skills.global, projectDir: ARTIFACT_DEST_SPECS.gemini.skills.project },
+  opencode: { id: "opencode", title: PROVIDER_TITLES.opencode, globalDir: ARTIFACT_DEST_SPECS.opencode.skills.global, projectDir: ARTIFACT_DEST_SPECS.opencode.skills.project },
+};
+
+export interface SkillDestination {
+  id: string;
+  label: string;
+  /** Absolute (or ~) path to a skills directory, e.g. ~/.claude/skills or <project>/.claude/skills */
+  path: string;
+  kind: SkillDestinationKind;
+  provider?: SkillProvider;
+  projectRoot?: string;
+}
+
+export interface SkillsConfig {
+  /** Source trees that contain SKILL.md packages and optional categories.yaml */
+  sourceFolders: string[];
+  /** Providers whose skill folders are targeted */
+  providers?: SkillProvider[];
+  /** When true, include each selected provider's home-level skills dir */
+  globalEnabled?: boolean;
+  /** Project roots; each becomes <root>/<provider.projectDir> for selected providers */
+  projectRoots?: string[];
+  /** Legacy explicit dest list — still honored if providers is unset */
+  destinations?: SkillDestination[];
+}
+
 export interface AppConfig {
   indexPaths: string[];
   indexSources?: IndexSource[];
@@ -397,6 +505,10 @@ export interface AppConfig {
     port: number;
     host: string;
   };
+  skills?: SkillsConfig;
+  agents?: SkillsConfig;
+  commands?: SkillsConfig;
+  mcp?: SkillsConfig;
 }
 
 // LLM inference

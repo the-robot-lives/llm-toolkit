@@ -16,9 +16,9 @@ Re-scanning every JSONL file on every keyword search doesn't scale past a few do
 
 → *See [PROJ-HOWTO.md](PROJ-HOWTO.md#how-to-rebuild-the-search-index).*
 
-### Why does the project have both a Web UI and a terminal TUI instead of just one?
+### Why web, TUI, and a Mac app?
 
-Different moments call for different interfaces: the Web UI is better for thread reading (rendered markdown, Mermaid, LaTeX) and dataset curation with a mouse; the Ink TUI is for staying inside a terminal-only workflow (tmux/zellij, SSH sessions, keyboard-only). Both hit the same Hono API and SQLite DB, so neither is the "real" one — pick per-task, not once.
+The SPA is the full console (markdown, Mermaid, Skills). The Mac host is that SPA in a native window (`make install-osx`). The Ink TUI is the same API for terminal-only workflows. None of them is the “real” backend — Hono + SQLite is.
 
 ## Fit
 

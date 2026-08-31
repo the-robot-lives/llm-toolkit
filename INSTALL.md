@@ -8,23 +8,30 @@
 ## Install
 
 ```bash
-cd projects/llm-toolkit
+cd Portfolio/Apps/AI/llm-toolkit   # or this checkout
 pnpm install
+# or:
+make install                       # deps + launcher on PATH + completions
 ```
 
 This installs all workspace dependencies across the four packages (`api`, `cli`, `web`, `shared`).
 
 ### macOS app
 
-The native Mac host lives at `apps/macos` and is not part of `pnpm install`.
-After the JS stack is installed:
+The native Mac host lives at `apps/macos` and is not part of `make install`
+(that target is the CLI launcher + completions, and must stay valid without
+Swift). After the JS stack is installed:
 
 ```bash
+make install-osx        # build LLM Toolkit.app and copy it to /Applications
 make macos              # swift test + debug build
-make macos-run          # launch (starts pnpm dev:web if needed)
+make macos-run          # launch without installing
 ```
 
-Requires macOS 14+ and Swift 5.10+. See `apps/macos/README.md`.
+`make install-osx` (`install-macos`, `install/osx`, and `install/macos` are
+aliases) is the binplace step. Override the destination with
+`INSTALL_DIR=$HOME/Applications`. Requires macOS 14+ and Swift 5.10+. See
+`apps/macos/README.md`.
 
 ## Development
 

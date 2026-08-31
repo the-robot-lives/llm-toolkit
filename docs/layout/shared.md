@@ -1,17 +1,17 @@
 # packages/shared — Shared Types and Parsers
 
-Common type definitions, JSONL parsers, and utilities shared across api, cli, and web packages.
+Types, JSONL parsers, and `ensureApi()` used by api, cli, and web.
 
 ```
 shared/
 ├── src/
-│   ├── parsers/                # Conversation file parsers
-│   │   └── index.ts            #   JSONL parsing logic
-│   ├── types/                  # TypeScript type definitions
-│   │   └── index.ts            #   Conversation, message, search result types
-│   ├── api-launcher.ts         # API server auto-launch helper
-│   ├── __tests__/              # Unit tests
-│   └── index.ts                # Package entry point (re-exports)
+│   ├── parsers/                # Conversation JSONL parsers
+│   ├── types/                  # UniversalMessage, AppConfig, SkillsConfig, …
+│   ├── api-launcher.ts         # Node-only API auto-start (do not import from web)
+│   ├── __tests__/
+│   └── index.ts                # Re-exports (includes api-launcher)
 ├── package.json
 └── tsconfig.json
 ```
+
+Web UI should import types from this package carefully: the barrel also exports Node `api-launcher`.

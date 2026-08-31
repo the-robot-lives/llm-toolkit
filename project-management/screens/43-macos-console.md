@@ -14,11 +14,11 @@ hosting that SPA, not of a second implementation.
 
 ## Layout
 
-- NavigationSplitView sidebar: Explore, Safety Watch, Datasets, Prompts, Tags, Projects, Settings
+- NavigationSplitView sidebar: Explore, Safety Watch, Skills, Datasets, Prompts, Tags, Projects, Settings
 - Toolbar: harness segmented control, search field, index badge, reload
 - Detail: WKWebView of the matching web route, or a connection pane if :5173 / :3100 are down
 - Settings scene: URLs, toolkit root, auto-start, native-chrome toggle
-- Menus: Go (⌘1–⌘8), Harness, Conversation (view/edit/convert/continue/clone/archive), Index
+- Menus: Go (⌘1–⌘9), Harness, Conversation (view/edit/convert/continue/clone/archive), Index
 
 ## Native chrome
 
@@ -36,4 +36,5 @@ header and sidebar. The Mac sidebar and menus drive `llm-toolkit-navigate` /
 
 - `apps/macos/README.md`
 - `docs/layout/macos.md`
+- `make install-osx` — build + copy `/Applications/LLM Toolkit.app`
 - SCR-01 … SCR-15 (the hosted web screens)

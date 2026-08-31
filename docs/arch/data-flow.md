@@ -27,6 +27,8 @@ flowchart LR
 
 Gemini, OpenCode, Aider, and Other source ids are accepted but importer behavior is stubbed until real transcripts exist.
 
+Skill enable/disable does **not** go through this pipeline — it only writes filesystem symlinks. → [skills.md](skills.md)
+
 ## Search pipeline
 
 ```mermaid

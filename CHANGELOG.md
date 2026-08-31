@@ -3,7 +3,12 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## [Unreleased]
+- Agents, Commands, and MCP pages share the Skills targeting bar (providers, Global, projects); agents/commands symlink `*.md`, MCP writes provider config entries
+- README, PROJ-ARCH, and PROJ-LAYOUT refreshed for the Mac host, Skills page, and current install targets
 - Native macOS app (`apps/macos`) hosts the full web console with SwiftUI chrome, menus, server supervisor, and route parity for every implemented SPA page
+- `make install-osx` (aliases: `install-macos`, `install/osx`, `install/macos`) builds `LLM Toolkit.app` and copies it to `/Applications`; the app bundle stamps the checkout path so the installed host still finds this tree
+- Skills is a first-class sidebar page (`/skills`) with a category rail, skill list, and inspector; Settings only links to it
+- Skills targeting is per-provider (Claude, Codex, Grok, Gemini, OpenCode) with a Global on/off and multi-select project dropdown; enable writes the matching `~/.…/skills` or `<project>/.…/skills` symlink for each selected target
 - Web Layout/Harness grow a Mac-host bridge (`hostBridge.ts`) so the desktop shell can hide web chrome, navigate, and switch harnesses
 - NPL architecture/layout docs refreshed: `docs/PROJ-ARCH.md`, `docs/PROJ-LAYOUT.md`, summaries, and per-package `docs/layout/{api,cli,web}.md` (commit `ff72b3565bf`, 2026-07-16)
 

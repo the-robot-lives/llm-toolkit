@@ -5,7 +5,7 @@ Question index for [PROJ-FAQ.md](PROJ-FAQ.md). Use this to check "is my question
 ## Motivation
 - Why would I use Claude Assist instead of just grepping `~/.claude/projects/*.jsonl` myself?
 - Why index into SQLite instead of searching the JSONL files directly on every query?
-- Why does the project have both a Web UI and a terminal TUI instead of just one?
+- Why web, TUI, and a Mac app?
 
 ## Fit
 - Is this worth running if I only use Claude Code occasionally and have a handful of conversations?

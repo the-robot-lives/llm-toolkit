@@ -23,11 +23,15 @@ struct SettingsView: View {
                 Toggle("Use native Mac chrome", isOn: $model.preferences.useNativeChrome)
                 Toggle("Start automatically", isOn: $model.preferences.autoStartServers)
                 Toggle("Stop on quit (only if this app started it)", isOn: $model.preferences.stopServersOnQuit)
+                TextField("API URL", text: apiURLBinding)
                 HStack {
                     TextField("Checkout", text: $model.preferences.toolkitRootPath)
                     Button("Browse…") { model.chooseToolkitRoot() }
                 }
-                Text("Leave blank to auto-detect from LLM_TOOLKIT_ROOT, the current directory, or ~/.local/bin/llm-toolkit.")
+                if let root = model.resolvedToolkitRoot {
+                    LabeledContent("Detected", value: root.path)
+                }
+                Text("Leave blank to auto-detect from the stamped install path, LLM_TOOLKIT_ROOT, the current directory, or ~/.local/bin/llm-toolkit.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -54,5 +58,17 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private var apiURLBinding: Binding<String> {
+        Binding(
+            get: { model.preferences.apiURL.absoluteString },
+            set: { value in
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let url = URL(string: trimmed), url.scheme != nil {
+                    model.preferences.apiURL = url
+                }
+            }
+        )
     }
 }

@@ -16,6 +16,10 @@ public struct ConsoleRoute: Hashable, Sendable, Codable {
     public static let safetyWatch = ConsoleRoute(path: "/safety-watch")
     public static let datasets = ConsoleRoute(path: "/datasets")
     public static let prompts = ConsoleRoute(path: "/prompts")
+    public static let skills = ConsoleRoute(path: "/skills")
+    public static let agents = ConsoleRoute(path: "/agents")
+    public static let commands = ConsoleRoute(path: "/commands")
+    public static let mcp = ConsoleRoute(path: "/mcp")
     public static let tags = ConsoleRoute(path: "/tags")
     public static let projects = ConsoleRoute(path: "/projects")
     public static let settings = ConsoleRoute(path: "/settings")
@@ -72,6 +76,14 @@ public struct ConsoleRoute: Hashable, Sendable, Codable {
         .datasets,
         ConsoleRoute(path: "/datasets/:name"),
         .prompts,
+        .skills,
+        ConsoleRoute(path: "/skills/:name"),
+        .agents,
+        ConsoleRoute(path: "/agents/:name"),
+        .commands,
+        ConsoleRoute(path: "/commands/:name"),
+        .mcp,
+        ConsoleRoute(path: "/mcp/:name"),
         .tags,
         .projects,
         ConsoleRoute(path: "/projects/:slug"),
@@ -117,6 +129,14 @@ public struct ConsoleRoute: Hashable, Sendable, Codable {
             return .datasets
         case "prompts":
             return .prompts
+        case "skills":
+            return .skills
+        case "agents":
+            return .agents
+        case "commands":
+            return .commands
+        case "mcp":
+            return .mcp
         case "tags":
             return .tags
         case "projects":
@@ -147,6 +167,14 @@ public struct ConsoleRoute: Hashable, Sendable, Codable {
             return segs.count > 1 ? "Dataset" : "Datasets"
         case "prompts":
             return "Prompts"
+        case "skills":
+            return segs.count > 1 ? "Skill" : "Skills"
+        case "agents":
+            return segs.count > 1 ? "Agent" : "Agents"
+        case "commands":
+            return segs.count > 1 ? "Command" : "Commands"
+        case "mcp":
+            return segs.count > 1 ? "MCP Server" : "MCP"
         case "tags":
             return "Tags"
         case "projects":
@@ -226,6 +254,10 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
     case safetyWatch
     case datasets
     case prompts
+    case skills
+    case agents
+    case commands
+    case mcp
     case tags
     case projects
     case settings
@@ -239,6 +271,10 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
         case .safetyWatch: return "Safety Watch"
         case .datasets: return "Datasets"
         case .prompts: return "Prompts"
+        case .skills: return "Skills"
+        case .agents: return "Agents"
+        case .commands: return "Commands"
+        case .mcp: return "MCP"
         case .tags: return "Tags"
         case .projects: return "Projects"
         case .settings: return "Settings"
@@ -252,6 +288,10 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
         case .safetyWatch: return "shield.lefthalf.filled"
         case .datasets: return "cylinder.split.1x2"
         case .prompts: return "text.badge.star"
+        case .skills: return "hexagon"
+        case .agents: return "person.2"
+        case .commands: return "command"
+        case .mcp: return "point.3.connected.trianglepath.dotted"
         case .tags: return "tag"
         case .projects: return "folder"
         case .settings: return "gearshape"
@@ -265,6 +305,10 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
         case .safetyWatch: return .safetyWatch
         case .datasets: return .datasets
         case .prompts: return .prompts
+        case .skills: return .skills
+        case .agents: return .agents
+        case .commands: return .commands
+        case .mcp: return .mcp
         case .tags: return .tags
         case .projects: return .projects
         case .settings: return .settings
@@ -274,6 +318,6 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
 
     /// Persistent sidebar groups matching `packages/web/src/components/Layout.tsx`.
     public static let primary: [SidebarItem] = [.explore, .safetyWatch]
-    public static let library: [SidebarItem] = [.datasets, .prompts, .tags, .projects]
+    public static let library: [SidebarItem] = [.skills, .agents, .commands, .mcp, .datasets, .prompts, .tags, .projects]
     public static let utility: [SidebarItem] = [.settings]
 }

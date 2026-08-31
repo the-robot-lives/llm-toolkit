@@ -347,3 +347,43 @@ screens:
     category: Desktop
     file: 43-macos-console.md
     user_stories: [US-021, US-022, US-029, US-035, US-041, US-047, US-053, US-070, US-073]
+  - id: SCR-44
+    name: Skills
+    slug: skills
+    surface: web
+    type: primary
+    category: Library
+    file: 44-skills.md
+    user_stories: []
+  - id: SCR-45
+    name: Promo / Download Page
+    slug: promo-download
+    surface: marketing
+    type: primary
+    category: Discovery
+    file: 45-promo-download.md
+    user_stories: []
+  - id: SCR-46
+    name: Agents
+    slug: agents
+    surface: web
+    type: primary
+    category: Library
+    file: 46-agents.md
+    user_stories: []
+  - id: SCR-47
+    name: Commands
+    slug: commands
+    surface: web
+    type: primary
+    category: Library
+    file: 47-commands.md
+    user_stories: []
+  - id: SCR-48
+    name: MCP
+    slug: mcp
+    surface: web
+    type: primary
+    category: Library
+    file: 48-mcp.md
+    user_stories: []

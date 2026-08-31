@@ -18,14 +18,20 @@ From this directory:
 make run          # swift run LLMToolkit
 make test         # route catalog + locator + launch-plan tests
 make app          # assemble .build/LLM Toolkit.app
+make install      # same as make install-osx from the repo root
 ```
 
 From the toolkit root:
 
 ```bash
+make install-osx  # build + copy /Applications/LLM Toolkit.app
 make macos        # tests + debug build
-make macos-run    # launch the Mac app
+make macos-run    # launch the Mac app without installing
 ```
+
+`make install` is the CLI + completions path and does not install the .app.
+`install-osx`, `install-macos`, `install/osx`, and `install/macos` are aliases.
+Override the destination with `INSTALL_DIR=$HOME/Applications`.
 
 On first launch the app probes `http://localhost:3100/api/health`. If that
 is down it locates the checkout, builds the console into `packages/web/dist`
@@ -41,6 +47,10 @@ if needed, and starts `pnpm dev:api`. Override the checkout with
 | Thread / Edit / Convert / Continue | `/thread/:id`, `/edit`, `/convert`, `/continue` |
 | Datasets / Dataset | `/datasets`, `/datasets/:name` |
 | Prompts | `/prompts` |
+| Skills | `/skills`, `/skills/:name` |
+| Agents | `/agents`, `/agents/:name` |
+| Commands | `/commands`, `/commands/:name` |
+| MCP | `/mcp`, `/mcp/:name` |
 | Tags | `/tags` |
 | Projects / Project | `/projects`, `/projects/:slug` |
 | Settings | `/settings` |
@@ -48,7 +58,7 @@ if needed, and starts `pnpm dev:api`. Override the checkout with
 
 Merge (`SCR-08`) is not a web route yet, so it is not in the Mac app either.
 
-Menus: **Go** (⌘1–⌘8), **Harness**, **Conversation** (edit/convert/continue/clone/archive), **Index**.
+Menus: **Go** (⌘1–⌘9), **Harness**, **Conversation** (edit/convert/continue/clone/archive), **Index**.
 
 When *Use native Mac chrome* is on (default), the web sidebar/header hide and
 the SwiftUI sidebar drives the same pages. Turn it off in Settings to see the
@@ -79,7 +89,7 @@ apps/macos/
 ├── Package.swift
 ├── Makefile
 ├── Info.plist
-├── Sources/LLMToolkitKit/     # routes, prefs, locator, health, API, supervisor
+├── Sources/LLMToolkitKit/     # routes, prefs, locator, stamp, health, API, supervisor
 ├── Sources/LLMToolkit/        # SwiftUI app, WKWebView host, menus
 └── Tests/LLMToolkitTests/
 ```

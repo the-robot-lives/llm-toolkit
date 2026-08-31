@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { apiFetch, useIndexStatus } from "../hooks/useApi.js";
 
 interface LlmConfig {
@@ -205,7 +206,7 @@ export function Settings() {
   const embeddingNeedsKey = config?.embedding.provider && config.embedding.provider !== "local";
   const llmProvider = config?.llm?.provider ?? "";
   const llmNeedsKey = llmProvider && llmProvider !== "ollama";
-  const llmNeedsBaseUrl = llmProvider === "ollama" || llmProvider === "litellm" || llmProvider === "custom";
+  const llmNeedsBaseUrl = llmProvider === "ollama" || llmProvider === "litellm" || llmProvider === "custom" || llmProvider === "zai";
   const llmIsCustom = llmProvider === "custom";
 
   const ENV_KEY_NAMES: Record<string, string> = {
@@ -226,13 +227,14 @@ export function Settings() {
     groq: "llama-3.3-70b",
     cerebras: "llama-3.3-70b",
     deepseek: "deepseek-chat",
-    zai: "glm-4",
+    zai: "glm-5.3-flash",
     custom: "model-name",
   };
 
   const BASE_URL_PLACEHOLDERS: Record<string, string> = {
     ollama: "http://localhost:11434",
     litellm: "https://inference.noizu.com/v1",
+    zai: "https://api.z.ai/api/coding/paas/v4",
     custom: "https://api.example.com/v1",
   };
 
@@ -480,6 +482,16 @@ export function Settings() {
                   setAvailableModels([]);
                   if (!val) {
                     setConfig({ ...config, llm: undefined });
+                  } else if (val === "zai") {
+                    setConfig({
+                      ...config,
+                      llm: {
+                        provider: "zai",
+                        apiKey: config.llm?.apiKey,
+                        model: "glm-5.3-flash",
+                        baseUrl: "https://api.z.ai/api/coding/paas/v4",
+                      },
+                    });
                   } else {
                     setConfig({ ...config, llm: { provider: val, apiKey: config.llm?.apiKey } });
                   }
@@ -643,6 +655,18 @@ export function Settings() {
             )}
           </div>
         </section>
+
+        <p className="text-xs text-text-dim">
+          Skill, agent, command, and MCP catalogs live on{" "}
+          <Link to="/skills" className="text-glow hover:underline">Skills</Link>
+          {", "}
+          <Link to="/agents" className="text-glow hover:underline">Agents</Link>
+          {", "}
+          <Link to="/commands" className="text-glow hover:underline">Commands</Link>
+          {", and "}
+          <Link to="/mcp" className="text-glow hover:underline">MCP</Link>
+          .
+        </p>
 
         {/* Save */}
         <div className="flex justify-end">

@@ -1,62 +1,44 @@
 # Project Layout
 
-pnpm monorepo (Claude Assist / llm-toolkit): search, browse, edit, and extract artifacts from coding-agent conversations. TypeScript packages under `packages/`; embedded Rust skill linker under `skill-manage/`.
+pnpm monorepo: TypeScript packages under `packages/`, native Mac host under `apps/macos/`, embedded Rust skill linker under `skill-manage/`.
 
 ```
 llm-toolkit/
-├── bin/                              # Installed launcher
-│   └── llm-toolkit                   #   bash: api/web (zellij), CLI, skill-manage proxy
-├── packages/                         # pnpm workspaces (pnpm-workspace.yaml → packages/*)
-│   ├── api/                          #   Hono REST API + SQLite/FTS/vectors → [layout/api.md](layout/api.md)
-│   ├── cli/                          #   Ink TUI + one-shot commands → [layout/cli.md](layout/cli.md)
-│   ├── shared/                       #   Types, JSONL parsers, API launcher → [layout/shared.md](layout/shared.md)
-│   └── web/                          #   Vite + React + Tailwind SPA → [layout/web.md](layout/web.md)
-├── apps/
-│   └── macos/                        #   Native Mac host → [layout/macos.md](layout/macos.md)
-├── skill-manage/                     # Rust CLI/TUI — skills/agents/commands symlink manager
-│   ├── src/                          #   clap + ratatui sources (main, link, catalog, audit, tui/…)
-│   ├── schema/                       #   config.example.yaml, catalog.example.yaml
-│   ├── docs/                         #   Nested PROJ-* docs → skill-manage/docs/PROJ-LAYOUT.md
-│   ├── Cargo.toml                    #   crate manifest
-│   ├── Makefile                      #   cargo build/test/install helpers
-│   └── README.md                     #   skill-manage usage
-├── completions/                      # Shell completions for launcher + skill surface
-│   ├── llm-toolkit.bash              #   bash-completion v2
-│   └── _llm-toolkit                  #   zsh (fpath site-functions)
-├── design/                           # Visual design assets
-│   ├── logos/                        #   SVG logo variants + preview.html
-│   ├── mockup-*.svg                  #   dashboard, search, thread viewer mockups
-│   ├── SITEMAP.md                    #   Information architecture
-│   ├── style-guide.md                #   Design system tokens/rules
-│   └── README.md                     #   Design overview
-├── docs/                             # Project documentation (this tree)
-│   ├── arch/                         #   Detail: data-flow, storage, agent-watch-dog
-│   ├── howto/                        #   Task guides (provider, convert, edit, export, manage)
-│   ├── layout/                       #   Per-package trees (api, cli, shared, web, macos)
-│   ├── PROJ-ARCH.md                  #   Architecture overview
-│   ├── PROJ-ARCH.summary.md
-│   ├── PROJ-FAQ.md
-│   ├── PROJ-FAQ.summary.md
+├── bin/llm-toolkit                   # bash launcher (api/web/zellij, CLI, skill proxy)
+├── packages/                         # pnpm workspaces (packages/*)
+│   ├── api/                          # Hono REST + SQLite/FTS/vec → [layout/api.md](layout/api.md)
+│   ├── cli/                          # Ink TUI + one-shots → [layout/cli.md](layout/cli.md)
+│   ├── shared/                       # Types, parsers, ensureApi → [layout/shared.md](layout/shared.md)
+│   └── web/                          # Vite + React SPA → [layout/web.md](layout/web.md)
+├── apps/macos/                       # SwiftUI + WKWebView host → [layout/macos.md](layout/macos.md)
+├── skill-manage/                     # Rust CLI/TUI symlink manager
+│   ├── src/                          # clap + ratatui
+│   ├── schema/                       # config + catalog examples
+│   └── docs/                         # nested PROJ-* → skill-manage/docs/PROJ-LAYOUT.md
+├── completions/                      # bash + zsh for launcher, CLI, skill
+├── design/                           # logos, mockups, style-guide, SITEMAP
+├── docs/                             # this tree
+│   ├── arch/                         # data-flow, storage, agent-watch-dog, skills
+│   ├── howto/                        # task guides
+│   ├── layout/                       # api, cli, shared, web, macos
+│   ├── PROJ-ARCH.md
+│   ├── PROJ-LAYOUT.md                # this file
 │   ├── PROJ-HOWTO.md
-│   ├── PROJ-HOWTO.summary.md
-│   ├── PROJ-LAYOUT.md                #   This file
-│   └── PROJ-LAYOUT.summary.md
-├── project-management/               # Product/PM artifacts (not runtime)
-│   ├── components/                   #   UI component specs (01–40 + index.yaml)
-│   ├── personas/                     #   Persona briefs (P-001… + index.yaml)
-│   ├── screens/                      #   Screen/TUI/CLI output specs (01–42 + index.yaml)
-│   ├── user-stories/                 #   US-001…US-100 + index.yaml
-│   ├── ROADMAP.md
-│   └── README.md
-├── .gitignore                        # node_modules, dist, *.db, coverage, …
-├── CHANGELOG.md                      # Release notes
-├── INSTALL.md                        # Setup and install guide
-├── Makefile                          # compile/test/install/completions (skill-manage + symlink)
-├── package.json                      # Root workspace scripts: dev:api, dev:web, dev:cli
-├── pnpm-lock.yaml                    # Lockfile — setup-required
-├── pnpm-workspace.yaml               # packages/* workspace config
-├── tsconfig.base.json                # Shared TypeScript base config
-└── README.md                         # Project overview — start here
+│   └── PROJ-FAQ.md
+├── project-management/               # PM artifacts (not runtime)
+│   ├── components/                   # 01–40 + index.yaml
+│   ├── personas/
+│   ├── screens/                      # 01–44 + index.yaml
+│   ├── user-stories/                 # US-001…US-100
+│   └── ROADMAP.md
+├── CHANGELOG.md
+├── INSTALL.md                        # setup walkthrough
+├── Makefile                          # install, completions, macos, install-osx
+├── package.json                      # dev:api | dev:web | dev:cli
+├── pnpm-lock.yaml                    # setup-required
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+└── README.md                         # start here
 ```
 
 ## Key Files Requiring Setup
@@ -64,8 +46,8 @@ llm-toolkit/
 | File | Action |
 |------|--------|
 | `pnpm-lock.yaml` / `package.json` | `pnpm install` (Node ≥ 18, pnpm ≥ 8) |
-| `Makefile` | `make install` → deps + `~/.local/bin/llm-toolkit` + completions + skill-manage schema share |
-| `INSTALL.md` | First-time setup walkthrough |
-| `skill-manage` config | `skill-manage init-config` / env vars — see `skill-manage/docs/PROJ-LAYOUT.md` |
-| Runtime data | Default DB dir `~/.llm-toolkit/` (auto-created on API boot) |
-| `apps/macos` | `make macos` / `make macos-run` (Swift 5.10+, macOS 14+) |
+| `Makefile` | `make install` → `~/.local/bin/llm-toolkit` + completions; `make install-osx` → `/Applications/LLM Toolkit.app` |
+| `INSTALL.md` | First-time walkthrough |
+| skill-manage config | `llm-toolkit skill init-config` / `SKILL_REPO` — [skill-manage/docs/PROJ-LAYOUT.md](../skill-manage/docs/PROJ-LAYOUT.md) |
+| Runtime data | `~/.llm-toolkit/` (created on API boot) |
+| `apps/macos` | macOS 14+, Swift 5.10+ for `make install-osx` / `macos-run` |

@@ -4,19 +4,29 @@ import { MemoryRouter } from "react-router-dom";
 import { Settings } from "../../pages/Settings.tsx";
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(() =>
-    Promise.resolve({
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo) => {
+    const url = String(input);
+    if (url.includes("/skills")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          data: { sources: [], destinations: [], categories: [], skills: [], discoveredFolders: [] },
+        }),
+      });
+    }
+    return Promise.resolve({
       ok: true,
       json: () => Promise.resolve({
         data: {
           indexPaths: ["~/.claude/projects"],
           embedding: { provider: "local" },
           server: { port: 3100, host: "localhost" },
+          skills: { sourceFolders: [], destinations: [] },
           status: "idle", lastIndexed: null, conversationCount: 0,
         },
       }),
-    }),
-  ));
+    });
+  }));
 });
 
 describe("Settings", () => {
@@ -38,6 +48,16 @@ describe("Settings", () => {
     render(<MemoryRouter><Settings /></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText("Embedding Provider")).toBeInTheDocument();
+    });
+  });
+
+  test("points to the Skills page", async () => {
+    render(<MemoryRouter><Settings /></MemoryRouter>);
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Skills" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Agents" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Commands" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "MCP" })).toBeInTheDocument();
     });
   });
 });

@@ -4,33 +4,26 @@
 llm-toolkit/
 ├── bin/llm-toolkit             # Launcher (api/web/zellij, CLI, skill proxy)
 ├── packages/
-│   ├── api/                    # Hono REST API + SQLite/FTS/vectors
+│   ├── api/                    # Hono REST + SQLite/FTS/vectors + skills routes
 │   │   └── src/{routes,services}/
 │   ├── cli/                    # Ink TUI + one-shot commands
 │   │   └── src/{commands,interactive}/
-│   ├── shared/                 # Types, parsers, API launcher
-│   │   └── src/{parsers,types}/
+│   ├── shared/                 # Types, parsers, ensureApi
 │   └── web/                    # Vite + React + Tailwind SPA
-│       └── src/{components,context,hooks,pages,services,hostBridge.ts}/
-├── apps/
-│   └── macos/                  # Native Mac host (SwiftUI + WKWebView)
-│       └── Sources/{LLMToolkitKit,LLMToolkit} + Tests
-├── skill-manage/               # Rust skill/agent/command linker (own docs/)
-│   ├── src/ + tui/
-│   └── schema/
-├── completions/                # bash + zsh completions
+│       └── src/{components,pages,hostBridge.ts}/
+├── apps/macos/                 # SwiftUI + WKWebView host
+│   └── Sources/{LLMToolkitKit,LLMToolkit}
+├── skill-manage/               # Rust skill/agent/command linker
+├── completions/                # bash + zsh
 ├── design/                     # Logos, mockups, style guide, sitemap
 ├── docs/
-│   ├── arch/
+│   ├── arch/                   # data-flow, storage, agent-watch-dog, skills
 │   ├── howto/
-│   └── layout/                 # api, cli, shared, web detail trees
-├── project-management/         # Personas, screens, components, user stories
+│   └── layout/                 # api, cli, shared, web, macos
+├── project-management/         # Personas, screens (01–44), user stories
 ├── CHANGELOG.md
-├── INSTALL.md                  # Setup guide
-├── Makefile                    # install + completions + skill-manage build
-├── package.json                # Root workspace (dev:api|web|cli)
-├── pnpm-lock.yaml
-├── pnpm-workspace.yaml
-├── tsconfig.base.json
+├── INSTALL.md
+├── Makefile                    # install + install-osx
+├── package.json
 └── README.md
 ```

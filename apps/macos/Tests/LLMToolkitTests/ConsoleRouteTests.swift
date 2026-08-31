@@ -16,6 +16,14 @@ final class ConsoleRouteTests: XCTestCase {
             "/datasets",
             "/datasets/:name",
             "/prompts",
+            "/skills",
+            "/skills/:name",
+            "/agents",
+            "/agents/:name",
+            "/commands",
+            "/commands/:name",
+            "/mcp",
+            "/mcp/:name",
             "/tags",
             "/projects",
             "/projects/:slug",
@@ -59,6 +67,10 @@ final class ConsoleRouteTests: XCTestCase {
         XCTAssertEqual(ConsoleRoute.project(slug: "noizu").sidebarItem, .projects)
         XCTAssertEqual(ConsoleRoute.safetyWatch.sidebarItem, .safetyWatch)
         XCTAssertEqual(ConsoleRoute.settings.sidebarItem, .settings)
+        XCTAssertEqual(ConsoleRoute.skills.sidebarItem, .skills)
+        XCTAssertEqual(ConsoleRoute.agents.sidebarItem, .agents)
+        XCTAssertEqual(ConsoleRoute.commands.sidebarItem, .commands)
+        XCTAssertEqual(ConsoleRoute.mcp.sidebarItem, .mcp)
         XCTAssertEqual(ConsoleRoute.styleGuide.sidebarItem, .styleGuide)
     }
 

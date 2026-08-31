@@ -1,49 +1,40 @@
 # packages/web — Browser UI
 
-Vite + React + Tailwind single-page app for browsing, searching, and editing conversations.
+Vite + React + Tailwind SPA. Browser talks to `:3100` via Vite proxy in dev; the Mac host loads the API-served `dist`.
 
 ```
 web/
 ├── src/
-│   ├── components/             # Shared UI components
-│   │   ├── Layout.tsx          #   App shell — sidebar, navigation, content area (hides chrome for Mac host)
-│   │   └── MarkdownView.tsx    #   Markdown renderer for conversation messages
-│   ├── hostBridge.ts           # Mac-host detection + navigation/chrome flags
-│   ├── context/                # React contexts
-│   │   └── HarnessContext.tsx  #   Active harness selection state + desktop events
-│   ├── hooks/                  # React hooks
-│   │   └── useApi.ts           #   API client hook (fetch wrapper)
-│   ├── pages/                  # Route-level page components
-│   │   ├── Browse.tsx          #   Conversation list browser
-│   │   ├── ContinueSession.tsx #   Resume a session in a harness
-│   │   ├── Convert.tsx         #   JSONL file converter
-│   │   ├── Dashboard.tsx       #   Overview dashboard
-│   │   ├── DatasetDetail.tsx   #   Single dataset view
-│   │   ├── Datasets.tsx        #   Dataset listing
-│   │   ├── Edit.tsx            #   Conversation editor
-│   │   ├── Explore.tsx         #   Exploratory conversation browser
-│   │   ├── ProjectDetail.tsx   #   Single project detail view
-│   │   ├── Projects.tsx        #   Project browser
-│   │   ├── Prompts.tsx         #   Prompt extraction view
-│   │   ├── SafetyWatch.tsx     #   Agent watch-dog monitoring view
-│   │   ├── Search.tsx          #   Full-text + semantic search
-│   │   ├── Settings.tsx        #   App settings
-│   │   ├── StyleGuide.tsx      #   Design system reference
-│   │   ├── Tags.tsx            #   Tag management
-│   │   └── Thread.tsx          #   Single conversation thread view
-│   ├── services/               # Client-side services
-│   │   └── sessionWorkflow.ts  #   Continue-session orchestration
-│   ├── __tests__/              # Unit tests
-│   ├── App.tsx                 # Router + app root
-│   ├── index.css               # Global styles (Tailwind)
-│   └── main.tsx                # Vite entry point
-├── public/
-│   └── favicon.svg             # Site favicon
-├── index.html                  # HTML shell
+│   ├── components/
+│   │   ├── Layout.tsx          # sidebar (Skills first in Library); hides chrome for Mac
+│   │   └── MarkdownView.tsx
+│   ├── hostBridge.ts           # Mac-host navigate / native-chrome flags
+│   ├── context/HarnessContext.tsx
+│   ├── hooks/useApi.ts
+│   ├── pages/
+│   │   ├── Explore.tsx         # / /search /browse
+│   │   ├── Thread.tsx
+│   │   ├── Edit.tsx
+│   │   ├── Convert.tsx
+│   │   ├── ContinueSession.tsx
+│   │   ├── Datasets.tsx / DatasetDetail.tsx
+│   │   ├── ArtifactBrowser.tsx # shared Skills/Agents/Commands/MCP catalog UI
+│   │   ├── Skills.tsx          # /skills
+│   │   ├── Agents.tsx          # /agents
+│   │   ├── Commands.tsx        # /commands
+│   │   ├── Mcp.tsx             # /mcp
+│   │   ├── Prompts.tsx
+│   │   ├── Tags.tsx
+│   │   ├── Projects.tsx / ProjectDetail.tsx
+│   │   ├── Settings.tsx
+│   │   ├── SafetyWatch.tsx
+│   │   └── StyleGuide.tsx
+│   ├── services/sessionWorkflow.ts
+│   ├── App.tsx
+│   └── main.tsx
+├── public/favicon.svg
+├── index.html
 ├── package.json
-├── postcss.config.js           # PostCSS (Tailwind plugin)
-├── tailwind.config.js          # Tailwind theme configuration
-├── tsconfig.json
-├── vite.config.ts              # Vite build config
-└── vitest.config.ts            # Test runner config
+├── vite.config.ts
+└── vitest.config.ts
 ```

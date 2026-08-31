@@ -17,6 +17,14 @@ beforeEach(() => {
         }),
       });
     }
+    if (url.includes("/skills") || url.includes("/agents") || url.includes("/commands") || url.includes("/mcp")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          data: { sources: [], destinations: [], categories: [], skills: [], items: [], discoveredFolders: [] },
+        }),
+      });
+    }
     if (url.includes("/index/status")) {
       return Promise.resolve({
         ok: true,
@@ -56,6 +64,28 @@ describe("App routing", () => {
       </MemoryRouter>,
     );
     expect(screen.getByPlaceholderText("Search conversations...")).toBeInTheDocument();
+  });
+
+  test("renders Skills at '/skills' route", async () => {
+    render(
+      <MemoryRouter initialEntries={["/skills"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Skills" })).toBeInTheDocument();
+    });
+  });
+
+  test("renders Agents at '/agents' route", async () => {
+    render(
+      <MemoryRouter initialEntries={["/agents"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
+    });
   });
 
   test("renders Settings at '/settings' route", async () => {

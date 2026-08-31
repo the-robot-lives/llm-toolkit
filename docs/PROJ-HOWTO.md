@@ -9,7 +9,7 @@ Task-oriented guides for the things you'll actually do with Claude Assist. See [
 
 1. Install workspace deps and symlink the launcher onto your PATH:
    ```bash
-   cd utilities/agent/llm-toolkit
+   cd Portfolio/Apps/AI/llm-toolkit   # or this checkout
    make install
    ```
 2. Launch it:
@@ -17,13 +17,44 @@ Task-oriented guides for the things you'll actually do with Claude Assist. See [
    llm-toolkit
    ```
    With `zellij` installed and not already inside a session, this opens a split pane (web 80% / api 20%). Otherwise it falls back to the same thing without panes (`llm-toolkit --no-zellij`).
-3. Open http://localhost:5173 in a browser.
+3. Open http://localhost:5173 (Vite) or http://localhost:3100 (API-served console after `pnpm --filter @llm-toolkit/web build`). The Mac app uses `:3100`.
 
 **Verify:** `curl -sf http://localhost:3100/api/health` returns 200, and the Dashboard shows a non-zero conversation count (it auto-indexes `~/.claude/projects/` on first boot).
 **Gotchas:**
 - No `zellij` on PATH, or you're already inside a zellij session → it silently falls back to `--no-zellij` (foreground web, backgrounded API). Not a bug.
 - `make install` skips `pnpm install` if `node_modules/.bin` already exists — delete it first if you need a hard refresh, or run `pnpm install` directly.
 - Ports are fixed unless overridden: `LLM_TOOLKIT_API_PORT` (default 3100), `LLM_TOOLKIT_WEB_PORT` (default 5173).
+
+## How to: install the macOS console app
+
+**Goal:** put `LLM Toolkit.app` in `/Applications` so the desktop host matches the website/TUI.
+**Prereqs:** macOS 14+, Xcode/Swift 5.10+, Node 18+, pnpm 8+, and `make install` already run for the JS stack.
+
+```bash
+make install-osx
+```
+
+Aliases: `install-macos`, `install/osx`, `install/macos`. Destination defaults to `/Applications`; override with `INSTALL_DIR=$HOME/Applications`. `make install` does **not** do this — that target is CLI + completions only.
+
+**Verify:** `open "/Applications/LLM Toolkit.app"` loads Explore (the same SPA as http://localhost:3100). If `:3100` is down the app starts `pnpm dev:api` against the checkout stamped into the bundle.
+**Gotchas:**
+- The bundle is ad-hoc signed for local use, not notarized.
+- If you move the git checkout, re-run `make install-osx` or set Settings → Checkout.
+
+## How to: enable skills from a source folder
+
+**Goal:** browse SKILL.md packages grouped by `categories.yaml` and symlink them into selected provider folders (global and/or project).
+**Prereqs:** API running (`llm-toolkit` or the Mac app).
+
+1. Open **Skills** in the sidebar (web or the Mac host; Go → Skills).
+2. Optionally open **Sources** to pin a tree that contains `categories.yaml` / `categories.yml` (for example the monorepo `Portfolio/skills` folder). Leave this empty to auto-discover a `skills/categories.yaml` by walking up from the API cwd / `SKILL_REPO`.
+3. Choose providers (Claude, Codex, Grok, Gemini, OpenCode). Each uses its own folder (`~/.claude/skills`, `~/.codex/skills`, `~/.grok/skills`, `~/.gemini/skills`, `~/.config/opencode/skills`, and the matching `<project>/.claude|codex|grok|gemini|opencode/skills`).
+4. Turn **Global** on for home-level folders, and multi-select **Projects** to also write into those repos.
+5. The row switch enables/disables every selected target; provider chips on a row toggle just that harness.
+6. Click a skill to open the inspector and read `SKILL.md`.
+
+**Verify:** `ls -l ~/.claude/skills/<name>` (or the project dest) is a symlink into the source folder.
+**Gotchas:** real (non-symlink) copies are not deleted; enable will ask before backing them up to `*.bak.<timestamp>`. Codex `.system` trees are never written.
 
 ## How to: search your conversations from the terminal
 

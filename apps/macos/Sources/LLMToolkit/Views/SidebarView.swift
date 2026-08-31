@@ -71,6 +71,18 @@ struct SidebarView: View {
                 .font(.caption2)
                 .foregroundStyle(Nocturne.textDim)
                 .lineLimit(3)
+            if let banner = model.banner, model.health.isReady {
+                Text(banner)
+                    .font(.caption2)
+                    .foregroundStyle(Nocturne.glow)
+                    .lineLimit(2)
+            }
+            if let error = model.lastError {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(Nocturne.danger)
+                    .lineLimit(3)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)

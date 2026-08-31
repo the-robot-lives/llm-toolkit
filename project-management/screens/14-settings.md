@@ -11,7 +11,7 @@
 | User Stories | US-016, US-017, US-018, US-019, US-020, US-006, US-011, US-012, US-039, US-081, US-086, US-098 |
 
 ## Description
-Configuration for indexed paths, embedding provider, LLM provider (used for Simplify/Summarize/Convert-candidate operations), and display preferences. The only place provider credentials and reindex controls live.
+Configuration for indexed paths, embedding provider, LLM provider (used for Simplify/Summarize/Convert-candidate operations), and display preferences. The only place provider credentials and reindex controls live. Skill catalogs live on `/skills`.
 
 ## Entry Points
 - Global nav "Settings"
@@ -23,6 +23,7 @@ Configuration for indexed paths, embedding provider, LLM provider (used for Simp
 - LLMConfig — provider for simplify/summarize operations, with per-operation override (US-019) and connectivity validation (US-020)
 - DisplayConfig — theme (Nocturne only, for now; high-contrast / reduced-motion variant per US-039), code font, line numbers
 - LocalOnlyStatement — explicit "fully local" privacy statement when no hosted provider is configured (US-016)
+- Pointer to `/skills` for catalogs and symlink enable/disable
 
 ## States
 - **Loading:** form fields populate from `GET /api/config`

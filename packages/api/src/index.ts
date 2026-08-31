@@ -16,6 +16,8 @@ import { createPromptRoutes } from "./routes/prompts.ts";
 import { createProjectRoutes } from "./routes/projects.ts";
 import { createTagRoutes } from "./routes/tags.ts";
 import { createLlmRoutes } from "./routes/llm.ts";
+import { createSkillRoutes } from "./routes/skills.ts";
+import { createArtifactRoutes } from "./routes/artifacts.ts";
 import { StorageService } from "./services/storage.ts";
 import { IndexerService } from "./services/indexer.ts";
 import { SearchService } from "./services/search.ts";
@@ -70,6 +72,10 @@ app.route("/api/prompts", createPromptRoutes(storage));
 app.route("/api/projects", createProjectRoutes(storage));
 app.route("/api/tags", createTagRoutes(storage));
 app.route("/api/llm", createLlmRoutes(llmService, storage));
+app.route("/api/skills", createSkillRoutes(storage));
+app.route("/api/agents", createArtifactRoutes(storage, "agents"));
+app.route("/api/commands", createArtifactRoutes(storage, "commands"));
+app.route("/api/mcp", createArtifactRoutes(storage, "mcp"));
 
 const webDist = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "web", "dist");
 if (existsSync(join(webDist, "index.html"))) {

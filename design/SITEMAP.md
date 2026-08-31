@@ -22,6 +22,10 @@ graph LR
     ROOT -->|data-design-theme| MERGE["/merge"]
     ROOT -->|data-design-theme| DATASETS["/datasets"]
     ROOT -->|data-design-theme| DATASET["/datasets/[name]"]
+    ROOT -->|data-design-theme| SKILLS["/skills"]
+    ROOT -->|data-design-theme| AGENTS["/agents"]
+    ROOT -->|data-design-theme| COMMANDS["/commands"]
+    ROOT -->|data-design-theme| MCP["/mcp"]
     ROOT -->|data-design-theme| SETTINGS["/settings"]
 
     DASH -->|search bar| SEARCH

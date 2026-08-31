@@ -1,6 +1,8 @@
 # How To — Summary
 
-- **Get up and running the first time** — install deps, start the API + Web UI, confirm it's indexing your conversations.
+- **Get up and running the first time** — `make install`, `llm-toolkit`, confirm indexing.
+- **Install the macOS console app** — `make install-osx` builds `LLM Toolkit.app` and copies it to `/Applications`.
+- **Enable skills from a source folder** — Skills page (`/skills`) scans `categories.yaml`, then symlinks into selected provider global/project folders.
 - **Search your conversations from the terminal** — find a past conversation by keyword without opening the browser.
 - **Launch the full-screen terminal UI** — browse, view threads, edit, and manage conversations without leaving the terminal.
 - **Rebuild the search index** — pick up new or edited conversation files without restarting the API.

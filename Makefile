@@ -2,10 +2,11 @@
 #
 # `compile`/`test`/`install` are dispatched by ../../mk/subdirs.mk.
 
-.PHONY: compile test install install-completions uninstall clean dev macos macos-run macos-app
+.PHONY: compile test install install-completions uninstall clean dev macos macos-run macos-app install-osx install-macos install/osx install/macos uninstall-osx
 
 PROJ_DIR := $(shell cd "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))" && pwd)
 PREFIX   ?= $(HOME)/.local
+INSTALL_DIR ?= /Applications
 SKILL_DIR := $(PROJ_DIR)/skill-manage
 SKILL_SHARE_DIR := $(HOME)/.local/share/skill-manage
 
@@ -71,3 +72,11 @@ macos-run: ## Launch the native Mac host (attaches to or starts the web console)
 
 macos-app: ## Assemble apps/macos/.build/LLM Toolkit.app
 	$(MAKE) -C "$(PROJ_DIR)/apps/macos" app
+
+# Canonical binplace for the Mac host. `make install` is the CLI + completions
+# path and does not copy the .app (so it stays valid off macOS / without Swift).
+install-osx install-macos install/osx install/macos: ## Build LLM Toolkit.app and copy it into /Applications
+	$(MAKE) -C "$(PROJ_DIR)/apps/macos" install INSTALL_DIR="$(INSTALL_DIR)"
+
+uninstall-osx: ## Remove /Applications/LLM Toolkit.app (override INSTALL_DIR=)
+	$(MAKE) -C "$(PROJ_DIR)/apps/macos" uninstall-osx INSTALL_DIR="$(INSTALL_DIR)"

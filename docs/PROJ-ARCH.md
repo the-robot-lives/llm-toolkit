@@ -2,130 +2,127 @@
 
 ## Overview
 
-**llm-toolkit** (product name *Claude Assist*) is a local-first developer tool for searching, browsing, editing, and extracting reusable artifacts from AI coding-agent conversation logs. It is evolving into **agent-watch-dog** — multi-harness session continuity across Claude Code, Codex, and future harnesses (Gemini / OpenCode / Aider stubbed). Harness JSONL transcripts are indexed into SQLite (FTS5 + optional sqlite-vec embeddings) and served through a REST API, browser SPA, Ink TUI, and a native macOS host that embeds the SPA.
+**llm-toolkit** (product names *Claude Assist* / *agent-watch-dog*) is a local-first developer tool. It indexes coding-agent conversation logs, serves them through a REST API, and lets you search, browse, edit, convert, and extract artifacts — plus enable SKILL.md packages into each harness’s install folders.
 
-The repo also embeds **skill-manage**, a Rust CLI/TUI that enables/disables provider skills, agents, and slash commands via managed symlinks. The bash launcher (`bin/llm-toolkit`) starts API + web (zellij-aware when available), proxies `llm-toolkit skill …` to the skill-manage binary, and dispatches conversation CLI commands to the TypeScript Ink entrypoint.
+Clients: React SPA, native macOS host (WKWebView around that SPA), Ink TUI, and one-shot CLI. Transcripts stay on disk as JSONL; SQLite is a derived index. LLM features are optional. The repo also embeds **skill-manage**, a Rust symlink linker invoked as `llm-toolkit skill …`.
 
-It lives at `Portfolio/Apps/AI/llm-toolkit` in the Noizu Infra monorepo as a self-contained pnpm + Rust project — no `share/k8-lib` or `.infra-config.yaml` deploy metadata. `make install` installs pnpm deps, builds skill-manage, installs shell completions, and symlinks `bin/llm-toolkit` into `~/.local/bin`.
+Self-contained at `Portfolio/Apps/AI/llm-toolkit` (pnpm workspaces + Rust crate). No k8s/Helm deploy. `make install` wires the CLI; `make install-osx` binplaces `/Applications/LLM Toolkit.app`.
 
 ## System Diagram
 
 ```mermaid
 graph TB
     subgraph Sources
-        CC["Claude Code JSONL<br/>~/.claude/projects/"]
+        CC["Claude JSONL<br/>~/.claude/projects/"]
         CX["Codex JSONL<br/>~/.codex/sessions/"]
-        SK["Skill/agent/command trees<br/>configured source roots"]
+        SK["SKILL.md trees<br/>categories.yaml"]
     end
 
-    subgraph API["API Server — Hono + Node"]
+    subgraph API["API — Hono :3100"]
         IDX[IndexerService]
-        EMB[EmbeddingService]
-        SRH[SearchService]
         STO[StorageService]
+        SRH[SearchService]
+        EMB[EmbeddingService]
         LLM[LlmService]
-        XFR[Harness transform / transfer]
-        SESS[Session workflow]
-        IDX -->|raw + universal + flat msgs| DB[(SQLite + FTS5 + sqlite-vec)]
-        EMB -->|384-dim vectors| DB
+        SKL[SkillsService]
+        IDX --> DB[(SQLite + FTS5 + vec)]
+        EMB --> DB
         SRH --> DB
         STO --> DB
-        LLM -->|optional completions| EXT["Anthropic / OpenAI-compatible"]
-        IDX -->|watch chokidar| CC
+        SKL --> SK
+        SKL --> DEST["Provider skill dirs"]
+        IDX --> CC
         IDX --> CX
     end
 
     subgraph Clients
-        WEB["Web SPA — React + Vite"]
-        MAC["macOS app — SwiftUI + WKWebView"]
+        WEB["Web SPA"]
+        MAC["macOS app"]
         CLI["CLI / Ink TUI"]
-        BIN["bin/llm-toolkit launcher"]
+        BIN["bin/llm-toolkit"]
     end
 
-    subgraph SkillManage["skill-manage — Rust"]
-        SM[link / audit / catalog / TUI]
-        SM --> SK
-        SM --> DEST["Provider install dirs<br/>~/.claude · ~/.codex · ~/.grok"]
-    end
-
-    WEB -->|fetch /api/*| API
-    MAC -->|hosts :5173 + menus| WEB
-    MAC -->|health / clone / archive / index| API
-    CLI -->|fetch /api/*| API
-    BIN --> WEB
+    WEB -->|/api/*| API
+    MAC -->|hosts SPA on :3100| WEB
+    MAC -->|health / start pnpm| API
+    CLI --> API
     BIN --> API
-    BIN -->|skill subcommand| SkillManage
-    BIN -->|conversation cmds| CLI
+    BIN --> WEB
+    BIN -->|skill| SM[skill-manage]
+    SM --> SK
+    SM --> DEST
 ```
 
 ## Core Components
 
 | Component | Package | Purpose |
 |-----------|---------|---------|
-| StorageService | api | SQLite WAL store: harness-aware schema, FTS5, sqlite-vec, migrations |
-| IndexerService | api | Scans sources, retains raw events, derives universal + flat messages, optional work-item extraction, chokidar watch |
-| EmbeddingService | api | Local embeddings via `all-MiniLM-L6-v2` (384-dim) through `@huggingface/transformers` |
-| SearchService | api | FTS5 full-text + semantic (cosine / sqlite-vec) search |
-| LlmService | api | Multi-provider completions: Anthropic SDK + OpenAI-compatible (OpenAI, LiteLLM/`inference.noizu.com`, Groq, Cerebras, DeepSeek, ZAI) |
-| Editor / Operations | api | Non-destructive versioned edits; clone, rehome, archive, tag |
-| Converter / Exporter | api | Extract agents/skills/commands/runbooks; export datasets (OpenAI, Anthropic, raw JSONL) |
-| Harness transform | api | Claude/Codex `Universal → Harness` export payloads; import prefers indexer normalizer |
-| Harness transfer | api | Cross-harness transfer façade — still pending for all targets (incl. Claude/Codex write-back) |
-| Session workflow | api | Continue / transfer continuation payloads + memory-hook stubs |
-| Hono routes | api | conversations, search, datasets, prompts, projects, tags, config, index, llm, health |
-| Web UI | web | React SPA — Explore (search/browse), thread, edit, convert, continue, projects, datasets, prompts, tags, settings, Safety Watch stub, style guide |
-| macOS host | apps/macos | SwiftUI + WKWebView frame around the SPA; native menus/sidebar; starts or attaches to local API/web |
-| CLI | cli | One-shots (`recent`, `search`, `list`, `show`, `index`, …) + full-screen Ink interactive TUI |
-| Shared | shared | Types (`UniversalMessage`, `AgentHarness`, …), JSONL parsers, `ensureApi()` launcher |
-| skill-manage | skill-manage/ | Rust symlink manager for skills/agents/commands across providers |
-| bin/llm-toolkit | root | Launcher: zellij API+web layout, skill proxy, CLI dispatch |
+| StorageService | api | SQLite WAL: harness schema, FTS5, sqlite-vec, settings |
+| IndexerService | api | Scan JSONL → raw events → universal + flat messages; chokidar watch |
+| EmbeddingService | api | Local MiniLM 384-dim (`@huggingface/transformers`) |
+| SearchService | api | FTS5 + semantic (cosine / sqlite-vec) |
+| LlmService | api | Optional completions (Anthropic + OpenAI-compatible) |
+| Editor / Operations | api | Versioned edits; clone, rehome, archive, tag |
+| Converter / Exporter | api | Extract artifacts; export datasets |
+| Harness transform / transfer | api | Claude/Codex export payloads; transfer façade still pending |
+| Session workflow | api | Continue / transfer continuation stubs |
+| SkillsService | api | Scan `categories.yaml` + SKILL.md; symlink enable/disable |
+| ArtifactsService | api | Agents/commands file symlinks + MCP config entries |
+| Hono routes | api | conversations, search, datasets, prompts, projects, tags, config, index, llm, skills, agents, commands, mcp, health |
+| Web SPA | web | Explore, thread, edit, convert, continue, library pages, Skills/Agents/Commands/MCP, Settings |
+| macOS host | apps/macos | SwiftUI + WKWebView; native sidebar/menus; `make install-osx` |
+| CLI / TUI | cli | One-shots (`recent`, `search`, …) + full-screen Ink app |
+| Shared | shared | Types, JSONL parsers, `ensureApi()` |
+| skill-manage | skill-manage/ | Rust CLI/TUI symlink manager |
+| bin/llm-toolkit | root | zellij-aware launcher, skill proxy, CLI dispatch |
 
 ## Data Flow
 
-Harness transcripts are discovered by IndexerService, stored as **raw events**, normalized into **universal messages**, flattened into search **messages**, and optionally embedded. Clients talk only to the local REST API (`localhost:3100`), except `llm-toolkit recent`, which reads SQLite directly for a fast, no-server path. File watching enables incremental re-index. skill-manage is a separate local filesystem tool (no conversation SQLite).
+IndexerService discovers harness JSONL, stores **raw events**, normalizes **universal messages**, flattens **search messages**, and optionally embeds. Clients talk to `localhost:3100` except `llm-toolkit recent` (direct SQLite). Skills linking is filesystem-only.
 
--> *See [arch/data-flow.md](arch/data-flow.md) for details*
+→ *See [arch/data-flow.md](arch/data-flow.md)*
 
 ## Storage
 
-Single SQLite DB at `~/.llm-toolkit/llm-toolkit.db` (`LLM_TOOLKIT_DATA_DIR`; legacy `CLAUDE_ASSIST_*` env aliases still accepted). WAL mode; sqlite-vec optional with graceful degradation. Tables cover conversations/messages, universal + raw layers, work items, edits, datasets, prompts, project/tag metadata, settings, FTS5, and vec0.
+SQLite at `~/.llm-toolkit/llm-toolkit.db` (`LLM_TOOLKIT_DATA_DIR`; legacy `CLAUDE_ASSIST_*` aliases). WAL; sqlite-vec optional. Tables: conversations/messages, universal + raw layers, work items, edits, datasets, prompts, project/tag metadata, settings, FTS5, vec0.
 
--> *See [arch/storage.md](arch/storage.md) for details*
+→ *See [arch/storage.md](arch/storage.md)*
 
 ## Multi-Harness (agent-watch-dog)
 
-Each transcript producer is a **harness** with importer/exporter boundaries around canonical `UniversalMessage`. Raw events are always retained. Claude and Codex importers are live; Gemini / OpenCode / Aider / other are stubbed. Transform-layer exporters exist for Claude and Codex; the transfer façade and memory hooks remain planned/stubbed (transfer returns pending warnings even for Claude/Codex until write-back + compatibility tests land).
+Canonical `UniversalMessage` sits between importers and exporters. Claude and Codex importers are live; Gemini / OpenCode / Aider are stubbed. Transform exporters exist for Claude and Codex; transfer write-back is still pending.
 
--> *See [arch/agent-watch-dog.md](arch/agent-watch-dog.md) for details*
+→ *See [arch/agent-watch-dog.md](arch/agent-watch-dog.md)*
 
-## skill-manage
+## Skills / Agents / Commands / MCP
 
-Embedded Rust crate: discovers skills/agents/commands from configured source roots, classifies install status per provider, and enables/disables via symlinks only (non-destructive; `--replace` backs up real paths). YAML catalog supports tags, work-type bundles, and editor profiles. Invoked as `llm-toolkit skill …` or standalone after `make compile`.
+Web **Skills**, **Agents**, **Commands**, and **MCP** pages (and `llm-toolkit skill` for the first three) point a canonical source tree at per-provider global and project dests (Claude, Codex, Grok, Gemini, OpenCode). Skills/agents/commands enable as symlinks; MCP writes a named server block. Disable never deletes a real copy.
 
--> *Nested docs: [skill-manage/docs/PROJ-ARCH.md](../skill-manage/docs/PROJ-ARCH.md)*
+→ *See [arch/skills.md](arch/skills.md)* · crate: [skill-manage/docs/PROJ-ARCH.md](../skill-manage/docs/PROJ-ARCH.md)
 
 ## Infrastructure / Runtime
 
 | Concern | Notes |
 |---------|--------|
-| Deploy | Local developer tool — not a k8s/Helm service |
-| Install | `make install` → deps, skill-manage release build, completions, `~/.local/bin/llm-toolkit` |
-| API port | `3100` (`PORT` / `LLM_TOOLKIT_API_PORT`) |
-| Web port | `5173` (Vite; `LLM_TOOLKIT_WEB_PORT`) |
-| Data dir | `~/.llm-toolkit` (DB + config) |
-| Default index sources | Claude `~/.claude/projects`, Codex `~/.codex/sessions` |
-| CORS | Web origin `http://localhost:5173` only |
-| Bind | Localhost API; no auth — single-user local use |
+| Deploy | Local developer tool — not a k8s service |
+| CLI install | `make install` → deps, skill-manage, completions, `~/.local/bin/llm-toolkit` |
+| Mac install | `make install-osx` → `/Applications/LLM Toolkit.app` (not part of `make install`) |
+| API | `:3100` (`PORT` / `LLM_TOOLKIT_API_PORT`); also serves `packages/web/dist` when present |
+| Vite | `:5173` (`LLM_TOOLKIT_WEB_PORT`) for hot reload |
+| Data | `~/.llm-toolkit` |
+| Index defaults | Claude `~/.claude/projects`, Codex `~/.codex/sessions` |
+| CORS | localhost / 127.0.0.1 origins (Vite and API-hosted SPA) |
+| Auth | None — single-user local use |
 
 ## Key Design Decisions
 
-- **Local-first** — Core search/index needs no external services; LLM features optional
-- **JSONL as source of truth** — DB is a derived index; edits create versions, never mutate source transcripts
-- **Raw before universal** — Preserve provider-native events for re-parse, audit, and replay
-- **Universal transfer path** — Never direct provider-to-provider conversion
-- **Hono + sqlite-vec** — Lightweight HTTP; single-file DB philosophy (vec degrades if extension missing)
-- **pnpm workspaces + embedded Rust** — Shared TS types across clients; skill linking stays a fast native binary
-- **Launcher-centric UX** — One PATH entry for web, TUI, API, and skill management
+- **Local-first** — search/index needs no network; LLM optional
+- **JSONL is source of truth** — DB is derived; edits version, never mutate transcripts
+- **Raw before universal** — keep provider-native events for re-parse and audit
+- **Universal transfer only** — no direct provider-to-provider conversion
+- **One SPA, two windows** — browser and Mac host the same React console
+- **Symlink skills/agents/commands, don’t copy** — one canonical tree; per-harness dests; MCP is a config entry
+- **Launcher-centric UX** — one PATH entry for web, TUI, API, and `skill`
 
 ## Technology Stack
 
@@ -135,16 +132,16 @@ Embedded Rust crate: discovers skills/agents/commands from configured source roo
 | API | Hono + @hono/node-server |
 | Database | better-sqlite3 + sqlite-vec |
 | Embeddings | @huggingface/transformers (`all-MiniLM-L6-v2`) |
-| LLM | @anthropic-ai/sdk + openai (compatible endpoints) |
+| LLM | @anthropic-ai/sdk + openai-compatible |
 | Watch | chokidar |
 | Web | React 18, Vite 6, React Router 7, Tailwind 3.4 |
-| Markdown | react-markdown, remark-gfm, rehype-katex, Mermaid, syntax highlighter |
-| CLI | Ink 5 (React for terminals) |
+| Markdown | react-markdown, KaTeX, Mermaid, syntax highlighter |
+| CLI | Ink 5 |
+| macOS | Swift 5.10, SwiftUI, WebKit (macOS 14+) |
 | skill-manage | Rust (clap + ratatui) |
 | Packages | pnpm workspaces (`packages/*`) |
-| Language | TypeScript (strict) + Rust |
-| Launcher | bash (`bin/llm-toolkit`, zellij-aware) |
+| Launcher | bash (`bin/llm-toolkit`) |
 
 ## Layout
 
-Directory tree and package layout: [PROJ-LAYOUT.md](PROJ-LAYOUT.md) · per-package: [layout/api.md](layout/api.md), [layout/cli.md](layout/cli.md), [layout/web.md](layout/web.md), [layout/shared.md](layout/shared.md).
+[PROJ-LAYOUT.md](PROJ-LAYOUT.md) · [layout/api.md](layout/api.md) · [layout/cli.md](layout/cli.md) · [layout/web.md](layout/web.md) · [layout/shared.md](layout/shared.md) · [layout/macos.md](layout/macos.md)

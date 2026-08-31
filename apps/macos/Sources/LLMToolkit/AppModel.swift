@@ -28,12 +28,19 @@ final class AppModel {
     init(
         store: any PreferenceStore = UserDefaultsPreferenceStore(),
         healthClient: any HealthChecking = HealthClient(),
-        supervisor: ServerSupervisor = ServerSupervisor()
+        supervisor: ServerSupervisor? = nil
     ) {
         self.store = store
         self.healthClient = healthClient
-        self.supervisor = supervisor
+        let stamped = ToolkitRootStamp.bundledRoot()
+        self.supervisor = supervisor ?? ServerSupervisor(
+            locator: ToolkitLocator(extraCandidates: stamped.map { [$0] } ?? [])
+        )
         self.preferences = store.load()
+    }
+
+    var resolvedToolkitRoot: URL? {
+        supervisor.resolveRoot(preferences: preferences)
     }
 
     var windowTitle: String {
