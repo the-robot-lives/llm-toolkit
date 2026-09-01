@@ -2,6 +2,7 @@
 
 ```
 llm-toolkit/
+├── .gemini/                    # Gemini review-agent config + styleguide
 ├── bin/llm-toolkit             # Launcher (api/web/zellij, CLI, skill proxy)
 ├── packages/
 │   ├── api/                    # Hono REST + SQLite/FTS/vectors + skills routes

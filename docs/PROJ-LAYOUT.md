@@ -4,6 +4,7 @@ pnpm monorepo: TypeScript packages under `packages/`, native Mac host under `app
 
 ```
 llm-toolkit/
+├── .gemini/                          # Gemini code-review agent config + styleguide
 ├── bin/llm-toolkit                   # bash launcher (api/web/zellij, CLI, skill proxy)
 ├── packages/                         # pnpm workspaces (packages/*)
 │   ├── api/                          # Hono REST + SQLite/FTS/vec → [layout/api.md](layout/api.md)
@@ -22,15 +23,19 @@ llm-toolkit/
 │   ├── howto/                        # task guides
 │   ├── layout/                       # api, cli, shared, web, macos
 │   ├── PROJ-ARCH.md
+│   ├── PROJ-SCHEMA.md                # SQLite + config-artifact reference
 │   ├── PROJ-LAYOUT.md                # this file
 │   ├── PROJ-HOWTO.md
-│   └── PROJ-FAQ.md
+│   ├── PROJ-FAQ.md
+│   ├── PROJ-SCHEMA.summary.md        # condensed schema quick-reference
+│   └── PROJ-LAYOUT.summary.md
 ├── project-management/               # PM artifacts (not runtime)
 │   ├── components/                   # 01–40 + index.yaml
 │   ├── personas/
 │   ├── screens/                      # 01–44 + index.yaml
 │   ├── user-stories/                 # US-001…US-100
 │   └── ROADMAP.md
+├── merge-notes.md                    # branch-sweep notes (sep-1 sweep)
 ├── CHANGELOG.md
 ├── INSTALL.md                        # setup walkthrough
 ├── Makefile                          # install, completions, macos, install-osx
