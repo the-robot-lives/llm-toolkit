@@ -38,3 +38,7 @@ Config artifacts: `~/.config/skill-manage/{config,catalog}.yaml` (templates in
 `*.mcp.json`, `settings.json`, TOML variants; env: `LLM_TOOLKIT_DATA_DIR`,
 `LLM_TOOLKIT_WATCH_PATHS`, `LLM_TOOLKIT_WATCH`, `PORT`, `SKILL_REPO`.
 Timestamps: TEXT ISO-8601 (`created_at`/`updated_at`).
+Data interfaces: Hono REST API on :3100 (`packages/api/src/routes/`) — JSON
+request/response over the tables above (conversations ~33, datasets ~15, artifacts,
+search via FTS+vec0 KNN, projects/tags/prompts, llm/config). No queues, sockets, or
+KV store. Tree map of schema sources: docs/PROJ-LAYOUT.md.

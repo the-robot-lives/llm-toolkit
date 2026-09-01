@@ -5,7 +5,9 @@ database** (not a client/server SQL DB — there is no Liquibase/Postgres; migra
 code-level `CREATE TABLE IF NOT EXISTS` + `PRAGMA table_info` column-adds in
 [`packages/api/src/services/storage.ts`](../packages/api/src/services/storage.ts), the
 authoritative source). Config artifacts (YAML configs, JSON MCP files, env vars) are
-documented below alongside the schema.
+documented below alongside the schema. For where each schema source lives in the tree,
+see [`docs/PROJ-LAYOUT.md`](PROJ-LAYOUT.md) (API: `packages/api/src/{routes,services}`,
+Rust configs: `skill-manage/schema/`, macOS host: `apps/macos/`).
 
 ## Database
 
@@ -357,6 +359,24 @@ them (JSON or TOML) when registering the llm-toolkit MCP server.
 | `SKILL_REPO` | *(unset)* | skill-manage source path expansion |
 
 Default watch sources: `~/.claude/projects` and `~/.codex/sessions` (JSONL).
+
+## Data interfaces (REST API)
+
+Hono API on `:3100` (see `packages/api/src/routes/`, wired in `index-routes.ts`). All
+routes are JSON request/response over the SQLite tables above — no queues, sockets, or
+KV store. Route-group → primary data mapping (endpoint-level detail: `docs/arch/data-flow.md`):
+
+| Route group | Endpoints | Primary data touched |
+|-------------|-----------|----------------------|
+| `conversations` | ~33 | conversations, messages, universal_messages, raw_transcript_events, thread_edits |
+| `datasets` | ~15 | datasets, dataset_entries |
+| `artifacts` | ~7 | settings, runtime data dir |
+| `search` | ~2 | messages_fts, conversation_vectors (KNN) |
+| `projects` / `tags` / `prompts` | ~5 each | project_metadata / tag_metadata / saved_prompts |
+| `llm` / `config` | ~6 | settings.app_config (provider selection + keys) |
+
+MCP server registration is exposed through `config` routes (rewrites of host
+`mcpServers` maps — see MCP config files section).
 
 Secrets note: LLM provider API keys live inside the `settings.app_config` JSON blob in
 the local SQLite file (never committed); no other secret stores are used.
