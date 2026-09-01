@@ -13,6 +13,7 @@ import { Tags } from "./pages/Tags.js";
 import { Projects } from "./pages/Projects.js";
 import { ProjectDetail } from "./pages/ProjectDetail.js";
 import { Settings } from "./pages/Settings.js";
+import { Services } from "./pages/Services.js";
 import { Skills } from "./pages/Skills.js";
 import { Agents } from "./pages/Agents.js";
 import { Commands } from "./pages/Commands.js";
@@ -48,6 +49,7 @@ export function App() {
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:slug" element={<ProjectDetail />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="services" element={<Services />} />
         <Route path="style-guides" element={<StyleGuide />} />
         <Route path="style-guides/:slug" element={<StyleGuide />} />
       </Route>

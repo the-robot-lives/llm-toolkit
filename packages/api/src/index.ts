@@ -7,6 +7,7 @@ import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import type { IndexSource } from "@llm-toolkit/shared";
+import { loadNplPluginConfig } from "@llm-toolkit/shared";
 import { createConversationRoutes } from "./routes/conversations.ts";
 import { createSearchRoutes } from "./routes/search.ts";
 import { createDatasetRoutes } from "./routes/datasets.ts";
@@ -18,6 +19,8 @@ import { createTagRoutes } from "./routes/tags.ts";
 import { createLlmRoutes } from "./routes/llm.ts";
 import { createSkillRoutes } from "./routes/skills.ts";
 import { createArtifactRoutes } from "./routes/artifacts.ts";
+import { createServiceRoutes } from "./routes/services.ts";
+import { ServiceSupervisor } from "./services/service-supervisor.ts";
 import { StorageService } from "./services/storage.ts";
 import { IndexerService } from "./services/indexer.ts";
 import { SearchService } from "./services/search.ts";
@@ -41,6 +44,13 @@ const storage = new StorageService(dbPath);
 const llmService = new LlmService();
 const indexer = new IndexerService(storage, indexSources, embeddings, llmService);
 const searchService = new SearchService(storage, embeddings);
+
+const projectRoot = process.env.LLM_TOOLKIT_PROJECT_ROOT ?? null;
+const supervisor = new ServiceSupervisor({
+  dataDir,
+  projectRoot,
+  getConfig: () => loadNplPluginConfig({ cwd: projectRoot ?? process.cwd() }).config,
+});
 
 const app = new Hono();
 
@@ -76,6 +86,7 @@ app.route("/api/skills", createSkillRoutes(storage));
 app.route("/api/agents", createArtifactRoutes(storage, "agents"));
 app.route("/api/commands", createArtifactRoutes(storage, "commands"));
 app.route("/api/mcp", createArtifactRoutes(storage, "mcp"));
+app.route("/api/services", createServiceRoutes(supervisor, { projectRoot }));
 
 const webDist = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "web", "dist");
 if (existsSync(join(webDist, "index.html"))) {
@@ -95,6 +106,9 @@ async function start() {
 
   await storage.initialize();
   console.log(`Database initialized at ${dbPath}`);
+
+  // Adopt/reap leftover service pid files before serving.
+  await Promise.resolve(supervisor.reconcile());
 
   // Load config from DB and initialize LLM service
   const config = loadConfig(storage);
@@ -128,6 +142,10 @@ async function start() {
     if ((process.env.LLM_TOOLKIT_WATCH ?? process.env.CLAUDE_ASSIST_WATCH) !== "false") {
       indexer.watch();
     }
+
+    supervisor.autostartEnabled().catch((err) => {
+      console.error("Service autostart failed:", err);
+    });
   });
 }
 

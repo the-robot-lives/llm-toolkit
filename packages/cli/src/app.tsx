@@ -4,6 +4,7 @@ import { SearchCommand } from "./commands/search.js";
 import { ListCommand } from "./commands/list.js";
 import { ShowCommand } from "./commands/show.js";
 import { IndexCommand } from "./commands/index.js";
+import { ServicesCommand } from "./commands/services.js";
 import { InteractiveApp } from "./interactive/InteractiveApp.js";
 
 interface AppProps {
@@ -22,6 +23,8 @@ export function App({ command, args }: AppProps) {
       return <ShowCommand id={args[0]} />;
     case "index":
       return <IndexCommand />;
+    case "services":
+      return <ServicesCommand args={args} />;
     case "serve":
       return (
         <Box flexDirection="column">
@@ -46,6 +49,7 @@ export function App({ command, args }: AppProps) {
             <Text>  <Text color="cyan">interactive</Text>  {"  "}Launch full-screen TUI</Text>
             <Text>  <Text color="cyan">serve</Text>        {"  "}Start API + web UI</Text>
             <Text>  <Text color="cyan">index</Text>        {"  "}Rebuild search index</Text>
+            <Text>  <Text color="cyan">services</Text>      {"  "}Manage local services (TUI; --list --start/--stop/--restart NAME --all)</Text>
           </Box>
         </Box>
       );
