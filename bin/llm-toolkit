@@ -106,6 +106,7 @@ Usage:
   llm-toolkit web                Start only the web UI (dev server, foreground)
   llm-toolkit --no-zellij        Launch API + web without zellij (API backgrounded)
   llm-toolkit skill <cmd>        Manage provider skills/agents/commands (see below)
+  llm-toolkit services           Manage local MCP/daemon services (TUI; --list|--start|--stop|--restart NAME, --all)
   llm-toolkit <cmd> [args]       Conversation CLI: recent, search, list, show,
                                   index, serve, interactive, help
 

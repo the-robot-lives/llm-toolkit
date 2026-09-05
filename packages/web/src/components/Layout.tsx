@@ -125,6 +125,19 @@ function LayoutShell() {
           ))}
           <div className="my-3 mx-4 border-t border-border-subtle" />
           <NavLink
+            to="/services"
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 px-5 py-2.5 text-sm transition-colors ${
+                isActive
+                  ? "border-l-[3px] border-glow bg-glow-bg text-text-bright font-medium"
+                  : "border-l-[3px] border-transparent text-text-primary hover:text-text-bright hover:bg-surface/60"
+              }`
+            }
+          >
+            <span className="w-4 text-center text-xs">{"⏻"}</span>
+            Services
+          </NavLink>
+          <NavLink
             to="/settings"
             className={({ isActive }) =>
               `flex items-center gap-2.5 px-5 py-2.5 text-sm transition-colors ${
