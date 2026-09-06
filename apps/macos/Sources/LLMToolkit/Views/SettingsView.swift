@@ -19,19 +19,21 @@ struct SettingsView: View {
                     }
                 }
             }
-            Section("Toolkit") {
+            Section("Runtime") {
                 Toggle("Use native Mac chrome", isOn: $model.preferences.useNativeChrome)
                 Toggle("Start automatically", isOn: $model.preferences.autoStartServers)
                 Toggle("Stop on quit (only if this app started it)", isOn: $model.preferences.stopServersOnQuit)
-                TextField("API URL", text: apiURLBinding)
+                TextField("Local URL", text: apiURLBinding)
+                if let runtime = model.resolvedRuntime {
+                    LabeledContent("Runtime", value: runtime.path)
+                }
+            }
+            Section("Development") {
                 HStack {
-                    TextField("Checkout", text: $model.preferences.toolkitRootPath)
+                    TextField("Checkout override", text: $model.preferences.toolkitRootPath)
                     Button("Browse…") { model.chooseToolkitRoot() }
                 }
-                if let root = model.resolvedToolkitRoot {
-                    LabeledContent("Detected", value: root.path)
-                }
-                Text("Leave blank to auto-detect from the stamped install path, LLM_TOOLKIT_ROOT, the current directory, or ~/.local/bin/llm-toolkit.")
+                Text("Optional. Installed apps use the bundled runtime; this path is only for running against a development checkout.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

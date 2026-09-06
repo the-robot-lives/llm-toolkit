@@ -1,14 +1,16 @@
 # Native macOS host for llm-toolkit.
-# Starts or attaches to the Hono process on :3100 (which also serves the console).
+# Starts or attaches to the bundled local runtime on :3100.
 
-.PHONY: build test run app icon install install-osx install-macos install/osx install/macos uninstall-osx clean
+.PHONY: build test run app runtime icon install install-osx install-macos install/osx install/macos uninstall-osx clean
 
 SWIFT ?= swift
+PNPM ?= pnpm
 CONFIG ?= debug
 APP_NAME := LLM Toolkit
 EXECUTABLE := LLMToolkit
 BUILD_DIR := .build
 APP_DIR := $(BUILD_DIR)/$(APP_NAME).app
+RUNTIME_DIR := $(APP_DIR)/Contents/Resources/Runtime
 INSTALL_DIR ?= /Applications
 TOOLKIT_ROOT := $(shell cd "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../.." && pwd)
 LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
@@ -19,20 +21,39 @@ build: ## Compile the Swift package
 test: ## Route + locator + launch-plan tests
 	$(SWIFT) test
 
-run: ## Launch (attaches to :3100 / starts pnpm dev:api)
+run: ## Launch (attaches to :3100 / starts pnpm dev:api in development)
 	$(SWIFT) run LLMToolkit
 
-app: ## Assemble a double-clickable .app under .build/
+runtime: ## Build web assets that the app embeds into its local runtime
+	cd "$(TOOLKIT_ROOT)" && CI=true $(PNPM) --filter @llm-toolkit/web build
+
+app: runtime ## Assemble a double-clickable .app under .build/
 	$(SWIFT) build -c release
 	@bin="$$($(SWIFT) build -c release --show-bin-path)/$(EXECUTABLE)"; \
 	test -x "$$bin"; \
 	rm -rf "$(APP_DIR)"; \
-	mkdir -p "$(APP_DIR)/Contents/MacOS" "$(APP_DIR)/Contents/Resources"; \
+	mkdir -p "$(APP_DIR)/Contents/MacOS" "$(APP_DIR)/Contents/Resources" "$(RUNTIME_DIR)/packages"; \
 	cp "$$bin" "$(APP_DIR)/Contents/MacOS/$(EXECUTABLE)"; \
 	chmod 755 "$(APP_DIR)/Contents/MacOS/$(EXECUTABLE)"; \
 	cp Info.plist "$(APP_DIR)/Contents/Info.plist"; \
 	printf 'APPL????' > "$(APP_DIR)/Contents/PkgInfo"; \
-	printf '%s\n' "$(TOOLKIT_ROOT)" > "$(APP_DIR)/Contents/Resources/toolkit-root.txt"; \
+	cp "$(TOOLKIT_ROOT)/package.json" "$(RUNTIME_DIR)/package.json"; \
+	cp "$(TOOLKIT_ROOT)/pnpm-lock.yaml" "$(RUNTIME_DIR)/pnpm-lock.yaml"; \
+	cp "$(TOOLKIT_ROOT)/pnpm-workspace.yaml" "$(RUNTIME_DIR)/pnpm-workspace.yaml"; \
+	cp "$(TOOLKIT_ROOT)/tsconfig.base.json" "$(RUNTIME_DIR)/tsconfig.base.json"; \
+	ditto "$(TOOLKIT_ROOT)/node_modules" "$(RUNTIME_DIR)/node_modules"; \
+	mkdir -p "$(RUNTIME_DIR)/packages/api" "$(RUNTIME_DIR)/packages/shared" "$(RUNTIME_DIR)/packages/web"; \
+	cp "$(TOOLKIT_ROOT)/packages/api/package.json" "$(RUNTIME_DIR)/packages/api/package.json"; \
+	cp "$(TOOLKIT_ROOT)/packages/api/tsconfig.json" "$(RUNTIME_DIR)/packages/api/tsconfig.json"; \
+	ditto "$(TOOLKIT_ROOT)/packages/api/src" "$(RUNTIME_DIR)/packages/api/src"; \
+	ditto "$(TOOLKIT_ROOT)/packages/api/node_modules" "$(RUNTIME_DIR)/packages/api/node_modules"; \
+	cp "$(TOOLKIT_ROOT)/packages/shared/package.json" "$(RUNTIME_DIR)/packages/shared/package.json"; \
+	cp "$(TOOLKIT_ROOT)/packages/shared/tsconfig.json" "$(RUNTIME_DIR)/packages/shared/tsconfig.json"; \
+	ditto "$(TOOLKIT_ROOT)/packages/shared/src" "$(RUNTIME_DIR)/packages/shared/src"; \
+	ditto "$(TOOLKIT_ROOT)/packages/shared/node_modules" "$(RUNTIME_DIR)/packages/shared/node_modules"; \
+	cp "$(TOOLKIT_ROOT)/packages/web/package.json" "$(RUNTIME_DIR)/packages/web/package.json"; \
+	ditto "$(TOOLKIT_ROOT)/packages/web/dist" "$(RUNTIME_DIR)/packages/web/dist"; \
+	ditto "$(TOOLKIT_ROOT)/packages/web/node_modules" "$(RUNTIME_DIR)/packages/web/node_modules"; \
 	if [ -f Resources/LLMToolkit.icns ]; then \
 		cp Resources/LLMToolkit.icns "$(APP_DIR)/Contents/Resources/LLMToolkit.icns"; \
 	fi; \

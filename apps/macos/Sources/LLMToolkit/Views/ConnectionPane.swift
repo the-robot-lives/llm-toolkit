@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Shown until the local API (which also serves the console) answers /api/health.
+/// Shown until the bundled local runtime answers /api/health.
 struct StartingOverlay: View {
     @Environment(AppModel.self) private var model
 
@@ -49,9 +49,6 @@ struct StartingOverlay: View {
 
     private var actionRow: some View {
         HStack(spacing: 10) {
-            Button("Choose Checkout…") {
-                model.chooseToolkitRoot()
-            }
             Button("Recheck") {
                 Task { await model.refreshHealth() }
             }

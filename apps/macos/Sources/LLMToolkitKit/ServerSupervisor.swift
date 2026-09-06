@@ -20,14 +20,14 @@ public struct LaunchPlan: Equatable, Sendable {
 }
 
 public enum ServerSupervisorError: LocalizedError, Equatable {
-    case toolkitRootNotFound
+    case runtimeNotFound
     case alreadyRunning
     case launchFailed(String)
 
     public var errorDescription: String? {
         switch self {
-        case .toolkitRootNotFound:
-            return "Could not find the llm-toolkit checkout. Set the toolkit root in Settings or install the llm-toolkit launcher."
+        case .runtimeNotFound:
+            return "Could not find the bundled llm-toolkit runtime. Reinstall LLM Toolkit or run it from the development checkout."
         case .alreadyRunning:
             return "Already running."
         case .launchFailed(let message):
@@ -38,15 +38,18 @@ public enum ServerSupervisorError: LocalizedError, Equatable {
 
 public struct ServerSupervisor: Sendable {
     public var locator: ToolkitLocator
+    public var bundledRuntimeURL: URL?
     public var shellURL: URL
     public var pathEnvironment: [String: String]
 
     public init(
         locator: ToolkitLocator = ToolkitLocator(),
+        bundledRuntimeURL: URL? = ToolkitRuntime.bundledRuntimeURL(),
         shellURL: URL = URL(fileURLWithPath: "/bin/zsh"),
         pathEnvironment: [String: String] = ProcessInfo.processInfo.environment
     ) {
         self.locator = locator
+        self.bundledRuntimeURL = bundledRuntimeURL
         self.shellURL = shellURL
         self.pathEnvironment = pathEnvironment
     }
@@ -55,22 +58,55 @@ public struct ServerSupervisor: Sendable {
         locator.locate(explicitRoot: preferences.toolkitRootURL)
     }
 
-    public func makeLaunchPlan(preferences: AppPreferences) throws -> LaunchPlan {
-        guard let root = resolveRoot(preferences: preferences) else {
-            throw ServerSupervisorError.toolkitRootNotFound
+    public func resolveRuntime(preferences: AppPreferences) -> URL? {
+        if let bundledRuntimeURL, ToolkitRuntime.isRuntimeRoot(bundledRuntimeURL) {
+            return bundledRuntimeURL.standardizedFileURL
         }
+        return resolveRoot(preferences: preferences)
+    }
+
+    public func makeLaunchPlan(preferences: AppPreferences) throws -> LaunchPlan {
+        if let runtime = bundledRuntimeURL, ToolkitRuntime.isRuntimeRoot(runtime) {
+            return bundledLaunchPlan(runtime: runtime, preferences: preferences)
+        }
+
+        guard let root = resolveRoot(preferences: preferences) else {
+            throw ServerSupervisorError.runtimeNotFound
+        }
+        return checkoutLaunchPlan(root: root, preferences: preferences)
+    }
+
+    private func bundledLaunchPlan(runtime: URL, preferences: AppPreferences) -> LaunchPlan {
+        let quoted = shellQuote(runtime.path)
+        let script = "cd \(quoted) && ./node_modules/.bin/tsx packages/api/src/index.ts"
+        var environment = launchEnvironment(preferences: preferences)
+        environment["LLM_TOOLKIT_BUNDLED_RUNTIME"] = "1"
+        return LaunchPlan(
+            executable: shellURL,
+            arguments: ["-lc", script],
+            currentDirectory: runtime,
+            environment: environment
+        )
+    }
+
+    private func checkoutLaunchPlan(root: URL, preferences: AppPreferences) -> LaunchPlan {
         let quoted = shellQuote(root.path)
         let script = "cd \(quoted) && if [ ! -f packages/web/dist/index.html ]; then pnpm --filter @llm-toolkit/web build; fi && pnpm dev:api"
-        var environment = pathEnvironment
-        if environment["PORT"] == nil {
-            environment["PORT"] = "\(preferences.apiURL.port ?? 3100)"
-        }
+        let environment = launchEnvironment(preferences: preferences)
         return LaunchPlan(
             executable: shellURL,
             arguments: ["-lc", script],
             currentDirectory: root,
             environment: environment
         )
+    }
+
+    private func launchEnvironment(preferences: AppPreferences) -> [String: String] {
+        var environment = pathEnvironment
+        if environment["PORT"] == nil {
+            environment["PORT"] = "\(preferences.apiURL.port ?? 3100)"
+        }
+        return environment
     }
 
     public func start(preferences: AppPreferences) throws -> Process {
@@ -115,5 +151,28 @@ public struct ServerSupervisor: Sendable {
 
     public func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
+public enum ToolkitRuntime: Sendable {
+    public static func bundledRuntimeURL(bundle: Bundle = .main) -> URL? {
+        if let url = bundle.url(forResource: "Runtime", withExtension: nil) {
+            return url
+        }
+        let fallback = bundle.bundleURL.appendingPathComponent("Contents/Resources/Runtime", isDirectory: true)
+        if FileManager.default.fileExists(atPath: fallback.path) {
+            return fallback
+        }
+        return nil
+    }
+
+    public static func isRuntimeRoot(_ url: URL, fileManager: FileManager = .default) -> Bool {
+        let root = url.standardizedFileURL
+        return fileManager.fileExists(atPath: root.appendingPathComponent("package.json").path)
+            && fileManager.fileExists(atPath: root.appendingPathComponent("node_modules/.bin/tsx").path)
+            && fileManager.fileExists(atPath: root.appendingPathComponent("packages/api/src/index.ts").path)
+            && fileManager.fileExists(atPath: root.appendingPathComponent("packages/api/node_modules/@llm-toolkit/shared").path)
+            && fileManager.fileExists(atPath: root.appendingPathComponent("packages/shared/src/index.ts").path)
+            && fileManager.fileExists(atPath: root.appendingPathComponent("packages/web/dist/index.html").path)
     }
 }

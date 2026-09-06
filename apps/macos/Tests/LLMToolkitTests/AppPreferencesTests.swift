@@ -47,4 +47,38 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertTrue(plan.arguments[1].contains(supervisor.shellQuote(temp.path)))
         XCTAssertEqual(plan.currentDirectory.path, temp.path)
     }
+
+    func testBundledRuntimeLaunchPlanDoesNotRequireCheckout() throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("llm-toolkit-runtime-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: temp.appendingPathComponent("node_modules/.bin"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: temp.appendingPathComponent("packages/api/src"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: temp.appendingPathComponent("packages/api/node_modules/@llm-toolkit/shared"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: temp.appendingPathComponent("packages/shared/src"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: temp.appendingPathComponent("packages/web/dist"), withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: temp.appendingPathComponent("package.json"))
+        try Data("#!/bin/sh\n".utf8).write(to: temp.appendingPathComponent("node_modules/.bin/tsx"))
+        try Data("api".utf8).write(to: temp.appendingPathComponent("packages/api/src/index.ts"))
+        try Data("shared".utf8).write(to: temp.appendingPathComponent("packages/shared/src/index.ts"))
+        try Data("<html></html>".utf8).write(to: temp.appendingPathComponent("packages/web/dist/index.html"))
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let supervisor = ServerSupervisor(
+            locator: ToolkitLocator(
+                environment: [:],
+                homeDirectory: temp,
+                currentDirectory: temp,
+                considerCompilationPath: false
+            ),
+            bundledRuntimeURL: temp,
+            pathEnvironment: ["PATH": "/usr/bin"]
+        )
+
+        let plan = try supervisor.makeLaunchPlan(preferences: AppPreferences())
+        XCTAssertEqual(plan.currentDirectory.path, temp.path)
+        XCTAssertEqual(plan.arguments.first, "-lc")
+        XCTAssertTrue(plan.arguments[1].contains("./node_modules/.bin/tsx packages/api/src/index.ts"))
+        XCTAssertFalse(plan.arguments[1].contains("pnpm dev:api"))
+        XCTAssertEqual(plan.environment["LLM_TOOLKIT_BUNDLED_RUNTIME"], "1")
+    }
 }

@@ -1,14 +1,14 @@
 # LLM Toolkit for macOS
 
 Native Mac host for llm-toolkit. It starts or attaches to the local Hono
-process (`:3100`) and loads the console the API itself serves. There is no
-separate Vite/web connection and no connection sheet.
+runtime (`:3100`) and loads the console it serves. There is no separate
+Vite/web connection and no connection sheet.
 
 ## Requirements
 
 - macOS 14+
 - Xcode / Swift 5.10+
-- Node 18+ and pnpm 8+ (to run the local API + Vite console)
+- Node 18+ and pnpm 8+ (to build the app bundle runtime)
 
 ## Run
 
@@ -33,10 +33,12 @@ make macos-run    # launch the Mac app without installing
 `install-osx`, `install-macos`, `install/osx`, and `install/macos` are aliases.
 Override the destination with `INSTALL_DIR=$HOME/Applications`.
 
-On first launch the app probes `http://localhost:3100/api/health`. If that
-is down it locates the checkout, builds the console into `packages/web/dist`
-if needed, and starts `pnpm dev:api`. Override the checkout with
-`LLM_TOOLKIT_ROOT` or Settings → Checkout.
+On first launch the app probes `http://localhost:3100/api/health`. If that is
+down, an installed app starts its bundled runtime from
+`Contents/Resources/Runtime`; it does not need to locate this source checkout.
+When running from the development checkout, the app falls back to
+`pnpm dev:api`. Configure skill, agent, command, MCP, and project locations in
+the console settings after the runtime is up.
 
 ## Console map (parity)
 
@@ -89,7 +91,7 @@ apps/macos/
 ├── Package.swift
 ├── Makefile
 ├── Info.plist
-├── Sources/LLMToolkitKit/     # routes, prefs, locator, stamp, health, API, supervisor
+├── Sources/LLMToolkitKit/     # routes, prefs, locator, runtime, health, API client, supervisor
 ├── Sources/LLMToolkit/        # SwiftUI app, WKWebView host, menus
 └── Tests/LLMToolkitTests/
 ```

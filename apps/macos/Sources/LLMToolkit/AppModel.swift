@@ -43,6 +43,10 @@ final class AppModel {
         supervisor.resolveRoot(preferences: preferences)
     }
 
+    var resolvedRuntime: URL? {
+        supervisor.resolveRuntime(preferences: preferences)
+    }
+
     var windowTitle: String {
         "\(route.title) — LLM Toolkit"
     }
@@ -100,7 +104,7 @@ final class AppModel {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Use Folder"
-        panel.message = "Select the llm-toolkit checkout (the folder that contains packages/api)."
+        panel.message = "Select a development llm-toolkit checkout. Installed apps normally use their bundled runtime."
         if let current = preferences.toolkitRootURL {
             panel.directoryURL = current
         }
@@ -134,7 +138,7 @@ final class AppModel {
                 banner = "Console ready."
                 reloadConsole()
             } else {
-                lastError = "Could not reach the local toolkit. Check Settings for the checkout path."
+                lastError = "Could not start the local toolkit runtime. Reinstall LLM Toolkit or check the logs in ~/Library/Logs/LLMToolkit/console.log."
             }
         } catch {
             lastError = error.localizedDescription
