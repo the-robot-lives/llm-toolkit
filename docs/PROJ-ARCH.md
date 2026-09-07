@@ -84,9 +84,9 @@ IndexerService discovers harness JSONL, stores **raw events**, normalizes **univ
 
 ## Storage
 
-SQLite at `~/.llm-toolkit/llm-toolkit.db` (`LLM_TOOLKIT_DATA_DIR`; legacy `CLAUDE_ASSIST_*` aliases). WAL; sqlite-vec optional. Tables: conversations/messages, universal + raw layers, work items, edits, datasets, prompts, project/tag metadata, settings, FTS5, vec0.
+SQLite at `~/.llm-toolkit/llm-toolkit.db` (`LLM_TOOLKIT_DATA_DIR`; legacy `CLAUDE_ASSIST_*` aliases). WAL; sqlite-vec optional. Tables: conversations/messages, universal + raw layers, work items, edits, datasets, prompts, project/tag metadata, settings, FTS5, vec0. Full table/config reference: [PROJ-SCHEMA.md](PROJ-SCHEMA.md).
 
-→ *See [arch/storage.md](arch/storage.md)*
+→ *See [arch/storage.md](arch/storage.md) and [PROJ-SCHEMA.md](PROJ-SCHEMA.md) for details*
 
 ## Multi-Harness (agent-watch-dog)
 

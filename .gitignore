@@ -8,3 +8,6 @@ dist/
 .turbo
 *.tsbuildinfo
 coverage/
+
+# Canonical worktree placement
+.claude/worktrees/
