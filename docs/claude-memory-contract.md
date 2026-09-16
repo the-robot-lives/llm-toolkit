@@ -121,3 +121,31 @@ enum with the same cases.
    values, not bytes).
 3. Any semantic change lands in Rust first, regenerates `expected.json`,
    then mirrors in Swift in the same PR.
+
+## REST endpoints (`/api/memory`)
+
+Implemented in `packages/api/src/routes/memory.ts` over the napi addon
+(`crates/claude-memory-node`); the addon is lazy-loaded per request. The
+memory root is `CLAUDE_MEMORY_ROOT` env or `~/.claude/projects`. This REST
+surface is upstream spec for the Swift client.
+
+| Method | Path | Request | Response (200) |
+|---|---|---|---|
+| GET | `/api/memory/projects` | — | `ProjectSummary[]` |
+| GET | `/api/memory/search?query=&project=` | — | `SearchHit[]` |
+| GET | `/api/memory/:project/memories` | — | `{indexRaw, entries: MemorySummary[]}` |
+| GET | `/api/memory/:project/memories/:slug` | — | `MemoryDetail` |
+| POST | `/api/memory/:project/memories` | `{slug, name?, description?, type?, body}` | `{slug, indexUpdated}` |
+| PATCH | `/api/memory/:project/memories/:slug` | `{content?}` or `{name?, description?, type?, body?, syncIndex?}` | `{slug, indexUpdated}` |
+| DELETE | `/api/memory/:project/memories/:slug` | — | `{slug, fileDeleted, indexLinesRemoved}` |
+
+Field names match the napi/Rust JSON exactly (camelCase: `memoryDir`,
+`indexPresent`, `memoryCount`, `fileName`, `mtimeMs`, `sizeBytes`,
+`indexHook`, `indexRaw`, `indexUpdated`, `fileDeleted`,
+`indexLinesRemoved`, `frontmatterRaw`). `description`, `type`, `modified`,
+`indexHook`, `frontmatterRaw` are `null` when absent.
+
+Error responses: HTTP status per code plus `{error: "<CODE>", detail}`;
+mapping `NOT_FOUND → 404`, `NO_PROJECT → 404`, `EXISTS → 409`,
+`INVALID_SLUG → 400`, `IO → 500` (also 500 for any unparseable error,
+e.g. addon missing).
