@@ -1,7 +1,7 @@
 # Native macOS host for llm-toolkit.
 # Starts or attaches to the Hono process on :3100 (which also serves the console).
 
-.PHONY: build test run app icon install install-osx install-macos install/osx install/macos uninstall-osx clean
+.PHONY: build test test-kits run app icon install install-osx install-macos install/osx install/macos uninstall-osx clean
 
 SWIFT ?= swift
 CONFIG ?= debug
@@ -18,6 +18,9 @@ build: ## Compile the Swift package
 
 test: ## Route + locator + launch-plan tests
 	$(SWIFT) test
+
+test-kits: ## Nested local package tests (ClaudeMemoryKit incl. golden parity)
+	cd Packages/ClaudeMemoryKit && $(SWIFT) test
 
 run: ## Launch (attaches to :3100 / starts pnpm dev:api)
 	$(SWIFT) run LLMToolkit
