@@ -211,6 +211,11 @@ public final class MemoryModel {
         banner = nil
     }
 
+    public func clearDetail() {
+        detail = nil
+        detailProject = nil
+    }
+
     // MARK: - Privates
 
     private func demandWritable() -> Bool {

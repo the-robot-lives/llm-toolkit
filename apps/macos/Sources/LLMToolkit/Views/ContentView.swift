@@ -10,21 +10,26 @@ struct ContentView: View {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 228, max: 280)
         } detail: {
-            ZStack {
-                ConsoleWebView(
-                    baseURL: model.preferences.apiURL,
-                    route: model.route,
-                    harness: model.harness,
-                    nativeChrome: model.preferences.useNativeChrome,
-                    reloadToken: model.reloadToken,
-                    onRoute: { model.applyRoute($0) },
-                    onHarness: { model.harness = $0 }
-                )
-                .background(Nocturne.surface)
-                .opacity(model.health.isReady ? 1 : 0)
+            if model.route == .claudeMemory {
+                MemoryRootView()
+                    .background(Nocturne.surface)
+            } else {
+                ZStack {
+                    ConsoleWebView(
+                        baseURL: model.preferences.apiURL,
+                        route: model.route,
+                        harness: model.harness,
+                        nativeChrome: model.preferences.useNativeChrome,
+                        reloadToken: model.reloadToken,
+                        onRoute: { model.applyRoute($0) },
+                        onHarness: { model.harness = $0 }
+                    )
+                    .background(Nocturne.surface)
+                    .opacity(model.health.isReady ? 1 : 0)
 
-                if !model.health.isReady {
-                    StartingOverlay()
+                    if !model.health.isReady {
+                        StartingOverlay()
+                    }
                 }
             }
         }
