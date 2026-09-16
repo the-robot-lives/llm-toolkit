@@ -1,0 +1,17 @@
+[package]
+name = "claude-memory-node"
+version = "0.1.0"
+edition = "2021"
+description = "napi-rs binding for claude-memory — async-safe ops returning contract JSON shapes"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+claude-memory = { path = "../claude-memory" }
+napi = { version = "2", default-features = false, features = ["napi4", "tokio_rt"] }
+napi-derive = "2"
+
+[build-dependencies]
+napi-build = "2"
