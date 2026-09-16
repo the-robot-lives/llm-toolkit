@@ -10,14 +10,23 @@ let package = Package(
         .library(name: "LLMToolkitKit", targets: ["LLMToolkitKit"]),
         .executable(name: "LLMToolkit", targets: ["LLMToolkit"]),
     ],
+    dependencies: [
+        .package(path: "Packages/ClaudeMemoryKit"),
+    ],
     targets: [
         .target(
             name: "LLMToolkitKit",
+            dependencies: [
+                .product(name: "ClaudeMemoryKit", package: "ClaudeMemoryKit"),
+            ],
             path: "Sources/LLMToolkitKit"
         ),
         .executableTarget(
             name: "LLMToolkit",
-            dependencies: ["LLMToolkitKit"],
+            dependencies: [
+                "LLMToolkitKit",
+                .product(name: "ClaudeMemoryKit", package: "ClaudeMemoryKit"),
+            ],
             path: "Sources/LLMToolkit",
             resources: [
                 .process("Resources"),
