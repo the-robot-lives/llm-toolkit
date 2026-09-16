@@ -20,6 +20,7 @@ import { createLlmRoutes } from "./routes/llm.ts";
 import { createSkillRoutes } from "./routes/skills.ts";
 import { createArtifactRoutes } from "./routes/artifacts.ts";
 import { createServiceRoutes } from "./routes/services.ts";
+import { createMemoryRoutes } from "./routes/memory.ts";
 import { ServiceSupervisor } from "./services/service-supervisor.ts";
 import { StorageService } from "./services/storage.ts";
 import { IndexerService } from "./services/indexer.ts";
@@ -87,6 +88,7 @@ app.route("/api/agents", createArtifactRoutes(storage, "agents"));
 app.route("/api/commands", createArtifactRoutes(storage, "commands"));
 app.route("/api/mcp", createArtifactRoutes(storage, "mcp"));
 app.route("/api/services", createServiceRoutes(supervisor, { projectRoot }));
+app.route("/api/memory", createMemoryRoutes());
 
 const webDist = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "web", "dist");
 if (existsSync(join(webDist, "index.html"))) {

@@ -10,6 +10,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
+    "build:memory-native": "cd crates/claude-memory-node && pnpm exec napi build --release --platform ../../packages/api/native",
     "clean": "pnpm -r clean"
   },
   "bin": {
@@ -19,6 +20,7 @@
   "author": "Keith Brings <keith.brings@noizu.com>",
   "license": "MIT",
   "devDependencies": {
+    "@napi-rs/cli": "^2.18.4",
     "tsx": "^4.19.0"
   },
   "pnpm": {
