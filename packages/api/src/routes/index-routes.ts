@@ -1,13 +1,26 @@
 import { Hono } from "hono";
-import type { IndexerService } from "../services/indexer.ts";
+import type { IndexerService, IndexAllOptions } from "../services/indexer.ts";
 
 // ⟦𓂥𓆙𓇾𓅌⟧ createIndexRoutes :: auto-generated pointer for public function createIndexRoutes
 export function createIndexRoutes(indexer: IndexerService): Hono {
   const routes = new Hono();
 
   routes.post("/rebuild", async (c) => {
+    let options: IndexAllOptions = {};
+    try {
+      const body = await c.req.json() as Partial<IndexAllOptions> | undefined;
+      if (body && typeof body === "object") {
+        options = {
+          useLocalLlm: body.useLocalLlm === true,
+          deepWindowDays: typeof body.deepWindowDays === "number" ? body.deepWindowDays : undefined,
+          force: body.force === true,
+        };
+      }
+    } catch {
+      // No/empty body — use defaults.
+    }
     // Fire-and-forget: start indexing in the background
-    indexer.indexAll().then((result) => {
+    indexer.indexAll(options).then((result) => {
       console.log(`Indexing complete: ${result.indexed} indexed, ${result.errors} errors`);
     }).catch((err) => {
       console.error("Indexing failed:", err);

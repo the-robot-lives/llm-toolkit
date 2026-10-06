@@ -281,7 +281,20 @@ export class StorageService {
     this.migrateThreadEdits();
     this.migrateConversationsMeta();
     this.migrateConversationHarness();
+    this.migrateIndexingColumns();
     this.initVectorTable();
+  }
+
+  private migrateIndexingColumns(): void {
+    const db = this.getDb();
+    const cols = db.prepare("PRAGMA table_info(conversations)").all() as Array<{ name: string }>;
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("content_hash")) {
+      db.exec("ALTER TABLE conversations ADD COLUMN content_hash TEXT");
+    }
+    if (!colNames.has("indexed_at")) {
+      db.exec("ALTER TABLE conversations ADD COLUMN indexed_at INTEGER");
+    }
   }
 
   private migrateThreadEdits(): void {
@@ -539,6 +552,29 @@ export class StorageService {
     if (sets.length === 0) return;
     params.push(id);
     db.prepare(`UPDATE conversations SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+  }
+
+  async setContentIndexMeta(id: string, meta: { contentHash?: string; indexedAt?: number }): Promise<void> {
+    const db = this.getDb();
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (meta.contentHash !== undefined) {
+      sets.push("content_hash = ?");
+      params.push(meta.contentHash);
+    }
+    if (meta.indexedAt !== undefined) {
+      sets.push("indexed_at = ?");
+      params.push(meta.indexedAt);
+    }
+    if (sets.length === 0) return;
+    params.push(id);
+    db.prepare(`UPDATE conversations SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+  }
+
+  async getContentHash(id: string): Promise<string | null> {
+    const db = this.getDb();
+    const row = db.prepare("SELECT content_hash FROM conversations WHERE id = ?").get(id) as { content_hash: string | null } | undefined;
+    return row?.content_hash ?? null;
   }
 
   async getConversationBySlug(slug: string): Promise<Conversation | null> {
@@ -1034,6 +1070,7 @@ interface ConversationRow {
   tags: string;
   status: string;
   source_path: string;
+  content_hash?: string | null;
   first_message?: string | null;
   last_message?: string | null;
 }
@@ -1053,6 +1090,7 @@ function rowToConversation(row: ConversationRow): Conversation {
     tags: JSON.parse(row.tags),
     status: row.status as Conversation["status"],
     sourcePath: row.source_path,
+    contentHash: row.content_hash ?? null,
     firstMessage: row.first_message ?? undefined,
     lastMessage: row.last_message ?? undefined,
   };

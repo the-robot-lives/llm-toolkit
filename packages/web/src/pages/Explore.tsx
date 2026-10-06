@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useConversations, useSearch, useIndexStatus } from "../hooks/useApi.js";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useConversations, useSearch, useIndexStatus, apiFetch, analyzeConversation, rebuildIndex } from "../hooks/useApi.js";
 import { useHarness } from "../context/HarnessContext.js";
 
 type SortOption = "updated_at" | "started_at" | "message_count" | "title";
@@ -31,6 +31,15 @@ export function Explore() {
   const [previewMode, setPreviewMode] = useState<PreviewMode>("both");
   const [groupMode, setGroupMode] = useState<GroupMode>("flat");
 
+  // Index modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [useLocalLlm, setUseLocalLlm] = useState(true);
+  const [deepWindowDays, setDeepWindowDays] = useState<number>(14);
+  const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildError, setRebuildError] = useState<string | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [analyzeMsg, setAnalyzeMsg] = useState<{ id: string; ok: boolean; text: string } | null>(null);
+
   const isSearching = query.trim().length > 0;
   const offset = (page - 1) * pageSize;
 
@@ -39,9 +48,46 @@ export function Explore() {
   }, [harness]);
 
   // Server-side pagination
-  const { data: convData, loading: convLoading } = useConversations({ sort, limit: pageSize, offset, harness });
-  const { data: searchData, loading: searchLoading } = useSearch(query, mode, { harness });
-  const { data: idxData } = useIndexStatus();
+  const { data: convData, loading: convLoading, refetch: refetchConvs } = useConversations({ sort, limit: pageSize, offset, harness });
+  const { data: searchData, loading: searchLoading, refetch: refetchSearch } = useSearch(query, mode, { harness });
+  const { data: idxData, refetch: refetchIndex } = useIndexStatus();
+
+  // Load indexing config when the modal opens
+  useEffect(() => {
+    if (!modalOpen) return;
+    apiFetch<{ data: { indexing?: { preferLocal: boolean; deepWindowDays: number } } }>("/config")
+      .then((res) => {
+        setUseLocalLlm(res.data.indexing?.preferLocal ?? true);
+        setDeepWindowDays(res.data.indexing?.deepWindowDays ?? 14);
+      })
+      .catch(() => {});
+  }, [modalOpen]);
+
+  const handleRebuild = async () => {
+    setRebuilding(true);
+    setRebuildError(null);
+    try {
+      await rebuildIndex({ useLocalLlm, deepWindowDays, force: false });
+      refetchIndex();
+    } catch (err) {
+      setRebuildError(err instanceof Error ? err.message : "Rebuild failed");
+    }
+    setRebuilding(false);
+  };
+
+  const handleAnalyze = async (id: string) => {
+    setAnalyzingId(id);
+    setAnalyzeMsg(null);
+    try {
+      const res = await analyzeConversation(id);
+      setAnalyzeMsg({ id, ok: true, text: `Analyzed — ${res.items ?? 0} item${(res.items ?? 0) === 1 ? "" : "s"} extracted` });
+      refetchSearch();
+      refetchConvs();
+    } catch (err) {
+      setAnalyzeMsg({ id, ok: false, text: err instanceof Error ? err.message : "Analyze failed" });
+    }
+    setAnalyzingId(null);
+  };
 
   const indexStatus = idxData?.data;
   const conversations = convData?.data ?? [];
@@ -119,10 +165,10 @@ export function Explore() {
   };
 
   const renderConversationRow = (c: typeof conversations[0]) => (
-    <button
+    <div
       key={c.id}
       onClick={() => navigate(`/thread/${c.id}`)}
-      className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left hover:bg-surface-active transition-colors"
+      className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left hover:bg-surface-active transition-colors cursor-pointer"
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -136,10 +182,21 @@ export function Explore() {
           {c.status !== "active" && (
             <span className="rounded-full bg-surface-active px-2 py-0.5 text-xs text-text-dim shrink-0">{c.status}</span>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); handleAnalyze(c.id); }}
+            disabled={analyzingId !== null}
+            title="Run LLM analysis (work items, tags, description)"
+            className="shrink-0 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-text-muted hover:text-glow hover:border-glow transition-colors disabled:opacity-50"
+          >
+            {analyzingId === c.id ? "..." : "Analyze"}
+          </button>
+          {analyzeMsg?.id === c.id && (
+            <span className={`shrink-0 text-[10px] ${analyzeMsg.ok ? "text-green-400" : "text-red-400"}`}>{analyzeMsg.text}</span>
+          )}
         </div>
         {renderPreview(c)}
       </div>
-    </button>
+    </div>
   );
 
   return (
@@ -191,10 +248,15 @@ export function Explore() {
           <p className="font-mono text-lg font-medium text-white">{indexStatus?.conversationCount ?? 0}</p>
           <p className="text-xs uppercase tracking-wider text-text-dim">Indexed</p>
         </div>
-        <div className="rounded-lg border border-border-subtle bg-surface-raised p-3">
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          title="Index status & refresh"
+          className="rounded-lg border border-border-subtle bg-surface-raised p-3 text-left hover:border-glow/40 transition-colors"
+        >
           <p className="font-mono text-sm font-medium text-text-primary truncate">{lastIndexed}</p>
-          <p className="text-xs uppercase tracking-wider text-text-dim">Last Indexed</p>
-        </div>
+          <p className="text-xs uppercase tracking-wider text-text-dim">Last Indexed {indexStatus?.status === "indexing" ? "· running" : ""}</p>
+        </button>
       </div>
 
       {/* Filters + sort + toggles row */}
@@ -352,6 +414,83 @@ export function Explore() {
             </div>
           )}
         </>
+      )}
+
+      {/* Index status / refresh modal */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-border-subtle bg-surface p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-medium text-text-primary">Index</h2>
+              <button onClick={() => setModalOpen(false)} className="text-xs text-text-dim hover:text-text-muted">Close</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded bg-canvas p-3 text-center">
+                <p className="font-mono text-lg text-white">{indexStatus?.conversationCount ?? 0}</p>
+                <p className="text-xs text-text-dim">Conversations indexed</p>
+              </div>
+              <div className="rounded bg-canvas p-3 text-center">
+                <p className="font-mono text-sm text-text-primary truncate">{lastIndexed}</p>
+                <p className="text-xs text-text-dim">Last indexed</p>
+              </div>
+            </div>
+
+            {/* Live progress */}
+            {indexStatus?.status === "indexing" && indexStatus.progress && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs text-text-dim">
+                  <span>
+                    {indexStatus.progress.phase}
+                    {indexStatus.progress.llm ? ` · ${indexStatus.progress.llm}` : ""} — {indexStatus.progress.current} / {indexStatus.progress.total}
+                  </span>
+                  {indexStatus.progress.currentFile && (
+                    <span className="truncate max-w-[12rem] font-mono">{indexStatus.progress.currentFile}</span>
+                  )}
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-surface-active overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-glow transition-all duration-300"
+                    style={{ width: indexStatus.progress.total > 0 ? `${(indexStatus.progress.current / indexStatus.progress.total) * 100}%` : "0%" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useLocalLlm}
+                onChange={(e) => setUseLocalLlm(e.target.checked)}
+                className="accent-cyan-400"
+              />
+              <span className="text-xs text-text-muted">Use local LLM</span>
+            </label>
+
+            {rebuildError && (
+              <div className="rounded bg-red-950/30 border border-red-900/50 px-3 py-2">
+                <p className="text-xs text-red-400">{rebuildError}</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-1">
+              <Link to="/settings" className="text-xs text-glow hover:underline">Edit LLM settings</Link>
+              <button
+                onClick={handleRebuild}
+                disabled={rebuilding}
+                className="rounded bg-glow px-4 py-1.5 text-sm font-medium text-void hover:bg-glow/90 disabled:opacity-50"
+              >
+                {rebuilding ? "Starting..." : "Refresh Index"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -7,11 +7,28 @@ import { applyOperations, type EditOperation } from "../services/editor.ts";
 import { identifyCandidates, convertToArtifact } from "../services/converter.ts";
 import { OperationsService } from "../services/operations.ts";
 import type { SearchService } from "../services/search.ts";
+import type { IndexerService } from "../services/indexer.ts";
 import { prepareContinuationPayload } from "../services/session-workflow.ts";
 
 // ⟦𓆷𓈾𓊲𓅣⟧ createConversationRoutes :: auto-generated pointer for public function createConversationRoutes
-export function createConversationRoutes(storage: StorageService, searchService?: SearchService): Hono {
+export function createConversationRoutes(storage: StorageService, searchService?: SearchService, indexer?: IndexerService): Hono {
   const routes = new Hono();
+
+  routes.post("/:id/analyze", async (c) => {
+    const id = c.req.param("id");
+    if (!indexer) {
+      return c.json({ error: "Indexer not available", code: "INDEXER_UNAVAILABLE" }, 503);
+    }
+    try {
+      const result = await indexer.analyzeConversation(id);
+      if (!result.ok) {
+        return c.json({ error: "Analysis failed — conversation not found or LLM unavailable", code: "ANALYZE_FAILED" }, 503);
+      }
+      return c.json({ data: { ok: true, items: result.items } });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "Analysis failed", code: "ANALYZE_FAILED" }, 500);
+    }
+  });
 
   routes.get("/", async (c) => {
     const sort = c.req.query("sort") ?? "updated_at";

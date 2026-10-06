@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { AppConfig, ArtifactKind, SkillsConfig } from "@llm-toolkit/shared";
+import type { AppConfig, ArtifactKind, SkillsConfig, LlmProfile } from "@llm-toolkit/shared";
 import type { StorageService } from "../services/storage.ts";
 import type { LlmService } from "../services/llm.ts";
 import { defaultSkillsConfig, migrateSkillsConfig } from "../services/skills.ts";
@@ -22,6 +22,9 @@ const DEFAULTS: AppConfig = {
   agents: defaultSkillsConfig(),
   commands: defaultSkillsConfig(),
   mcp: defaultSkillsConfig(),
+  llmProfiles: [],
+  defaultProfileId: "",
+  indexing: { preferLocal: true, deepWindowDays: 14 },
 };
 
 const LLM_ENV_KEYS: Record<string, string> = {
@@ -61,6 +64,68 @@ function applyEnvOverlays(config: AppConfig): AppConfig {
   return config;
 }
 
+const PROFILE_ENV_KEYS: Record<string, string> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  "openai-compatible": "OPENAI_API_KEY",
+};
+
+const PROFILE_LOCAL_PROVIDERS = new Set(["ollama", "lmstudio", "llamacpp"]);
+
+function normalizeProfile(raw: Partial<LlmProfile>, legacy?: AppConfig["llm"]): LlmProfile | null {
+  const provider = String(raw.provider ?? "") as LlmProfile["provider"];
+  if (!provider) return null;
+  const local = raw.local === true || PROFILE_LOCAL_PROVIDERS.has(provider);
+  const profile: LlmProfile = {
+    id: typeof raw.id === "string" && raw.id ? raw.id : `profile-${Math.random().toString(36).slice(2, 8)}`,
+    name: typeof raw.name === "string" && raw.name ? raw.name : provider,
+    provider,
+    apiType: raw.apiType === "anthropic" ? "anthropic" : raw.apiType === "openai" ? "openai" : undefined,
+    baseUrl: typeof raw.baseUrl === "string" ? raw.baseUrl : undefined,
+    model: typeof raw.model === "string" && raw.model ? raw.model : (legacy?.model ?? "gpt-4o"),
+    apiKey: typeof raw.apiKey === "string" ? raw.apiKey : undefined,
+    local,
+  };
+  return profile;
+}
+
+// Legacy single-llm config → llmProfiles (only when no profiles stored yet).
+function migrateLlmProfiles(dbConfig: Partial<AppConfig>): void {
+  if (dbConfig.llmProfiles?.length) return;
+  if (!dbConfig.llm?.provider) return;
+  const legacy = dbConfig.llm;
+  const providerMap: Record<string, LlmProfile["provider"]> = {
+    anthropic: "anthropic",
+    openai: "openai-compatible",
+    litellm: "openai-compatible",
+    groq: "openai-compatible",
+    cerebras: "openai-compatible",
+    deepseek: "openai-compatible",
+    zai: "openai-compatible",
+    ollama: "ollama",
+    custom: legacy.apiType === "anthropic" ? "anthropic" : "openai-compatible",
+  };
+  const provider = providerMap[legacy.provider] ?? "openai-compatible";
+  const profile = normalizeProfile({
+    id: "default",
+    name: legacy.provider === "custom" ? "Custom" : legacy.provider,
+    provider,
+    apiType: legacy.apiType,
+    baseUrl: legacy.baseUrl,
+    model: legacy.model ?? "gpt-4o",
+    apiKey: legacy.apiKey,
+  }, legacy);
+  if (!profile) return;
+  dbConfig.llmProfiles = [profile];
+  dbConfig.defaultProfileId = profile.id;
+  if (profile.local) dbConfig.defaultLocalProfileId = profile.id;
+}
+
+function applyProfileEnvOverlays(profile: LlmProfile): void {
+  if (profile.apiKey) return;
+  const envKey = PROFILE_ENV_KEYS[profile.provider];
+  if (envKey && process.env[envKey]) profile.apiKey = process.env[envKey];
+}
+
 function maskKey(key: string | undefined): string | undefined {
   if (!key || key.length < 8) return key ? "***" : undefined;
   return key.slice(0, 3) + "..." + key.slice(-4);
@@ -75,6 +140,9 @@ function sanitizeForResponse(config: AppConfig): AppConfig {
   const safe = structuredClone(config);
   safe.embedding.apiKey = maskKey(safe.embedding.apiKey);
   if (safe.llm) safe.llm.apiKey = maskKey(safe.llm.apiKey);
+  if (safe.llmProfiles) {
+    for (const profile of safe.llmProfiles) profile.apiKey = maskKey(profile.apiKey);
+  }
   return safe;
 }
 
@@ -112,6 +180,12 @@ export function loadConfig(storage: StorageService): AppConfig {
     merged.indexSources = merged.indexPaths.map((path) => ({ harness: "claude", path, format: "jsonl" }));
   }
   if (dbConfig.llm) merged.llm = dbConfig.llm;
+  migrateLlmProfiles(dbConfig);
+  merged.llmProfiles = (dbConfig.llmProfiles ?? []).map((p) => normalizeProfile(p as LlmProfile)).filter((p): p is LlmProfile => p !== null);
+  for (const profile of merged.llmProfiles) applyProfileEnvOverlays(profile);
+  merged.defaultProfileId = dbConfig.defaultProfileId ?? merged.llmProfiles[0]?.id ?? "";
+  merged.defaultLocalProfileId = dbConfig.defaultLocalProfileId ?? merged.llmProfiles.find((p) => p.local)?.id;
+  merged.indexing = { ...DEFAULTS.indexing!, ...dbConfig.indexing };
   merged.skills = migrateSkillsConfig(dbConfig.skills);
   merged.agents = resolveKindConfig("agents", merged.skills, dbConfig.agents);
   merged.commands = resolveKindConfig("commands", merged.skills, dbConfig.commands);
@@ -138,6 +212,12 @@ function persistConfig(storage: StorageService, current: AppConfig): void {
   if (toStore.llm?.provider) {
     const llmEnvKey = LLM_ENV_KEYS[toStore.llm.provider];
     if (llmEnvKey && process.env[llmEnvKey]) delete toStore.llm.apiKey;
+  }
+  for (const profile of toStore.llmProfiles ?? []) {
+    const envKey = PROFILE_ENV_KEYS[profile.provider];
+    if (profile.apiKey && envKey && profile.apiKey === process.env[envKey]) {
+      delete profile.apiKey;
+    }
   }
   storage.setSetting(CONFIG_KEY, JSON.stringify(toStore));
 }
@@ -166,6 +246,23 @@ export function createConfigRoutes(storage: StorageService, llmService: LlmServi
       if (isMaskedKey(updates.llm.apiKey)) delete updates.llm.apiKey;
       current.llm = { ...current.llm, ...updates.llm };
     }
+    if (updates.llmProfiles) {
+      // Replace array wholesale. Per-profile masked keys keep the stored value.
+      const storedById = new Map((current.llmProfiles ?? []).map((p) => [p.id, p]));
+      current.llmProfiles = updates.llmProfiles
+        .map((p) => {
+          const normalized = normalizeProfile(p as LlmProfile);
+          if (!normalized) return null;
+          if (isMaskedKey(normalized.apiKey)) {
+            normalized.apiKey = storedById.get(normalized.id)?.apiKey;
+          }
+          return normalized;
+        })
+        .filter((p): p is LlmProfile => p !== null);
+    }
+    if (updates.defaultProfileId !== undefined) current.defaultProfileId = updates.defaultProfileId;
+    if (updates.defaultLocalProfileId !== undefined) current.defaultLocalProfileId = updates.defaultLocalProfileId;
+    if (updates.indexing) current.indexing = { ...current.indexing, ...updates.indexing };
     if (updates.skills) {
       current.skills = migrateSkillsConfig({ ...current.skills, ...updates.skills });
     }
@@ -180,6 +277,11 @@ export function createConfigRoutes(storage: StorageService, llmService: LlmServi
     }
 
     persistConfig(storage, current);
+    llmService.setProfiles(
+      current.llmProfiles ?? [],
+      current.defaultProfileId ?? "",
+      current.defaultLocalProfileId,
+    );
 
     // Hot-reconfigure LLM service if LLM config changed
     if (updates.llm) {
