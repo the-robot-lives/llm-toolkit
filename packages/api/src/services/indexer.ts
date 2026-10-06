@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import {
@@ -28,10 +29,26 @@ const WORK_EXTRACTION_MAX_MESSAGE_CHARS = 1800;
 const WORK_EXTRACTION_MAX_BATCH_CHARS = 12_000;
 
 export interface IndexProgress {
-  phase: "idle" | "scanning" | "indexing" | "embedding";
+  phase: "idle" | "scan" | "describe" | "work-items" | "embed" | "done";
   current: number;
   total: number;
   currentFile?: string;
+  llm?: string;
+}
+
+export interface IndexAllOptions {
+  useLocalLlm?: boolean;
+  deepWindowDays?: number;
+  force?: boolean;
+}
+
+interface PendingConversation {
+  conversationId: string;
+  harness: AgentHarness;
+  sourcePath: string;
+  messages: StoredMessage[];
+  updatedAt: string;
+  description?: string;
 }
 
 interface ParsedMessage {
@@ -90,6 +107,7 @@ export class IndexerService {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private fileModTimes = new Map<string, number>();
   private _progress: IndexProgress = { phase: "idle", current: 0, total: 0 };
+  private indexingDefaults = { preferLocal: true, deepWindowDays: 14 };
 
   constructor(storage: StorageService, indexSources: Array<string | IndexSource> = [], embeddings?: EmbeddingService, llm?: LlmService) {
     this.storage = storage;
@@ -102,31 +120,41 @@ export class IndexerService {
     return { ...this._progress };
   }
 
-  async indexAll(): Promise<{ indexed: number; errors: number; skipped: number }> {
+  setIndexingDefaults(defaults: { preferLocal?: boolean; deepWindowDays?: number }): void {
+    if (defaults.preferLocal !== undefined) this.indexingDefaults.preferLocal = defaults.preferLocal;
+    if (defaults.deepWindowDays !== undefined) this.indexingDefaults.deepWindowDays = defaults.deepWindowDays;
+  }
+
+  async indexAll(options: IndexAllOptions = {}): Promise<{ indexed: number; errors: number; skipped: number }> {
+    const force = options.force ?? false;
+    const deepWindowDays = options.deepWindowDays ?? this.indexingDefaults.deepWindowDays;
+    const useLocal = options.useLocalLlm ?? this.indexingDefaults.preferLocal;
+
     this.storage.setIndexStatus("indexing");
-    this._progress = { phase: "scanning", current: 0, total: 0 };
+    this._progress = { phase: "scan", current: 0, total: 0 };
 
     const allFiles: Array<{ source: IndexSource; filePath: string }> = [];
     for (const source of this.indexSources) {
       allFiles.push(...findJsonlFiles(source.path).map((filePath) => ({ source, filePath })));
     }
 
-    this._progress = { phase: "indexing", current: 0, total: allFiles.length };
+    this._progress = { phase: "scan", current: 0, total: allFiles.length };
     let indexed = 0;
     let errors = 0;
     let skipped = 0;
+    const pending: PendingConversation[] = [];
 
     for (let i = 0; i < allFiles.length; i++) {
       const { source, filePath } = allFiles[i];
-      this._progress = { phase: "indexing", current: i + 1, total: allFiles.length, currentFile: basename(filePath) };
+      this._progress = { phase: "scan", current: i + 1, total: allFiles.length, currentFile: basename(filePath) };
       try {
         const mtime = statSync(filePath).mtimeMs;
         const prevMtime = this.fileModTimes.get(filePath);
-        if (prevMtime && prevMtime >= mtime) {
+        if (prevMtime && prevMtime >= mtime && !force) {
           skipped++;
           continue;
         }
-        await this.indexFile(filePath, source);
+        await this.indexFile(filePath, source, { force, collect: pending });
         this.fileModTimes.set(filePath, mtime);
         indexed++;
       } catch (e) {
@@ -135,16 +163,155 @@ export class IndexerService {
       }
     }
 
+    await this.runDescribePass(pending, useLocal);
+    await this.runWorkItemsPass(pending, deepWindowDays, force);
+    this._progress = { phase: "done", current: 0, total: 0 };
     this._progress = { phase: "idle", current: 0, total: 0 };
     this.storage.setIndexStatus("idle");
     return { indexed, errors, skipped };
   }
 
-  async indexFile(filePath: string, source?: IndexSource): Promise<void> {
+  /** Choose an LLM for a pass. Returns null when no usable profile/service. */
+  private async llmForPass(preferLocal: boolean): Promise<{ complete: LlmService; label: string } | null> {
+    if (!this.llm) return null;
+    const localProfile = preferLocal ? this.llm.getDefaultLocalProfile() : null;
+    const candidates = localProfile ? [localProfile.id, undefined] : [undefined];
+    for (const id of candidates) {
+      try {
+        const svc = await this.llm.resolveProvider(id);
+        const profile = this.llm.getProfile(id);
+        return { complete: svc, label: `${profile?.name ?? "default"}:${profile?.model ?? ""}`.replace(/:$/, "") };
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  private async runDescribePass(pending: PendingConversation[], useLocal: boolean): Promise<void> {
+    if (pending.length === 0) return;
+    const pass = await this.llmForPass(useLocal);
+    if (!pass) {
+      this._progress = { phase: "describe", current: 0, total: 0, llm: "unavailable — skipped" };
+      return;
+    }
+    this._progress = { phase: "describe", current: 0, total: pending.length, llm: pass.label };
+
+    for (let i = 0; i < pending.length; i++) {
+      const conv = pending[i];
+      this._progress = { phase: "describe", current: i + 1, total: pending.length, llm: pass.label, currentFile: basename(conv.sourcePath) };
+      try {
+        const description = await this.describeConversation(pass.complete, conv);
+        if (description) {
+          await this.storage.updateConversationMeta(conv.conversationId, { description });
+          conv.description = description;
+        }
+      } catch (err) {
+        console.warn(`Describe skipped for ${basename(conv.sourcePath)}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    // Embed phase: conversation vectors merge the new description with the message-summary text.
+    if (this.embeddings?.ready && this.storage.vecAvailable) {
+      for (let i = 0; i < pending.length; i++) {
+        const conv = pending[i];
+        this._progress = { phase: "embed", current: i + 1, total: pending.length, llm: "embeddings", currentFile: basename(conv.sourcePath) };
+        try {
+          const summaryText = conv.messages
+            .slice(0, 10)
+            .map((m) => m.content)
+            .join("\n")
+            .slice(0, 2000);
+          const text = conv.description ? `${summaryText}\n\n${conv.description}` : summaryText;
+          const embedding = await this.embeddings.embed(text);
+          await this.storage.upsertVector(conv.conversationId, embedding);
+        } catch {
+          // Non-fatal: skip embedding for this conversation.
+        }
+      }
+    }
+  }
+
+  private async describeConversation(llm: LlmService, conv: PendingConversation): Promise<string | null> {
+    const excerpt = conv.messages
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n")
+      .slice(0, 6000);
+    const response = await llm.complete({
+      temperature: 0,
+      maxTokens: 300,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "Describe what this agent conversation accomplished in 1-2 sentences.",
+            "Focus on the task, domain, and outcome. Plain prose, no preamble.",
+            "Return only strict JSON shaped as {\"description\":\"...\"}",
+          ].join(" "),
+        },
+        { role: "user", content: excerpt },
+      ],
+    });
+    const parsed = parseJsonPayload(response.content) as { description?: unknown };
+    const description = typeof parsed?.description === "string" ? parsed.description.trim() : "";
+    return description ? description.slice(0, 500) : null;
+  }
+
+  private async runWorkItemsPass(pending: PendingConversation[], deepWindowDays: number, force: boolean): Promise<void> {
+    if (!this.llm?.available || pending.length === 0) return;
+    const cutoff = Date.now() - deepWindowDays * 24 * 60 * 60 * 1000;
+    const deep = pending.filter((conv) => force || new Date(conv.updatedAt).getTime() >= cutoff);
+    if (deep.length === 0) return;
+
+    const pass = await this.llmForPass(false); // deep pass uses the DEFAULT (possibly cloud) profile
+    if (!pass) {
+      this._progress = { phase: "work-items", current: 0, total: 0, llm: "unavailable — skipped" };
+      return;
+    }
+    this._progress = { phase: "work-items", current: 0, total: deep.length, llm: pass.label };
+
+    for (let i = 0; i < deep.length; i++) {
+      const conv = deep[i];
+      this._progress = { phase: "work-items", current: i + 1, total: deep.length, llm: pass.label, currentFile: basename(conv.sourcePath) };
+      try {
+        const workItems = await this.extractWorkItemsWith(pass.complete, conv.conversationId, conv.harness, conv.sourcePath, conv.messages);
+        await this.storage.replaceConversationWorkItems(conv.conversationId, workItems);
+        if (this.embeddings?.ready && this.storage.vecAvailable) {
+          this._progress = { phase: "embed", current: i + 1, total: deep.length, llm: pass.label };
+          for (const item of workItems) {
+            const embedding = await this.embeddings.embed(workItemEmbeddingText(item));
+            await this.storage.upsertWorkItemVector(item.id, embedding);
+          }
+        }
+      } catch (err) {
+        console.warn(`Work-item extraction skipped for ${basename(conv.sourcePath)}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+
+  /** Public per-conversation analysis (route: POST /conversations/:id/analyze). Uses the DEFAULT profile. */
+  async analyzeConversation(conversationId: string): Promise<{ ok: boolean; items: ConversationWorkItem[] }> {
+    const conv = await this.storage.getConversation(conversationId);
+    const messages = await this.storage.getMessages(conversationId);
+    if (!conv || messages.length === 0) return { ok: false, items: [] };
+    const pass = await this.llmForPass(false);
+    if (!pass) return { ok: false, items: [] };
+    const items = await this.extractWorkItemsWith(pass.complete, conversationId, conv.harness, conv.sourcePath, messages);
+    await this.storage.replaceConversationWorkItems(conversationId, items);
+    if (this.embeddings?.ready && this.storage.vecAvailable) {
+      for (const item of items) {
+        const embedding = await this.embeddings.embed(workItemEmbeddingText(item));
+        await this.storage.upsertWorkItemVector(item.id, embedding);
+      }
+    }
+    return { ok: true, items };
+  }
+
+  async indexFile(filePath: string, source?: IndexSource, opts?: { force?: boolean; collect?: PendingConversation[] }): Promise<void> {
     const resolvedSource = source ?? this.sourceForFile(filePath) ?? { harness: "claude", path: dirname(filePath), format: "jsonl" };
     const parsed = parseHarnessFile(resolvedSource.harness, filePath);
 
-    await this.indexParsedFile(parsed, filePath, resolvedSource.harness);
+    await this.indexParsedFile(parsed, filePath, resolvedSource.harness, opts);
   }
 
   async watch(): Promise<void> {
@@ -231,14 +398,29 @@ export class IndexerService {
     };
   }
 
-  private async indexParsedFile(parsed: ParsedConversation | null, filePath: string, harness: AgentHarness): Promise<void> {
+  private async indexParsedFile(
+    parsed: ParsedConversation | null,
+    filePath: string,
+    harness: AgentHarness,
+    opts?: { force?: boolean; collect?: PendingConversation[] },
+  ): Promise<void> {
     if (!parsed || parsed.messages.length === 0) return;
 
     const conversationId = parsed.id ?? StorageService.generateId(filePath, parsed.startedAt, harness);
     const projectPath = parsed.projectPath ?? decodeProjectPath(dirname(filePath));
     const title = parsed.title ?? generateTitleFromMessages(parsed.messages);
 
+    const messages: StoredMessage[] = parsed.messages.map((message) => ({
+      conversationId,
+      role: message.role,
+      content: message.content,
+      timestamp: message.timestamp,
+    }));
+    const contentHash = createHash("sha256").update(messages.map((m) => m.content).join("\u0000")).digest("hex");
+
     const existing = await this.storage.getConversation(conversationId);
+    const unchanged = !opts?.force && !!existing && existing.contentHash === contentHash;
+
     await this.storage.upsertConversation({
       id: conversationId,
       harness,
@@ -251,17 +433,22 @@ export class IndexerService {
       status: existing?.status,
       sourcePath: filePath,
     });
+    await this.storage.setContentIndexMeta(conversationId, { contentHash });
 
-    const messages: StoredMessage[] = parsed.messages.map((message) => ({
-      conversationId,
-      role: message.role,
-      content: message.content,
-      timestamp: message.timestamp,
-    }));
+    if (unchanged) return;
 
     await this.storage.insertMessages(conversationId, messages);
     await this.storage.insertUniversalMessages(conversationId, parsed.universalMessages);
     await this.storage.insertRawTranscriptEvents(conversationId, parsed.rawEvents);
+    await this.storage.setContentIndexMeta(conversationId, { indexedAt: Date.now() });
+
+    if (opts?.collect) {
+      // Two-tier pipeline: defer LLM passes to indexAll phases.
+      opts.collect.push({ conversationId, harness, sourcePath: filePath, messages, updatedAt: parsed.updatedAt });
+      return;
+    }
+
+    // Watcher / single-file path: legacy immediate work-item extraction + embedding.
     await this.indexWorkItems(conversationId, harness, filePath, messages);
 
     if (this.embeddings?.ready && this.storage.vecAvailable) {
@@ -283,7 +470,7 @@ export class IndexerService {
     if (!this.llm?.available) return;
 
     try {
-      const workItems = await this.extractWorkItems(conversationId, harness, sourcePath, messages);
+      const workItems = await this.extractWorkItemsWith(this.llm, conversationId, harness, sourcePath, messages);
       await this.storage.replaceConversationWorkItems(conversationId, workItems);
 
       if (!this.embeddings?.ready || !this.storage.vecAvailable) return;
@@ -296,13 +483,13 @@ export class IndexerService {
     }
   }
 
-  private async extractWorkItems(conversationId: string, harness: AgentHarness, sourcePath: string, messages: StoredMessage[]): Promise<ConversationWorkItem[]> {
+  private async extractWorkItemsWith(llm: LlmService, conversationId: string, harness: AgentHarness, sourcePath: string, messages: StoredMessage[]): Promise<ConversationWorkItem[]> {
     const batches = chunkMessagesForWorkExtraction(messages);
     const extracted: ParsedWorkItem[] = [];
 
     for (const batch of batches) {
       try {
-        const response = await this.llm!.complete({
+        const response = await llm.complete({
           temperature: 0,
           maxTokens: 900,
           messages: [

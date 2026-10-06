@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { LlmService } from "../services/llm.ts";
 import type { StorageService } from "../services/storage.ts";
 import type { LlmCompletionRequest, LlmConfig } from "@llm-toolkit/shared";
+import { loadConfig } from "./config.ts";
 
 const LLM_ENV_KEYS: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
@@ -82,6 +83,44 @@ export function createLlmRoutes(llmService: LlmService, storage: StorageService)
       return c.json({ data: models });
     } catch {
       return c.json({ data: [] });
+    }
+  });
+
+  routes.get("/profiles", (c) => {
+    const config = loadConfig(storage);
+    const mask = (key: string | undefined) => (key ? (key.length < 8 ? "***" : `${key.slice(0, 3)}...${key.slice(-4)}`) : undefined);
+    const profiles = (config.llmProfiles ?? []).map((p) => ({ ...p, apiKey: mask(p.apiKey) }));
+    return c.json({
+      data: {
+        profiles,
+        defaultProfileId: config.defaultProfileId ?? "",
+        defaultLocalProfileId: config.defaultLocalProfileId,
+        indexing: config.indexing ?? { preferLocal: true, deepWindowDays: 14 },
+      },
+    });
+  });
+
+  routes.post("/test-profile", async (c) => {
+    const body = await c.req.json() as { id?: string };
+    if (!body?.id) {
+      return c.json({ ok: false, error: "id is required" }, 400);
+    }
+    const config = loadConfig(storage);
+    const profile = (config.llmProfiles ?? []).find((p) => p.id === body.id);
+    if (!profile) {
+      return c.json({ ok: false, error: `Unknown profile: ${body.id}` });
+    }
+    const { profileToLlmConfig } = await import("../services/llm.ts");
+    const ephemeral = new (await import("../services/llm.ts")).LlmService();
+    await ephemeral.initialize(profileToLlmConfig(profile));
+    if (!ephemeral.available) {
+      return c.json({ ok: false, error: `Profile '${profile.id}' is not available (missing key or bad config)` });
+    }
+    try {
+      const models = await ephemeral.listModels();
+      return c.json({ ok: true, models });
+    } catch (err) {
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   });
 

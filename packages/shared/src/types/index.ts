@@ -260,6 +260,7 @@ export interface Conversation {
   tags: string[];
   status: "active" | "archived" | "edited";
   sourcePath: string;
+  contentHash?: string | null;
   firstMessage?: string;
   lastMessage?: string;
 }
@@ -492,6 +493,24 @@ export interface SkillsConfig {
   destinations?: SkillDestination[];
 }
 
+export type LlmProfileProvider = "anthropic" | "openai-compatible" | "ollama" | "lmstudio" | "llamacpp";
+
+export interface LlmProfile {
+  id: string;
+  name: string;
+  provider: LlmProfileProvider;
+  apiType?: "openai" | "anthropic";
+  baseUrl?: string;
+  model: string;
+  apiKey?: string;
+  local: boolean;
+}
+
+export interface IndexingConfig {
+  preferLocal: boolean;
+  deepWindowDays: number;
+}
+
 export interface AppConfig {
   indexPaths: string[];
   indexSources?: IndexSource[];
@@ -501,6 +520,10 @@ export interface AppConfig {
     apiKey?: string;
   };
   llm?: LlmConfig;
+  llmProfiles?: LlmProfile[];
+  defaultProfileId?: string;
+  defaultLocalProfileId?: string;
+  indexing?: IndexingConfig;
   server: {
     port: number;
     host: string;
