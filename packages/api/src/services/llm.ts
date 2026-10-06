@@ -1,4 +1,4 @@
-import type { LlmConfig, LlmCompletionRequest, LlmCompletionResponse, ContentBlock } from "@llm-toolkit/shared";
+import type { LlmConfig, LlmCompletionRequest, LlmCompletionResponse, ContentBlock, LlmProfile } from "@llm-toolkit/shared";
 import { standardizeContentBlocks } from "@llm-toolkit/shared";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 
@@ -21,7 +21,40 @@ const PROVIDER_DEFAULTS: Record<string, { envKey?: string; baseUrl?: string; mod
   cerebras: { envKey: "CEREBRAS_API_KEY", baseUrl: "https://api.cerebras.ai/v1", model: "llama-3.3-70b", label: "cerebras" },
   deepseek: { envKey: "DEEPSEEK_API_KEY", baseUrl: "https://api.deepseek.com", model: "deepseek-chat", label: "deepseek" },
   zai: { envKey: "ZAI_API_KEY", baseUrl: "https://api.z.ai/api/coding/paas/v4", model: "glm-5.3-flash", label: "zai" },
+  lmstudio: { baseUrl: "http://localhost:1234/v1", model: "local-model", label: "lmstudio" },
+  llamacpp: { baseUrl: "http://localhost:8080/v1", model: "local-model", label: "llamacpp" },
 };
+
+// Per-profile env fallbacks when a profile has no stored apiKey.
+const PROFILE_ENV_KEYS: Record<string, string> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  "openai-compatible": "OPENAI_API_KEY",
+};
+
+const LOCAL_PROFILE_PROVIDERS = new Set(["ollama", "lmstudio", "llamacpp"]);
+
+export function profileIsLocal(profile: LlmProfile): boolean {
+  return profile.local || LOCAL_PROFILE_PROVIDERS.has(profile.provider);
+}
+
+export function profileToLlmConfig(profile: LlmProfile): LlmConfig {
+  const envKey = PROFILE_ENV_KEYS[profile.provider];
+  const envApiKey = envKey && !profile.apiKey ? process.env[envKey] : undefined;
+  const cfg: LlmConfig = {
+    provider: "custom",
+    model: profile.model,
+    apiKey: profile.apiKey || envApiKey || "",
+    baseUrl: profile.baseUrl ?? PROVIDER_DEFAULTS[profile.provider]?.baseUrl,
+    apiType: profile.apiType ?? (profile.provider === "anthropic" ? "anthropic" : "openai"),
+  };
+  if (profile.provider === "ollama") {
+    cfg.provider = "ollama";
+    cfg.baseUrl = profile.baseUrl ?? process.env.OLLAMA_BASE_URL;
+  } else if (profile.provider === "anthropic" && profile.apiType !== "openai") {
+    cfg.provider = "anthropic";
+  }
+  return cfg;
+}
 
 class AnthropicProvider implements LlmProvider {
   private client: import("@anthropic-ai/sdk").default | null = null;
@@ -229,6 +262,9 @@ export class LlmService {
   private provider: LlmProvider | null = null;
   private _available = false;
   private _providerName = "none";
+  private profiles: LlmProfile[] = [];
+  private defaultProfileId: string | null = null;
+  private defaultLocalProfileId: string | null = null;
 
   get available(): boolean {
     return this._available;
@@ -318,5 +354,54 @@ export class LlmService {
     this._available = false;
     this._providerName = "none";
     await this.initialize(config);
+  }
+
+  setProfiles(profiles: LlmProfile[], defaultProfileId: string, defaultLocalProfileId?: string): void {
+    this.profiles = profiles ?? [];
+    this.defaultProfileId = defaultProfileId ?? profiles?.[0]?.id ?? null;
+    this.defaultLocalProfileId = defaultLocalProfileId ?? null;
+  }
+
+  getProfile(profileId?: string): LlmProfile | null {
+    const id = profileId ?? this.defaultProfileId;
+    return this.profiles.find((p) => p.id === id) ?? this.profiles[0] ?? null;
+  }
+
+  getDefaultLocalProfile(): LlmProfile | null {
+    const byId = this.defaultLocalProfileId
+      ? this.profiles.find((p) => p.id === this.defaultLocalProfileId)
+      : undefined;
+    if (byId && profileIsLocal(byId)) return byId;
+    return this.profiles.find((p) => profileIsLocal(p)) ?? null;
+  }
+
+  isLocal(profileId?: string): boolean {
+    const profile = this.getProfile(profileId);
+    return profile ? profileIsLocal(profile) : false;
+  }
+
+  /** Build an ephemeral provider instance from the given profile (or default profile). */
+  async resolveProvider(profileId?: string): Promise<LlmService> {
+    const profile = this.getProfile(profileId);
+    if (!profile) throw new Error(`Unknown LLM profile: ${profileId ?? "(default)"}`);
+    const ephemeral = new LlmService();
+    await ephemeral.initialize(profileToLlmConfig(profile));
+    if (!ephemeral.available) throw new Error(`LLM profile '${profile.id}' is not available`);
+    return ephemeral;
+  }
+
+  /** Probe the default local profile's endpoint with a short timeout. */
+  async localAvailable(timeoutMs = 2000): Promise<boolean> {
+    const profile = this.getDefaultLocalProfile();
+    if (!profile) return false;
+    try {
+      const url = profile.provider === "ollama"
+        ? `${profile.baseUrl ?? "http://localhost:11434"}/api/tags`
+        : `${profile.baseUrl ?? PROVIDER_DEFAULTS[profile.provider]?.baseUrl}/models`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 }

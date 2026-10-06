@@ -74,7 +74,7 @@ app.use(
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-app.route("/api/conversations", createConversationRoutes(storage, searchService));
+app.route("/api/conversations", createConversationRoutes(storage, searchService, indexer));
 app.route("/api/search", createSearchRoutes(searchService));
 app.route("/api/datasets", createDatasetRoutes(storage));
 app.route("/api/config", createConfigRoutes(storage, llmService));
@@ -114,6 +114,15 @@ async function start() {
 
   // Load config from DB and initialize LLM service
   const config = loadConfig(storage);
+  llmService.setProfiles(
+    config.llmProfiles ?? [],
+    config.defaultProfileId ?? "",
+    config.defaultLocalProfileId,
+  );
+  indexer.setIndexingDefaults({
+    preferLocal: config.indexing?.preferLocal ?? true,
+    deepWindowDays: config.indexing?.deepWindowDays ?? 14,
+  });
   const llmReady = config.llm
     ? llmService.initialize(config.llm).then(() => {
       if (llmService.available) {
