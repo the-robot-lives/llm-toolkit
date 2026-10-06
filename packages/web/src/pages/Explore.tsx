@@ -249,6 +249,7 @@ export function Explore() {
           <p className="text-xs uppercase tracking-wider text-text-dim">Indexed</p>
         </div>
         <button
+          type="button"
           onClick={() => setModalOpen(true)}
           title="Index status & refresh"
           className="rounded-lg border border-border-subtle bg-surface-raised p-3 text-left hover:border-glow/40 transition-colors"
