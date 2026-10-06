@@ -35,10 +35,16 @@ Virtual: `messages_fts` (FTS5, trigger-synced), `conversation_vectors` +
 
 Config artifacts: `~/.config/skill-manage/{config,catalog}.yaml` (templates in
 `skill-manage/schema/`); MCP server registration rewrites `~/.claude.json`,
-`*.mcp.json`, `settings.json`, TOML variants; env: `LLM_TOOLKIT_DATA_DIR`,
-`LLM_TOOLKIT_WATCH_PATHS`, `LLM_TOOLKIT_WATCH`, `PORT`, `SKILL_REPO`.
+`*.mcp.json`, `settings.json`, TOML variants; NPL plugin config
+`.npl/npl-plugin.config.yaml` (project) / `~/.config/npl/...` (user) — services[]
+stdio/http defs + mcp_sync.targets, lifecycle via service-supervisor; env:
+`LLM_TOOLKIT_DATA_DIR`, `LLM_TOOLKIT_WATCH_PATHS`, `LLM_TOOLKIT_WATCH`, `PORT`,
+`SKILL_REPO`, `CLAUDE_MEMORY_ROOT`, `NPL_CONFIG_HOME`.
+Non-SQLite store: Claude Code project-memory dirs (`/api/memory`, Rust
+`crates/claude-memory` napi; format + contract in docs/claude-memory-contract.md).
 Timestamps: TEXT ISO-8601 (`created_at`/`updated_at`).
 Data interfaces: Hono REST API on :3100 (`packages/api/src/routes/`) — JSON
 request/response over the tables above (conversations ~33, datasets ~15, artifacts,
-search via FTS+vec0 KNN, projects/tags/prompts, llm/config). No queues, sockets, or
-KV store. Tree map of schema sources: docs/PROJ-LAYOUT.md.
+search via FTS+vec0 KNN, projects/tags/prompts, llm/config) plus `memory`
+(filesystem CRUD) and `services` (plugin config + supervisor). No queues, sockets,
+or KV store. Tree map of schema sources: docs/PROJ-LAYOUT.md.
