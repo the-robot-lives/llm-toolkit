@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { LlmService } from "../services/llm.ts";
 import type { StorageService } from "../services/storage.ts";
 import type { LlmCompletionRequest, LlmConfig } from "@llm-toolkit/shared";
-import { loadConfig } from "./config.ts";
+import { loadConfig, maskKey, isMaskedKey } from "./config.ts";
 
 const LLM_ENV_KEYS: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
@@ -13,11 +13,6 @@ const LLM_ENV_KEYS: Record<string, string> = {
   zai: "ZAI_API_KEY",
   litellm: "LITELLM_API_KEY",
 };
-
-function isMaskedKey(key: string | undefined): boolean {
-  if (!key) return false;
-  return key === "***" || /^.{3}\.\.\..{4}$/.test(key);
-}
 
 function resolveApiKey(config: LlmConfig, storage: StorageService): LlmConfig {
   if (config.apiKey && !isMaskedKey(config.apiKey)) return config;
@@ -88,8 +83,7 @@ export function createLlmRoutes(llmService: LlmService, storage: StorageService)
 
   routes.get("/profiles", (c) => {
     const config = loadConfig(storage);
-    const mask = (key: string | undefined) => (key ? (key.length < 8 ? "***" : `${key.slice(0, 3)}...${key.slice(-4)}`) : undefined);
-    const profiles = (config.llmProfiles ?? []).map((p) => ({ ...p, apiKey: mask(p.apiKey) }));
+    const profiles = (config.llmProfiles ?? []).map((p) => ({ ...p, apiKey: maskKey(p.apiKey) }));
     return c.json({
       data: {
         profiles,
