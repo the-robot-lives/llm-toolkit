@@ -71,12 +71,33 @@ const PROFILE_ENV_KEYS: Record<string, string> = {
 
 const PROFILE_LOCAL_PROVIDERS = new Set(["ollama", "lmstudio", "llamacpp"]);
 
-function normalizeProfile(raw: Partial<LlmProfile>, legacy?: AppConfig["llm"]): LlmProfile | null {
+/** Deterministic profile id slug from name + provider + model. */
+function profileSlug(name: string, provider: string, model?: string): string {
+  const base = [name, provider, model]
+    .filter(Boolean)
+    .join("-")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return (base || "profile").slice(0, 64);
+}
+
+function normalizeProfile(raw: Partial<LlmProfile>, legacy?: AppConfig["llm"], usedIds?: Set<string>): LlmProfile | null {
   const provider = String(raw.provider ?? "") as LlmProfile["provider"];
   if (!provider) return null;
   const local = raw.local === true || PROFILE_LOCAL_PROVIDERS.has(provider);
+  let id = typeof raw.id === "string" && raw.id ? raw.id : "";
+  if (!id) {
+    // Deterministic slug so ids stay stable across requests (storedById lookup).
+    const base = profileSlug(typeof raw.name === "string" && raw.name ? raw.name : provider, provider, raw.model);
+    id = base;
+    if (usedIds) {
+      for (let n = 2; usedIds.has(id); n++) id = `${base}-${n}`;
+    }
+  }
+  usedIds?.add(id);
   const profile: LlmProfile = {
-    id: typeof raw.id === "string" && raw.id ? raw.id : `profile-${Math.random().toString(36).slice(2, 8)}`,
+    id,
     name: typeof raw.name === "string" && raw.name ? raw.name : provider,
     provider,
     apiType: raw.apiType === "anthropic" ? "anthropic" : raw.apiType === "openai" ? "openai" : undefined,
@@ -126,12 +147,12 @@ function applyProfileEnvOverlays(profile: LlmProfile): void {
   if (envKey && process.env[envKey]) profile.apiKey = process.env[envKey];
 }
 
-function maskKey(key: string | undefined): string | undefined {
+export function maskKey(key: string | undefined): string | undefined {
   if (!key || key.length < 8) return key ? "***" : undefined;
   return key.slice(0, 3) + "..." + key.slice(-4);
 }
 
-function isMaskedKey(key: string | undefined): boolean {
+export function isMaskedKey(key: string | undefined): boolean {
   if (!key) return false;
   return key === "***" || /^.{3}\.\.\..{4}$/.test(key);
 }
@@ -249,11 +270,14 @@ export function createConfigRoutes(storage: StorageService, llmService: LlmServi
     if (updates.llmProfiles) {
       // Replace array wholesale. Per-profile masked keys keep the stored value.
       const storedById = new Map((current.llmProfiles ?? []).map((p) => [p.id, p]));
+      const usedIds = new Set<string>();
       current.llmProfiles = updates.llmProfiles
         .map((p) => {
-          const normalized = normalizeProfile(p as LlmProfile);
+          const normalized = normalizeProfile(p as LlmProfile, undefined, usedIds);
           if (!normalized) return null;
           if (isMaskedKey(normalized.apiKey)) {
+            // Only reuse the stored key when this profile id actually exists;
+            // otherwise drop the mask so we never persist '***' as a real key.
             normalized.apiKey = storedById.get(normalized.id)?.apiKey;
           }
           return normalized;

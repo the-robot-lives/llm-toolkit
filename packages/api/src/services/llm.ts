@@ -395,6 +395,10 @@ export class LlmService {
     const profile = this.getDefaultLocalProfile();
     if (!profile) return false;
     try {
+      // Verified paths: LM Studio serves GET {base}/v1/models and llama.cpp
+      // server GET {base}/v1/models; presets ship baseUrl already ending in
+      // /v1, so plain concatenation yields /v1/models (no double /v1/v1).
+      // Ollama uses its native /api/tags endpoint.
       const url = profile.provider === "ollama"
         ? `${profile.baseUrl ?? "http://localhost:11434"}/api/tags`
         : `${profile.baseUrl ?? PROVIDER_DEFAULTS[profile.provider]?.baseUrl}/models`;

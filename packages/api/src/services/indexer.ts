@@ -105,6 +105,7 @@ export class IndexerService {
   private indexSources: IndexSource[];
   private watcher: unknown = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private doneTimer: ReturnType<typeof setTimeout> | null = null;
   private fileModTimes = new Map<string, number>();
   private _progress: IndexProgress = { phase: "idle", current: 0, total: 0 };
   private indexingDefaults = { preferLocal: true, deepWindowDays: 14 };
@@ -127,6 +128,11 @@ export class IndexerService {
 
   async indexAll(options: IndexAllOptions = {}): Promise<{ indexed: number; errors: number; skipped: number }> {
     const force = options.force ?? false;
+    // Re-entry during a pending done→idle transition resets cleanly.
+    if (this.doneTimer) {
+      clearTimeout(this.doneTimer);
+      this.doneTimer = null;
+    }
     const deepWindowDays = options.deepWindowDays ?? this.indexingDefaults.deepWindowDays;
     const useLocal = options.useLocalLlm ?? this.indexingDefaults.preferLocal;
 
@@ -163,11 +169,15 @@ export class IndexerService {
       }
     }
 
-    await this.runDescribePass(pending, useLocal);
+    await this.runDescribePass(pending, useLocal, force);
     await this.runWorkItemsPass(pending, deepWindowDays, force);
+    // Emit "done" so polling clients observe it once, then settle to "idle".
     this._progress = { phase: "done", current: 0, total: 0 };
-    this._progress = { phase: "idle", current: 0, total: 0 };
-    this.storage.setIndexStatus("idle");
+    this.doneTimer = setTimeout(() => {
+      this.doneTimer = null;
+      this._progress = { phase: "idle", current: 0, total: 0 };
+      this.storage.setIndexStatus("idle");
+    }, 2500);
     return { indexed, errors, skipped };
   }
 
@@ -188,7 +198,7 @@ export class IndexerService {
     return null;
   }
 
-  private async runDescribePass(pending: PendingConversation[], useLocal: boolean): Promise<void> {
+  private async runDescribePass(pending: PendingConversation[], useLocal: boolean, force = false): Promise<void> {
     if (pending.length === 0) return;
     const pass = await this.llmForPass(useLocal);
     if (!pass) {
@@ -215,6 +225,9 @@ export class IndexerService {
     if (this.embeddings?.ready && this.storage.vecAvailable) {
       for (let i = 0; i < pending.length; i++) {
         const conv = pending[i];
+        // Skip conversations the describe pass produced nothing new for
+        // (unless force) — the vector would not change meaningfully.
+        if (!force && !conv.description) continue;
         this._progress = { phase: "embed", current: i + 1, total: pending.length, llm: "embeddings", currentFile: basename(conv.sourcePath) };
         try {
           const summaryText = conv.messages
@@ -258,7 +271,10 @@ export class IndexerService {
   }
 
   private async runWorkItemsPass(pending: PendingConversation[], deepWindowDays: number, force: boolean): Promise<void> {
-    if (!this.llm?.available || pending.length === 0) return;
+    if (!this.llm || pending.length === 0) return;
+    // Gate on the default profile being resolvable (profiles-only setups);
+    // fall back to the legacy single-llm availability when none are configured.
+    if (!this.llm.getProfile() && !this.llm.available) return;
     const cutoff = Date.now() - deepWindowDays * 24 * 60 * 60 * 1000;
     const deep = pending.filter((conv) => force || new Date(conv.updatedAt).getTime() >= cutoff);
     if (deep.length === 0) return;
