@@ -27,7 +27,7 @@ interface Conversation {
 
 type PreviewMode = "both" | "first" | "last" | "none";
 
-// ⟦𓌐𓃡𓀻𓎲⟧ ProjectDetail :: auto-generated pointer for public function ProjectDetail
+// <REMOVED UUID HERE> ProjectDetail :: auto-generated pointer for public function ProjectDetail
 export function ProjectDetail() {
   const { slug } = useParams<{ slug: string }>();
   const projectPath = slug ? decodeURIComponent(slug) : "";

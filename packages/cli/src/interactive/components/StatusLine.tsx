@@ -23,7 +23,7 @@ function renderHints(hints: string) {
   });
 }
 
-// ⟦𓉲𓊑𓍇𓈦⟧ StatusLine :: auto-generated pointer for public function StatusLine
+// <REMOVED UUID HERE> StatusLine :: auto-generated pointer for public function StatusLine
 export function StatusLine({ hints, info }: StatusLineProps) {
   const hintText = hints ?? "Tab:focus  ←/→:harness  j/k:scroll  Enter:select  Esc:back  q:quit";
 

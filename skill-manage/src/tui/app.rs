@@ -17,7 +17,7 @@ pub enum Screen {
 }
 
 impl Screen {
-    // ⟦𓂷𓐯𓊶𓌏⟧ title :: auto-generated pointer for public function title
+    // <REMOVED UUID HERE> title :: auto-generated pointer for public function title
     pub fn title(self) -> &'static str {
         match self {
             Screen::Skills => "SKILLS",
@@ -27,7 +27,7 @@ impl Screen {
         }
     }
 
-    // ⟦𓉐𓅂𓈑𓆀⟧ kind :: auto-generated pointer for public function kind
+    // <REMOVED UUID HERE> kind :: auto-generated pointer for public function kind
     pub fn kind(self) -> Option<Kind> {
         match self {
             Screen::Skills => Some(Kind::Skills),
@@ -37,7 +37,7 @@ impl Screen {
         }
     }
 
-    // ⟦𓀬𓉞𓋛𓈑⟧ next :: auto-generated pointer for public function next
+    // <REMOVED UUID HERE> next :: auto-generated pointer for public function next
     pub fn next(self) -> Self {
         match self {
             Screen::Skills => Screen::Agents,
@@ -47,7 +47,7 @@ impl Screen {
         }
     }
 
-    // ⟦𓉎𓄍𓃈𓈌⟧ prev :: auto-generated pointer for public function prev
+    // <REMOVED UUID HERE> prev :: auto-generated pointer for public function prev
     pub fn prev(self) -> Self {
         match self {
             Screen::Skills => Screen::Profiles,
@@ -118,7 +118,7 @@ pub struct App {
 }
 
 impl App {
-    // ⟦𓅉𓃇𓍠𓈐⟧ new :: auto-generated pointer for public function new
+    // <REMOVED UUID HERE> new :: auto-generated pointer for public function new
     pub fn new(
         cfg: AppConfig,
         catalog: Catalog,
@@ -173,7 +173,7 @@ impl App {
         Ok(app)
     }
 
-    // ⟦𓆩𓁪𓋻𓆚⟧ reload :: auto-generated pointer for public function reload
+    // <REMOVED UUID HERE> reload :: auto-generated pointer for public function reload
     pub fn reload(&mut self) -> Result<()> {
         match self.screen {
             Screen::Profiles => self.reload_profiles(),
@@ -220,7 +220,7 @@ impl App {
         Ok(())
     }
 
-    // ⟦𓋝𓐑𓁟𓁘⟧ apply_filter :: auto-generated pointer for public function apply_filter
+    // <REMOVED UUID HERE> apply_filter :: auto-generated pointer for public function apply_filter
     pub fn apply_filter(&mut self) {
         let q = self.filter.to_ascii_lowercase();
         self.filtered = self
@@ -259,20 +259,20 @@ impl App {
         }
     }
 
-    // ⟦𓅞𓃔𓏆𓇴⟧ current_row :: auto-generated pointer for public function current_row
+    // <REMOVED UUID HERE> current_row :: auto-generated pointer for public function current_row
     pub fn current_row(&self) -> Option<&RowItem> {
         self.filtered
             .get(self.selected)
             .and_then(|i| self.rows.get(*i))
     }
 
-    // ⟦𓋒𓀮𓀵𓏄⟧ current_profile :: auto-generated pointer for public function current_profile
+    // <REMOVED UUID HERE> current_profile :: auto-generated pointer for public function current_profile
     pub fn current_profile(&self) -> Option<&ProfileRow> {
         self.profile_rows.get(self.profile_selected)
     }
 
     /// Bundle lines for right pane of profiles: ("skill", name, status)
-    // ⟦𓊊𓃺𓅄𓅸⟧ profile_bundle_lines :: Bundle lines for right pane of profiles: ("skill", name, status)
+    // <REMOVED UUID HERE> profile_bundle_lines :: Bundle lines for right pane of profiles: ("skill", name, status)
     pub fn profile_bundle_lines(&self) -> Vec<(Kind, String, InstallStatus)> {
         let Some(pr) = self.current_profile() else {
             return Vec::new();
@@ -306,7 +306,7 @@ impl App {
     }
 
     /// Returns true if should quit.
-    // ⟦𓍎𓄄𓈡𓃌⟧ handle_key :: Returns true if should quit.
+    // <REMOVED UUID HERE> handle_key :: Returns true if should quit.
     pub fn handle_key(&mut self, code: KeyCode, mods: KeyModifiers) -> Result<bool> {
         match self.mode {
             Mode::Help => {
@@ -770,7 +770,7 @@ impl App {
         Ok(())
     }
 
-    // ⟦𓎜𓋼𓄻𓉺⟧ counts :: auto-generated pointer for public function counts
+    // <REMOVED UUID HERE> counts :: auto-generated pointer for public function counts
     pub fn counts(&self) -> (usize, usize, usize, usize) {
         let mut en = 0;
         let mut dis = 0;
@@ -788,7 +788,7 @@ impl App {
         (en, dis, real, broken)
     }
 
-    // ⟦𓊻𓇟𓏄𓎜⟧ context_totals :: auto-generated pointer for public function context_totals
+    // <REMOVED UUID HERE> context_totals :: auto-generated pointer for public function context_totals
     pub fn context_totals(&self) -> (usize, usize, Option<usize>) {
         let rows: Vec<_> = self
             .rows

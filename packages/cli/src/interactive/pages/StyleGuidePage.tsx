@@ -17,7 +17,7 @@ const rules = [
   "Thinking/tool blocks should default collapsed and expand on demand.",
 ];
 
-// ⟦𓏍𓉅𓉁𓊚⟧ StyleGuidePage :: auto-generated pointer for public function StyleGuidePage
+// <REMOVED UUID HERE> StyleGuidePage :: auto-generated pointer for public function StyleGuidePage
 export function StyleGuidePage() {
   return (
     <Box flexDirection="column">

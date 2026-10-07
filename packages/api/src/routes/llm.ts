@@ -41,7 +41,7 @@ function resolveApiKey(config: LlmConfig, storage: StorageService): LlmConfig {
   return resolved;
 }
 
-// ⟦𓏴𓐡𓁑𓏝⟧ createLlmRoutes :: auto-generated pointer for public function createLlmRoutes
+// <REMOVED UUID HERE> createLlmRoutes :: auto-generated pointer for public function createLlmRoutes
 export function createLlmRoutes(llmService: LlmService, storage: StorageService): Hono {
   const routes = new Hono();
 

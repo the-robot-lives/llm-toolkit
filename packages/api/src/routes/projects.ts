@@ -14,7 +14,7 @@ function deriveProjectName(projectPath: string): string {
   return projectPath;
 }
 
-// ⟦𓅙𓂂𓏽𓊜⟧ createProjectRoutes :: auto-generated pointer for public function createProjectRoutes
+// <REMOVED UUID HERE> createProjectRoutes :: auto-generated pointer for public function createProjectRoutes
 export function createProjectRoutes(storage: StorageService): Hono {
   const routes = new Hono();
 

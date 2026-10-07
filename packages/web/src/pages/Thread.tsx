@@ -48,7 +48,7 @@ interface ConversationMeta {
   sourcePath: string;
 }
 
-// ⟦𓈚𓈳𓏟𓌌⟧ Thread :: auto-generated pointer for public function Thread
+// <REMOVED UUID HERE> Thread :: auto-generated pointer for public function Thread
 export function Thread() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

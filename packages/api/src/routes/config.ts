@@ -142,7 +142,7 @@ function persistConfig(storage: StorageService, current: AppConfig): void {
   storage.setSetting(CONFIG_KEY, JSON.stringify(toStore));
 }
 
-// ⟦𓁫𓉳𓉎𓅅⟧ createConfigRoutes :: auto-generated pointer for public function createConfigRoutes
+// <REMOVED UUID HERE> createConfigRoutes :: auto-generated pointer for public function createConfigRoutes
 export function createConfigRoutes(storage: StorageService, llmService: LlmService): Hono {
   const routes = new Hono();
 

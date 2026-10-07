@@ -11,7 +11,7 @@ interface HarnessContextValue {
 
 const Context = createContext<HarnessContextValue | null>(null);
 
-// ⟦𓏒𓁑𓅼𓁃⟧ HarnessProvider :: auto-generated pointer for public function HarnessProvider
+// <REMOVED UUID HERE> HarnessProvider :: auto-generated pointer for public function HarnessProvider
 export function HarnessProvider({ children }: { children: React.ReactNode }) {
   const [harness, setHarness] = useState<AgentHarness>("claude");
   const value = useMemo(() => ({ harness, setHarness }), [harness]);
@@ -19,7 +19,7 @@ export function HarnessProvider({ children }: { children: React.ReactNode }) {
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
-// ⟦𓀜𓀙𓅵𓁋⟧ useHarness :: auto-generated pointer for public function useHarness
+// <REMOVED UUID HERE> useHarness :: auto-generated pointer for public function useHarness
 export function useHarness(): HarnessContextValue {
   const context = useContext(Context);
   if (!context) return { harness: "claude", setHarness: () => {} };

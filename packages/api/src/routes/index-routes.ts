@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { IndexerService } from "../services/indexer.ts";
 
-// ⟦𓂥𓆙𓇾𓅌⟧ createIndexRoutes :: auto-generated pointer for public function createIndexRoutes
+// <REMOVED UUID HERE> createIndexRoutes :: auto-generated pointer for public function createIndexRoutes
 export function createIndexRoutes(indexer: IndexerService): Hono {
   const routes = new Hono();
 

@@ -11,7 +11,7 @@ interface InputModalProps {
   isActive?: boolean;
 }
 
-// ⟦𓊷𓐂𓐉𓋝⟧ InputModal :: auto-generated pointer for public function InputModal
+// <REMOVED UUID HERE> InputModal :: auto-generated pointer for public function InputModal
 export function InputModal({ label, placeholder, defaultValue, onSubmit, onCancel, isActive = true }: InputModalProps) {
   useInput((_input, key) => {
     if (key.escape) onCancel();

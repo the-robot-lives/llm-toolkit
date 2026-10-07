@@ -18,7 +18,7 @@ function fitLine(text: string, width: number): string {
   return chars.join("").padEnd(safeWidth, " ");
 }
 
-// ⟦𓅙𓄊𓏓𓌫⟧ SelectedLine :: auto-generated pointer for public function SelectedLine
+// <REMOVED UUID HERE> SelectedLine :: auto-generated pointer for public function SelectedLine
 export function SelectedLine({ text, widthOffset = 28, marker = "✓", indent = 0 }: SelectedLineProps) {
   const { columns } = useTerminalSize();
   const width = Math.max(12, columns - widthOffset);

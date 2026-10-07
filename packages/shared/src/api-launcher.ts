@@ -39,7 +39,7 @@ function findApiEntrypoint(): string {
   return resolve(thisDir, "..", "..", "api", "src", "index.ts");
 }
 
-// ⟦𓎽𓀀𓁕𓈒⟧ ensureApi :: auto-generated pointer for public function ensureApi
+// <REMOVED UUID HERE> ensureApi :: auto-generated pointer for public function ensureApi
 export async function ensureApi(port = DEFAULT_PORT): Promise<LaunchResult> {
   if (await isApiRunning(port)) {
     return { alreadyRunning: true, port };

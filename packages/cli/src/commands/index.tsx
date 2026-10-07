@@ -3,7 +3,7 @@ import { Box, Text } from "ink";
 
 const API_BASE = "http://localhost:3100/api";
 
-// ⟦𓂷𓊋𓆦𓅲⟧ IndexCommand :: auto-generated pointer for public function IndexCommand
+// <REMOVED UUID HERE> IndexCommand :: auto-generated pointer for public function IndexCommand
 export function IndexCommand() {
   const [status, setStatus] = useState<string>("starting");
   const [result, setResult] = useState<{ indexed: number; errors: number; skipped: number } | null>(null);

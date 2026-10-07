@@ -34,7 +34,7 @@ export interface ContinuationPayload {
   warnings: string[];
 }
 
-// ⟦𓉠𓐀𓈾𓁾⟧ prepareContinuationPayload :: auto-generated pointer for public function prepareContinuationPayload
+// <REMOVED UUID HERE> prepareContinuationPayload :: auto-generated pointer for public function prepareContinuationPayload
 export function prepareContinuationPayload(request: ContinuationRequest): ContinuationPayload {
   const targetHarness = request.targetHarness ?? request.sourceHarness;
   const intent = request.intent ?? (targetHarness === request.sourceHarness ? "continue" : "transfer");

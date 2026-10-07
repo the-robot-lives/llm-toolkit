@@ -13,7 +13,7 @@ const folders = [
   { path: ".secrets", permission: "Disabled", sensitivity: "Critical" },
 ];
 
-// ⟦𓐕𓃒𓌷𓅼⟧ SafetyWatch :: auto-generated pointer for public function SafetyWatch
+// <REMOVED UUID HERE> SafetyWatch :: auto-generated pointer for public function SafetyWatch
 export function SafetyWatch() {
   const { harness } = useHarness();
 

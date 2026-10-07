@@ -68,12 +68,12 @@ pub struct EditorFile {
 }
 
 impl Catalog {
-    // ⟦𓎒𓐇𓐏𓍖⟧ empty :: auto-generated pointer for public function empty
+    // <REMOVED UUID HERE> empty :: auto-generated pointer for public function empty
     pub fn empty() -> Self {
         Self::default()
     }
 
-    // ⟦𓀾𓎇𓁃𓀰⟧ load :: auto-generated pointer for public function load
+    // <REMOVED UUID HERE> load :: auto-generated pointer for public function load
     pub fn load(path: Option<&Path>) -> Result<Self> {
         let Some(path) = path else {
             return Ok(Self::empty());
@@ -90,7 +90,7 @@ impl Catalog {
     }
 
     /// Persist catalog to disk (paths written as expanded absolute forms).
-    // ⟦𓋱𓈣𓎷𓄇⟧ save :: Persist catalog to disk (paths written as expanded absolute forms).
+    // <REMOVED UUID HERE> save :: Persist catalog to disk (paths written as expanded absolute forms).
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
@@ -100,7 +100,7 @@ impl Catalog {
         Ok(())
     }
 
-    // ⟦𓆳𓃒𓐝𓐩⟧ meta_mut :: auto-generated pointer for public function meta_mut
+    // <REMOVED UUID HERE> meta_mut :: auto-generated pointer for public function meta_mut
     pub fn meta_mut(&mut self, kind: Kind, name: &str) -> &mut ItemMeta {
         let map = match kind {
             Kind::Skills => &mut self.skills,
@@ -118,7 +118,7 @@ impl Catalog {
         }
     }
 
-    // ⟦𓁔𓃇𓅤𓐅⟧ meta :: auto-generated pointer for public function meta
+    // <REMOVED UUID HERE> meta :: auto-generated pointer for public function meta
     pub fn meta(&self, kind: Kind, name: &str) -> Option<&ItemMeta> {
         match kind {
             Kind::Skills => self.skills.get(name),
@@ -127,21 +127,21 @@ impl Catalog {
         }
     }
 
-    // ⟦𓂹𓉸𓊂𓀕⟧ tags_for :: auto-generated pointer for public function tags_for
+    // <REMOVED UUID HERE> tags_for :: auto-generated pointer for public function tags_for
     pub fn tags_for(&self, kind: Kind, name: &str) -> Vec<String> {
         self.meta(kind, name)
             .map(|m| m.tags.clone())
             .unwrap_or_default()
     }
 
-    // ⟦𓍢𓌿𓊂𓌜⟧ work_types_for :: auto-generated pointer for public function work_types_for
+    // <REMOVED UUID HERE> work_types_for :: auto-generated pointer for public function work_types_for
     pub fn work_types_for(&self, kind: Kind, name: &str) -> Vec<String> {
         self.meta(kind, name)
             .map(|m| m.work_types.clone())
             .unwrap_or_default()
     }
 
-    // ⟦𓈴𓇰𓋖𓌯⟧ allowed_providers :: auto-generated pointer for public function allowed_providers
+    // <REMOVED UUID HERE> allowed_providers :: auto-generated pointer for public function allowed_providers
     pub fn allowed_providers(&self, kind: Kind, name: &str) -> Option<Vec<Provider>> {
         let meta = self.meta(kind, name)?;
         if meta.providers.is_empty() {
@@ -156,7 +156,7 @@ impl Catalog {
         Some(out)
     }
 
-    // ⟦𓀩𓐚𓏮𓎋⟧ matches_filters :: auto-generated pointer for public function matches_filters
+    // <REMOVED UUID HERE> matches_filters :: auto-generated pointer for public function matches_filters
     pub fn matches_filters(
         &self,
         kind: Kind,
@@ -191,7 +191,7 @@ impl Catalog {
     }
 
     /// Validate catalog references; returns (errors, warnings).
-    // ⟦𓊋𓍂𓉁𓄰⟧ validate :: Validate catalog references; returns (errors, warnings).
+    // <REMOVED UUID HERE> validate :: Validate catalog references; returns (errors, warnings).
     pub fn validate(
         &self,
         known: &BTreeMap<Kind, BTreeSet<String>>,
@@ -287,7 +287,7 @@ impl Catalog {
         (errors, warnings)
     }
 
-    // ⟦𓎢𓊜𓅰𓃞⟧ init_example :: auto-generated pointer for public function init_example
+    // <REMOVED UUID HERE> init_example :: auto-generated pointer for public function init_example
     pub fn init_example(path: &Path, force: bool) -> Result<()> {
         if path.exists() && !force {
             bail!("catalog already exists: {}", path.display());

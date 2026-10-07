@@ -19,7 +19,7 @@ pub struct LinkAction {
 }
 
 /// Classify install status of `dest` relative to expected source under cfg.
-// ⟦𓃫𓊖𓂣𓆡⟧ classify :: Classify install status of `dest` relative to expected source under cfg.
+// <REMOVED UUID HERE> classify :: Classify install status of `dest` relative to expected source under cfg.
 pub fn classify(
     cfg: &AppConfig,
     kind: Kind,
@@ -90,7 +90,7 @@ fn same_path(a: &Path, b: &Path) -> bool {
     a == b
 }
 
-// ⟦𓉢𓏈𓆚𓉾⟧ enable_item :: auto-generated pointer for public function enable_item
+// <REMOVED UUID HERE> enable_item :: auto-generated pointer for public function enable_item
 pub fn enable_item(
     cfg: &AppConfig,
     provider: Provider,
@@ -185,7 +185,7 @@ pub fn enable_item(
     })
 }
 
-// ⟦𓀝𓄰𓎵𓎃⟧ disable_item :: auto-generated pointer for public function disable_item
+// <REMOVED UUID HERE> disable_item :: auto-generated pointer for public function disable_item
 pub fn disable_item(
     cfg: &AppConfig,
     provider: Provider,

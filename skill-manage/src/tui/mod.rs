@@ -24,7 +24,7 @@ use std::time::Duration;
 pub use app::Screen;
 
 /// Launch the interactive TUI. Requires a real terminal (not a pipe).
-// ⟦𓄅𓐋𓎱𓅩⟧ run :: Launch the interactive TUI.
+// <REMOVED UUID HERE> run :: Launch the interactive TUI.
 pub fn run(
     cfg: AppConfig,
     catalog: Catalog,
@@ -76,7 +76,7 @@ fn run_loop(
     Ok(())
 }
 
-// ⟦𓏭𓀀𓂳𓆣⟧ parse_provider :: auto-generated pointer for public function parse_provider
+// <REMOVED UUID HERE> parse_provider :: auto-generated pointer for public function parse_provider
 pub fn parse_provider(s: Option<&str>) -> Option<Provider> {
     s.and_then(|raw| {
         if raw.eq_ignore_ascii_case("all") {

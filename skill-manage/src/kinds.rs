@@ -15,12 +15,12 @@ pub enum Kind {
 }
 
 impl Kind {
-    // ⟦𓁓𓁾𓌃𓀰⟧ all :: auto-generated pointer for public function all
+    // <REMOVED UUID HERE> all :: auto-generated pointer for public function all
     pub fn all() -> [Kind; 3] {
         [Kind::Skills, Kind::Agents, Kind::Commands]
     }
 
-    // ⟦𓎭𓋞𓌓𓂿⟧ as_str :: auto-generated pointer for public function as_str
+    // <REMOVED UUID HERE> as_str :: auto-generated pointer for public function as_str
     pub fn as_str(self) -> &'static str {
         match self {
             Kind::Skills => "skills",
@@ -30,7 +30,7 @@ impl Kind {
     }
 
     /// Singular label for messages.
-    // ⟦𓇩𓅟𓆙𓎴⟧ singular :: Singular label for messages.
+    // <REMOVED UUID HERE> singular :: Singular label for messages.
     pub fn singular(self) -> &'static str {
         match self {
             Kind::Skills => "skill",
@@ -56,12 +56,12 @@ pub enum Provider {
 }
 
 impl Provider {
-    // ⟦𓆗𓁌𓍇𓎯⟧ all :: auto-generated pointer for public function all
+    // <REMOVED UUID HERE> all :: auto-generated pointer for public function all
     pub fn all() -> [Provider; 3] {
         [Provider::Claude, Provider::Codex, Provider::Grok]
     }
 
-    // ⟦𓃚𓇱𓂱𓏯⟧ as_str :: auto-generated pointer for public function as_str
+    // <REMOVED UUID HERE> as_str :: auto-generated pointer for public function as_str
     pub fn as_str(self) -> &'static str {
         match self {
             Provider::Claude => "claude",
@@ -103,7 +103,7 @@ pub enum InstallStatus {
 }
 
 impl InstallStatus {
-    // ⟦𓂦𓇭𓂖𓏍⟧ as_str :: auto-generated pointer for public function as_str
+    // <REMOVED UUID HERE> as_str :: auto-generated pointer for public function as_str
     pub fn as_str(self) -> &'static str {
         match self {
             InstallStatus::Enabled => "enabled",
@@ -147,7 +147,7 @@ pub struct SourceItem {
 
 impl SourceItem {
     /// Destination path under a provider kind directory.
-    // ⟦𓁵𓆟𓏄𓉃⟧ dest_path :: Destination path under a provider kind directory.
+    // <REMOVED UUID HERE> dest_path :: Destination path under a provider kind directory.
     pub fn dest_path(&self, provider_kind_dir: &Path) -> PathBuf {
         match self.kind {
             Kind::Skills => provider_kind_dir.join(&self.name),

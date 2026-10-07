@@ -81,7 +81,7 @@ export interface HarnessImportInput {
   raw: unknown;
 }
 
-// ⟦𓀁𓂑𓋗𓌪⟧ exportUniversalToHarness :: auto-generated pointer for public function exportUniversalToHarness
+// <REMOVED UUID HERE> exportUniversalToHarness :: auto-generated pointer for public function exportUniversalToHarness
 export function exportUniversalToHarness(input: UniversalExportInput): HarnessExportPayload {
   switch (input.targetHarness) {
     case "claude":
@@ -93,7 +93,7 @@ export function exportUniversalToHarness(input: UniversalExportInput): HarnessEx
   }
 }
 
-// ⟦𓁌𓋪𓃣𓉬⟧ exportUniversalToClaude :: auto-generated pointer for public function exportUniversalToClaude
+// <REMOVED UUID HERE> exportUniversalToClaude :: auto-generated pointer for public function exportUniversalToClaude
 export function exportUniversalToClaude(messages: UniversalMessage[]): ClaudeExportPayload {
   const unsupportedBlocks: UnsupportedBlockNotice[] = [];
   const systemParts: string[] = [];
@@ -127,7 +127,7 @@ export function exportUniversalToClaude(messages: UniversalMessage[]): ClaudeExp
   };
 }
 
-// ⟦𓏮𓉽𓃁𓆍⟧ exportUniversalToCodex :: auto-generated pointer for public function exportUniversalToCodex
+// <REMOVED UUID HERE> exportUniversalToCodex :: auto-generated pointer for public function exportUniversalToCodex
 export function exportUniversalToCodex(
   messages: UniversalMessage[],
   options: { sessionId?: string } = {},
@@ -170,7 +170,7 @@ export function exportUniversalToCodex(
   };
 }
 
-// ⟦𓀭𓏫𓎃𓄌⟧ importHarnessToUniversal :: auto-generated pointer for public function importHarnessToUniversal
+// <REMOVED UUID HERE> importHarnessToUniversal :: auto-generated pointer for public function importHarnessToUniversal
 export function importHarnessToUniversal(input: HarnessImportInput): UniversalMessage[] {
   if (Array.isArray(input.raw) && looksLikeUniversalMessages(input.raw)) {
     return input.raw;
@@ -181,7 +181,7 @@ export function importHarnessToUniversal(input: HarnessImportInput): UniversalMe
   );
 }
 
-// ⟦𓂾𓉕𓉡𓋥⟧ isHarnessExportSupported :: auto-generated pointer for public function isHarnessExportSupported
+// <REMOVED UUID HERE> isHarnessExportSupported :: auto-generated pointer for public function isHarnessExportSupported
 export function isHarnessExportSupported(harness: AgentHarness): harness is UniversalExportHarness {
   return harness === "claude" || harness === "codex";
 }
