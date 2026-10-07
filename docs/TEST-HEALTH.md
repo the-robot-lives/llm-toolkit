@@ -25,7 +25,9 @@ Gates live in `packages/*/vitest.config.ts` (`coverage.thresholds.lines`) and th
 `test/strip-provider-env.ts` is the first Vitest setup file in every package: it deletes
 `*_API_KEY`, `*_BASE_URL`, `*_AUTH_TOKEN` and known provider-prefixed vars (ANTHROPIC, OPENAI,
 OLLAMA, LITELLM, …) before any module copies them into config, so no test can reach a real model.
-Verified locally with a shell carrying live provider keys.
+It also clears `NPL_CONFIG_HOME`/`XDG_CONFIG_HOME`: GH runners export `XDG_CONFIG_HOME`, which
+outranked the temp homes tests pass in (11 CI-only failures in shared + api service-route tests).
+Verified locally with a shell carrying live provider keys, `XDG_CONFIG_HOME` set and `TMPDIR=/tmp`.
 
 ## Caching status
 - GitHub Actions: pnpm store ✅ (setup-node `cache: pnpm`) · cargo ✅ (Swatinem/rust-cache, per-workspace key) · develop-ref seeding ✅ (`push: develop`)
