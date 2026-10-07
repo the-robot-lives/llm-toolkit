@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,26 @@ import {
   mergeConfigs,
   saveNplPluginConfig,
 } from "../npl-plugin-config.ts";
+
+// The user-config path resolves $NPL_CONFIG_HOME > $XDG_CONFIG_HOME > <home>.
+// CI runners export XDG_CONFIG_HOME, which would shadow the temp homes the
+// tests pass in — clear both per test and restore after.
+const CONFIG_ENV = ["NPL_CONFIG_HOME", "XDG_CONFIG_HOME"] as const;
+const savedConfigEnv: Partial<Record<(typeof CONFIG_ENV)[number], string>> = {};
+
+beforeEach(() => {
+  for (const name of CONFIG_ENV) {
+    savedConfigEnv[name] = process.env[name];
+    delete process.env[name];
+  }
+});
+
+afterEach(() => {
+  for (const name of CONFIG_ENV) {
+    if (savedConfigEnv[name] === undefined) delete process.env[name];
+    else process.env[name] = savedConfigEnv[name];
+  }
+});
 
 function makeTempRoot(): string {
   return mkdtempSync(join(tmpdir(), "llm-toolkit-npl-config-"));

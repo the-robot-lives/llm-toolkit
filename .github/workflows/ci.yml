@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+# Supersede stale PR runs; never cancel main/develop pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Vitest across the pnpm workspace (shared, cli, api, web). Provider keys are
+  # stripped by test/strip-provider-env.ts; per-package line gates live in each
+  # packages/*/vitest.config.ts. The /api/memory route suite self-skips without
+  # the napi addon (TEST-HEALTH debt).
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Test + coverage gate
+        run: pnpm -r test --coverage
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-js
+          path: packages/*/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  # Two independent cargo workspaces. claude-memory-node (napi cdylib) is built
+  # by `pnpm build:memory-native`, not tested here.
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: skill-manage
+            dir: skill-manage
+            args: ""
+            min_lines: 19
+          - name: claude-memory
+            dir: crates
+            args: "-p claude-memory"
+            min_lines: 88
+    name: rust (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.dir }}
+          shared-key: ${{ matrix.name }}
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Test + coverage gate
+        working-directory: ${{ matrix.dir }}
+        run: cargo llvm-cov --locked ${{ matrix.args }} --fail-under-lines ${{ matrix.min_lines }}
