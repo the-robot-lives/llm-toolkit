@@ -42,7 +42,7 @@ interface RecentRow {
   last_message: string | null;
 }
 
-// ⟦𓈯𓎬𓌷𓃷⟧ runRecentCommand :: auto-generated pointer for public function runRecentCommand
+// <REMOVED UUID HERE> runRecentCommand :: auto-generated pointer for public function runRecentCommand
 export function runRecentCommand(args: string[]): number {
   try {
     const options = parseRecentArgs(args);
@@ -70,7 +70,7 @@ export function runRecentCommand(args: string[]): number {
   }
 }
 
-// ⟦𓊛𓀽𓎡𓎩⟧ parseRecentArgs :: auto-generated pointer for public function parseRecentArgs
+// <REMOVED UUID HERE> parseRecentArgs :: auto-generated pointer for public function parseRecentArgs
 export function parseRecentArgs(args: string[]): RecentOptions {
   let limit = DEFAULT_LIMIT;
   let json = false;
@@ -122,7 +122,7 @@ export function parseRecentArgs(args: string[]): RecentOptions {
   };
 }
 
-// ⟦𓂯𓈫𓋡𓋳⟧ parsePeriod :: auto-generated pointer for public function parsePeriod
+// <REMOVED UUID HERE> parsePeriod :: auto-generated pointer for public function parsePeriod
 export function parsePeriod(value: string): { milliseconds: number; label: string } {
   const match = value.trim().toLowerCase().match(
     /^(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|week|weeks)$/,
@@ -155,7 +155,7 @@ export function parsePeriod(value: string): { milliseconds: number; label: strin
   };
 }
 
-// ⟦𓄆𓇟𓈁𓌨⟧ queryRecentSessions :: auto-generated pointer for public function queryRecentSessions
+// <REMOVED UUID HERE> queryRecentSessions :: auto-generated pointer for public function queryRecentSessions
 export function queryRecentSessions(dbPath: string, since: Date, limit: number): RecentSession[] {
   let db: Database.Database;
   try {
@@ -205,7 +205,7 @@ export function queryRecentSessions(dbPath: string, since: Date, limit: number):
   }
 }
 
-// ⟦𓃧𓇎𓊭𓆝⟧ formatRecentSessions :: auto-generated pointer for public function formatRecentSessions
+// <REMOVED UUID HERE> formatRecentSessions :: auto-generated pointer for public function formatRecentSessions
 export function formatRecentSessions(sessions: RecentSession[], options: RecentOptions): string {
   const header = `Recent sessions · last ${options.periodLabel} · ${sessions.length} found`;
   if (sessions.length === 0) return `${header}\nNo indexed sessions were updated in this period.`;

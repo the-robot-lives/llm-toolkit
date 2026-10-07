@@ -39,7 +39,7 @@ export const DEFAULT_CONFIG: NplPluginConfig = {
   mcp_sync: { targets: [] },
 };
 
-// ⟦𓋗𓎼𓐒𓁵⟧ findUserConfigPath :: $NPL_CONFIG_HOME > $XDG_CONFIG_HOME > ~/.config, then npl/npl-plugin.config.yaml
+// <REMOVED UUID HERE> findUserConfigPath :: $NPL_CONFIG_HOME > $XDG_CONFIG_HOME > ~/.config, then npl/npl-plugin.config.yaml
 export function findUserConfigPath(home?: string): string {
   const base =
     process.env.NPL_CONFIG_HOME ??
@@ -48,7 +48,7 @@ export function findUserConfigPath(home?: string): string {
   return join(base, "npl", "npl-plugin.config.yaml");
 }
 
-// ⟦𓐨𓎞𓏢𓈆⟧ findProjectRoot :: walk up from startCwd to the dir containing .npl/npl-plugin.config.yaml
+// <REMOVED UUID HERE> findProjectRoot :: walk up from startCwd to the dir containing .npl/npl-plugin.config.yaml
 export function findProjectRoot(startCwd: string): string | null {
   let dir = resolve(startCwd);
   // eslint-disable-next-line no-constant-condition
@@ -66,7 +66,7 @@ function expandHome(p: string, home?: string): string {
   return p;
 }
 
-// ⟦𓎁𓇋𓄻𓍕⟧ validateService :: required fields, name shape, http⇒url
+// <REMOVED UUID HERE> validateService :: required fields, name shape, http⇒url
 function validateService(svc: unknown, origin: string): NplServiceConfig {
   if (typeof svc !== "object" || svc === null) {
     throw new NplPluginConfigError(`${origin}: service entry is not an object`);
@@ -95,7 +95,7 @@ function validateService(svc: unknown, origin: string): NplServiceConfig {
   return s as unknown as NplServiceConfig;
 }
 
-// ⟦𓌢𓃷𓆔𓁧⟧ parseConfigFile :: read + YAML parse + validate; null when file absent
+// <REMOVED UUID HERE> parseConfigFile :: read + YAML parse + validate; null when file absent
 function parseConfigFile(path: string, origin: string): Partial<NplPluginConfig> | null {
   if (!existsSync(path)) return null;
   let raw: unknown;
@@ -124,7 +124,7 @@ export interface MergeResult {
   serviceSources: Record<string, "user" | "project">;
 }
 
-// ⟦𓄻⟧ mergeConfigs :: scalars replaced; services merged by name with field-level override; env/args replaced wholesale
+// <REMOVED UUID HERE> mergeConfigs :: scalars replaced; services merged by name with field-level override; env/args replaced wholesale
 export function mergeConfigs(
   base: NplPluginConfig,
   override: Partial<NplPluginConfig>,
@@ -171,7 +171,7 @@ export interface LoadedNplPluginConfig {
   serviceSources: Record<string, "user" | "project">;
 }
 
-// ⟦𓋗⟧ loadNplPluginConfig :: user layer then project layer, merged onto defaults
+// <REMOVED UUID HERE> loadNplPluginConfig :: user layer then project layer, merged onto defaults
 export function loadNplPluginConfig(opts: LoadNplPluginConfigOpts = {}): LoadedNplPluginConfig {
   const startCwd = opts.cwd ?? process.cwd();
   const projectRoot = findProjectRoot(startCwd);
@@ -242,7 +242,7 @@ export interface SaveNplPluginConfigOpts {
   home?: string;
 }
 
-// ⟦𓋗𓋗⟧ saveNplPluginConfig :: write full config for scope, preserving unknown top-level keys
+// <REMOVED UUID HERE> saveNplPluginConfig :: write full config for scope, preserving unknown top-level keys
 export function saveNplPluginConfig(
   scope: "user" | "project",
   config: NplPluginConfig,

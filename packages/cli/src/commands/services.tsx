@@ -44,7 +44,7 @@ const STATUS_COLORS: Record<ServiceStatus, string> = {
   stopped: "gray",
 };
 
-// ⟦𓇹𓁢𓎛𓆏⟧ parseServicesArgs :: auto-generated pointer for public function parseServicesArgs
+// <REMOVED UUID HERE> parseServicesArgs :: auto-generated pointer for public function parseServicesArgs
 export function parseServicesArgs(args: string[]): ParsedServicesArgs {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -69,7 +69,7 @@ interface ServicesCommandProps {
   args: string[];
 }
 
-// ⟦𓊝𓂀𓃰𓉼⟧ ServicesCommand :: auto-generated pointer for public function ServicesCommand
+// <REMOVED UUID HERE> ServicesCommand :: auto-generated pointer for public function ServicesCommand
 export function ServicesCommand({ args }: ServicesCommandProps) {
   const parsed = parseServicesArgs(args);
   if (parsed.error) return <FlagErrorExit message={parsed.error} />;

@@ -7,7 +7,7 @@ interface PaginationProps {
   totalItems: number;
 }
 
-// ⟦𓃋𓇠𓄼𓈽⟧ Pagination :: auto-generated pointer for public function Pagination
+// <REMOVED UUID HERE> Pagination :: auto-generated pointer for public function Pagination
 export function Pagination({ page, totalPages, totalItems }: PaginationProps) {
   if (totalPages <= 1) return null;
 

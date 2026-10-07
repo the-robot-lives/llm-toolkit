@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 
 const API_BASE = "/api";
 
-// ⟦𓌔𓊜𓏺𓃦⟧ apiFetch :: auto-generated pointer for public function apiFetch
+// <REMOVED UUID HERE> apiFetch :: auto-generated pointer for public function apiFetch
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -74,7 +74,7 @@ interface ConversationsResponse {
   meta: { total: number; limit: number; offset: number };
 }
 
-// ⟦𓌎𓎵𓎋𓍷⟧ useConversations :: auto-generated pointer for public function useConversations
+// <REMOVED UUID HERE> useConversations :: auto-generated pointer for public function useConversations
 export function useConversations(options?: { sort?: string; limit?: number; offset?: number; project?: string; harness?: string }) {
   const params = new URLSearchParams();
   if (options?.sort) params.set("sort", options.sort);
@@ -103,7 +103,7 @@ interface SearchResponse {
   meta: { total: number; query: string; mode: string };
 }
 
-// ⟦𓈏𓉡𓂀𓍃⟧ useSearch :: auto-generated pointer for public function useSearch
+// <REMOVED UUID HERE> useSearch :: auto-generated pointer for public function useSearch
 export function useSearch(query: string, mode: "fts" | "semantic" = "fts", filters?: { project?: string; harness?: string }) {
   const params = new URLSearchParams({ q: query, mode });
   if (filters?.project) params.set("project", filters.project);
@@ -126,7 +126,7 @@ interface IndexStatusResponse {
   };
 }
 
-// ⟦𓇂𓀼𓈴𓀩⟧ useIndexStatus :: auto-generated pointer for public function useIndexStatus
+// <REMOVED UUID HERE> useIndexStatus :: auto-generated pointer for public function useIndexStatus
 export function useIndexStatus() {
   return useApiQuery<IndexStatusResponse>("/index/status");
 }
@@ -137,7 +137,7 @@ interface StatsResponse {
   lastIndexed: string | null;
 }
 
-// ⟦𓁅𓋦𓆡𓂤⟧ useStats :: auto-generated pointer for public function useStats
+// <REMOVED UUID HERE> useStats :: auto-generated pointer for public function useStats
 export function useStats() {
   const convs = useConversations({ limit: 1 });
   const idx = useIndexStatus();

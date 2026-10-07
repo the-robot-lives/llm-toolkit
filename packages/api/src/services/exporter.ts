@@ -1,6 +1,6 @@
 import type { DatasetEntry } from "@llm-toolkit/shared";
 
-// ⟦𓈯𓃚𓅌𓎕⟧ exportOpenAI :: auto-generated pointer for public function exportOpenAI
+// <REMOVED UUID HERE> exportOpenAI :: auto-generated pointer for public function exportOpenAI
 export function exportOpenAI(entries: DatasetEntry[]): string {
   return entries
     .map((entry) => {
@@ -14,7 +14,7 @@ export function exportOpenAI(entries: DatasetEntry[]): string {
     .join("\n");
 }
 
-// ⟦𓊭𓊡𓆐𓆺⟧ exportAnthropic :: auto-generated pointer for public function exportAnthropic
+// <REMOVED UUID HERE> exportAnthropic :: auto-generated pointer for public function exportAnthropic
 export function exportAnthropic(entries: DatasetEntry[]): string {
   return entries
     .map((entry) => {
@@ -28,7 +28,7 @@ export function exportAnthropic(entries: DatasetEntry[]): string {
     .join("\n");
 }
 
-// ⟦𓆺𓍳𓁸𓀭⟧ exportJsonl :: auto-generated pointer for public function exportJsonl
+// <REMOVED UUID HERE> exportJsonl :: auto-generated pointer for public function exportJsonl
 export function exportJsonl(entries: DatasetEntry[]): string {
   return entries
     .map((entry) => {
@@ -44,7 +44,7 @@ export function exportJsonl(entries: DatasetEntry[]): string {
     .join("\n");
 }
 
-// ⟦𓉐𓇏𓐃𓈢⟧ exportDataset :: auto-generated pointer for public function exportDataset
+// <REMOVED UUID HERE> exportDataset :: auto-generated pointer for public function exportDataset
 export function exportDataset(entries: DatasetEntry[], format: string): string {
   switch (format) {
     case "openai":

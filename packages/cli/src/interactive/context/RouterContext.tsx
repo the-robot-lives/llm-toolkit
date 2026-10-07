@@ -55,7 +55,7 @@ export interface RouterContextValue {
 
 const Context = createContext<RouterContextValue | null>(null);
 
-// ⟦𓋵𓄘𓈖𓐑⟧ RouterProvider :: auto-generated pointer for public function RouterProvider
+// <REMOVED UUID HERE> RouterProvider :: auto-generated pointer for public function RouterProvider
 export function RouterProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(routerReducer, {
     stack: [{ page: "explore", params: {} }],
@@ -83,7 +83,7 @@ export function RouterProvider({ children }: { children: React.ReactNode }) {
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
-// ⟦𓊛𓋘𓀥𓄯⟧ useRouter :: auto-generated pointer for public function useRouter
+// <REMOVED UUID HERE> useRouter :: auto-generated pointer for public function useRouter
 export function useRouter(): RouterContextValue {
   const ctx = useContext(Context);
   if (!ctx) throw new Error("useRouter must be used within RouterProvider");

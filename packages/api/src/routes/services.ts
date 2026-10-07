@@ -19,7 +19,7 @@ function errorResponse(c: Context, message: string, status: 400 | 404 | 409 | 50
   return c.json({ error: message }, status);
 }
 
-// ⟦𓋗𓆏⟧ createServiceRoutes :: list/join runtime status + lifecycle controls + npl plugin config editing
+// <REMOVED UUID HERE> createServiceRoutes :: list/join runtime status + lifecycle controls + npl plugin config editing
 export function createServiceRoutes(supervisor: ServiceSupervisor, opts: ServiceRoutesOpts): Hono {
   const routes = new Hono();
 

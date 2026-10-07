@@ -5,7 +5,7 @@ use crate::sources::discover;
 use anyhow::Result;
 use std::collections::BTreeMap;
 
-// ⟦𓄼𓋂𓀊𓁁⟧ print_status :: auto-generated pointer for public function print_status
+// <REMOVED UUID HERE> print_status :: auto-generated pointer for public function print_status
 pub fn print_status(cfg: &AppConfig) -> Result<()> {
     println!(
         "{:<10} {:<10} {:>8} {:>8} {:>8} {:>8} {:>8}",

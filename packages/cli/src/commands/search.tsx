@@ -20,7 +20,7 @@ interface SearchCommandProps {
   project?: string;
 }
 
-// ⟦𓋝𓋉𓊣𓀎⟧ SearchCommand :: auto-generated pointer for public function SearchCommand
+// <REMOVED UUID HERE> SearchCommand :: auto-generated pointer for public function SearchCommand
 export function SearchCommand({ query, semantic, project }: SearchCommandProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 
 const API_BASE = "http://localhost:3100/api";
 
-// ⟦𓊞𓀚𓇚𓍑⟧ apiFetch :: auto-generated pointer for public function apiFetch
+// <REMOVED UUID HERE> apiFetch :: auto-generated pointer for public function apiFetch
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -21,7 +21,7 @@ interface UseApiState<T> {
   refetch: () => void;
 }
 
-// ⟦𓆓𓏤𓀾𓁛⟧ useApiQuery :: auto-generated pointer for public function useApiQuery
+// <REMOVED UUID HERE> useApiQuery :: auto-generated pointer for public function useApiQuery
 export function useApiQuery<T>(path: string | null): UseApiState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +51,7 @@ export function useApiQuery<T>(path: string | null): UseApiState<T> {
   return { data, loading, error, refetch };
 }
 
-// ⟦𓉑𓅒𓆆𓏊⟧ useApiMutation :: auto-generated pointer for public function useApiMutation
+// <REMOVED UUID HERE> useApiMutation :: auto-generated pointer for public function useApiMutation
 export function useApiMutation<TBody, TResponse>(
   method: "POST" | "PATCH" | "DELETE" = "POST"
 ) {
@@ -97,7 +97,7 @@ interface ConversationsResponse {
   meta: { total: number; limit: number; offset: number };
 }
 
-// ⟦𓀚𓃢𓉏𓁶⟧ useConversations :: auto-generated pointer for public function useConversations
+// <REMOVED UUID HERE> useConversations :: auto-generated pointer for public function useConversations
 export function useConversations(options?: { sort?: string; limit?: number; offset?: number; project?: string; harness?: string }) {
   const params = new URLSearchParams();
   if (options?.sort) params.set("sort", options.sort);
@@ -126,7 +126,7 @@ interface SearchResponse {
   meta: { total: number; query: string; mode: string };
 }
 
-// ⟦𓍾𓎒𓉎𓎹⟧ useSearch :: auto-generated pointer for public function useSearch
+// <REMOVED UUID HERE> useSearch :: auto-generated pointer for public function useSearch
 export function useSearch(query: string, mode: "fts" | "semantic" = "fts", filters?: { project?: string; harness?: string }) {
   const params = new URLSearchParams({ q: query, mode });
   if (filters?.project) params.set("project", filters.project);
@@ -149,7 +149,7 @@ interface IndexStatusResponse {
   };
 }
 
-// ⟦𓀶𓉐𓁁𓋲⟧ useIndexStatus :: auto-generated pointer for public function useIndexStatus
+// <REMOVED UUID HERE> useIndexStatus :: auto-generated pointer for public function useIndexStatus
 export function useIndexStatus() {
   return useApiQuery<IndexStatusResponse>("/index/status");
 }

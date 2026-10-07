@@ -11,7 +11,7 @@ function parseTagInput(raw: string): string[] {
     .filter(Boolean);
 }
 
-// ⟦𓃔𓂋𓇹𓈼⟧ Browse :: auto-generated pointer for public function Browse
+// <REMOVED UUID HERE> Browse :: auto-generated pointer for public function Browse
 export function Browse() {
   const [sort, setSort] = useState<SortOption>("updated_at");
   const [includeTags, setIncludeTags] = useState("");

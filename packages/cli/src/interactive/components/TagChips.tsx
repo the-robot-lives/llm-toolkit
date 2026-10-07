@@ -6,7 +6,7 @@ interface TagChipsProps {
   compact?: boolean;
 }
 
-// ⟦𓀋𓏖𓆲𓋊⟧ TagChips :: auto-generated pointer for public function TagChips
+// <REMOVED UUID HERE> TagChips :: auto-generated pointer for public function TagChips
 export function TagChips({ tags, compact = false }: TagChipsProps) {
   if (tags.length === 0) return null;
 

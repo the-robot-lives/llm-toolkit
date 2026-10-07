@@ -21,7 +21,7 @@ interface SavedPrompt {
 
 type UIMode = "list" | "filter" | "create-title" | "create-content" | "edit-title" | "edit-content" | "add-tag" | "confirm-delete";
 
-// ⟦𓊋𓇥𓍴𓂽⟧ PromptsPage :: auto-generated pointer for public function PromptsPage
+// <REMOVED UUID HERE> PromptsPage :: auto-generated pointer for public function PromptsPage
 export function PromptsPage() {
   const { navigate } = useRouter();
   const { rows } = useTerminalSize();

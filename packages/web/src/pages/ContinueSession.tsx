@@ -13,7 +13,7 @@ import {
 
 type ViewMode = "continuation" | "universal" | "raw";
 
-// ⟦𓄔𓈛𓏫𓍂⟧ ContinueSession :: auto-generated pointer for public function ContinueSession
+// <REMOVED UUID HERE> ContinueSession :: auto-generated pointer for public function ContinueSession
 export function ContinueSession() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

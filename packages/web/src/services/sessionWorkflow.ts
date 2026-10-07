@@ -96,13 +96,13 @@ export const transferTargets: TransferTarget[] = [
   { harness: "other", label: "Other", state: "todo", note: "Generic target needs an adapter before export." },
 ];
 
-// ⟦𓆊𓃝𓎺𓆟⟧ fetchUniversalConversation :: auto-generated pointer for public function fetchUniversalConversation
+// <REMOVED UUID HERE> fetchUniversalConversation :: auto-generated pointer for public function fetchUniversalConversation
 export async function fetchUniversalConversation(id: string): Promise<UniversalConversation> {
   const response = await apiFetch<{ data: UniversalConversation }>(`/conversations/${id}/universal?raw=true`);
   return response.data;
 }
 
-// ⟦𓌉𓏈𓈳𓋛⟧ buildContinuationPayload :: auto-generated pointer for public function buildContinuationPayload
+// <REMOVED UUID HERE> buildContinuationPayload :: auto-generated pointer for public function buildContinuationPayload
 export function buildContinuationPayload(
   conversation: UniversalConversation,
   targetHarness: SessionHarness,
@@ -132,7 +132,7 @@ export function buildContinuationPayload(
   };
 }
 
-// ⟦𓊉𓉒𓍉𓌕⟧ buildTransferPrompt :: auto-generated pointer for public function buildTransferPrompt
+// <REMOVED UUID HERE> buildTransferPrompt :: auto-generated pointer for public function buildTransferPrompt
 export function buildTransferPrompt(payload: ContinuationPayload): string {
   const header = [
     `Continue session: ${payload.source.title}`,
@@ -155,7 +155,7 @@ export function buildTransferPrompt(payload: ContinuationPayload): string {
   return [...header, ...transcript].join("\n\n");
 }
 
-// ⟦𓀽𓀦𓂯𓅞⟧ buildResumeCommand :: auto-generated pointer for public function buildResumeCommand
+// <REMOVED UUID HERE> buildResumeCommand :: auto-generated pointer for public function buildResumeCommand
 export function buildResumeCommand(meta: Pick<ConversationMeta, "harness" | "projectPath" | "sourcePath">): string | null {
   if (meta.harness !== "claude") return null;
   const sessionId = extractSessionId(meta.sourcePath);

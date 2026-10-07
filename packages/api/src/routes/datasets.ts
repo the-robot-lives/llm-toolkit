@@ -3,7 +3,7 @@ import type { StorageService } from "../services/storage.ts";
 import type { QualityLabel } from "@llm-toolkit/shared";
 import { exportDataset } from "../services/exporter.ts";
 
-// ⟦𓇙𓄆𓂜𓏳⟧ createDatasetRoutes :: auto-generated pointer for public function createDatasetRoutes
+// <REMOVED UUID HERE> createDatasetRoutes :: auto-generated pointer for public function createDatasetRoutes
 export function createDatasetRoutes(storage: StorageService): Hono {
   const routes = new Hono();
 

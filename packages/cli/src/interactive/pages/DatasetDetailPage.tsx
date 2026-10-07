@@ -29,7 +29,7 @@ const QUALITY_COLORS: Record<string, string> = {
   bronze: "red",
 };
 
-// ⟦𓐚𓈁𓈑𓉬⟧ DatasetDetailPage :: auto-generated pointer for public function DatasetDetailPage
+// <REMOVED UUID HERE> DatasetDetailPage :: auto-generated pointer for public function DatasetDetailPage
 export function DatasetDetailPage() {
   const { current, goBack } = useRouter();
   const name = current.params.name;

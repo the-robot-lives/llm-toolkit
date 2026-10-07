@@ -19,7 +19,7 @@ interface ProjectEntry {
 
 type UIMode = "list" | "edit-title" | "edit-desc";
 
-// ⟦𓅌𓊢𓊛𓏌⟧ ProjectsPage :: auto-generated pointer for public function ProjectsPage
+// <REMOVED UUID HERE> ProjectsPage :: auto-generated pointer for public function ProjectsPage
 export function ProjectsPage() {
   const { navigate } = useRouter();
   const { rows } = useTerminalSize();

@@ -36,7 +36,7 @@ interface MessageBlockProps {
   showRaw?: boolean;
 }
 
-// ⟦𓇽𓃩𓉰𓐉⟧ MessageBlock :: auto-generated pointer for public function MessageBlock
+// <REMOVED UUID HERE> MessageBlock :: auto-generated pointer for public function MessageBlock
 export function MessageBlock({ record, index, isCursor, expandThinking = false, showRaw = false }: MessageBlockProps) {
   const isUser = record.message.role === "user";
   const time = record.timestamp?.slice(11, 19) ?? "";

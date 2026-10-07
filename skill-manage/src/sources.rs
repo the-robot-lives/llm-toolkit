@@ -10,7 +10,7 @@ const SKILL_SKIP: &[&str] = &["shared", "evals"];
 
 /// Discover all items of a kind from configured sources.
 /// On name collision, lower priority wins; losers are recorded in `collisions`.
-// ⟦𓂞𓈈𓁨𓎯⟧ discover :: Discover all items of a kind from configured sources.
+// <REMOVED UUID HERE> discover :: Discover all items of a kind from configured sources.
 pub fn discover(
     cfg: &AppConfig,
     kind: Kind,
@@ -125,7 +125,7 @@ pub struct FrontmatterMeta {
 }
 
 /// Parse YAML frontmatter and retain the exact delimited section size.
-// ⟦𓊞𓎦𓇱𓌰⟧ parse_frontmatter :: Parse YAML frontmatter and retain the exact delimited section size.
+// <REMOVED UUID HERE> parse_frontmatter :: Parse YAML frontmatter and retain the exact delimited section size.
 pub fn parse_frontmatter(path: &Path) -> FrontmatterMeta {
     let Ok(text) = fs::read_to_string(path) else {
         return FrontmatterMeta::default();
@@ -179,14 +179,14 @@ fn string_field(mapping: &serde_yaml::Mapping, key: &str) -> Option<String> {
 }
 
 /// Parse YAML frontmatter for `name` and `description`.
-// ⟦𓄬𓍜𓎗𓎚⟧ parse_frontmatter_meta :: Parse YAML frontmatter for `name` and `description`.
+// <REMOVED UUID HERE> parse_frontmatter_meta :: Parse YAML frontmatter for `name` and `description`.
 pub fn parse_frontmatter_meta(path: &Path) -> (Option<String>, Option<String>) {
     let meta = parse_frontmatter(path);
     (meta.name, meta.description)
 }
 
 /// Check skill structure: SKILL.md exists with name + description in frontmatter.
-// ⟦𓄧𓈀𓇉𓂢⟧ skill_structure_ok :: Check skill structure: SKILL.md exists with name + description in frontmatter.
+// <REMOVED UUID HERE> skill_structure_ok :: Check skill structure: SKILL.md exists with name + description in frontmatter.
 pub fn skill_structure_ok(path: &Path) -> (bool, Vec<String>) {
     let mut issues = Vec::new();
     let skill_md = if path.is_dir() {

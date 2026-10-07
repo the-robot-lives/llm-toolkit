@@ -13,7 +13,7 @@ interface LayoutProps {
   statusInfo?: string;
 }
 
-// ⟦𓀲𓇤𓉭𓊆⟧ Layout :: auto-generated pointer for public function Layout
+// <REMOVED UUID HERE> Layout :: auto-generated pointer for public function Layout
 export function Layout({ children, statusHints, statusInfo }: LayoutProps) {
   const [focusZone, setFocusZone] = useState<FocusZone>("content");
   const [sidebarIndex, setSidebarIndex] = useState(0);

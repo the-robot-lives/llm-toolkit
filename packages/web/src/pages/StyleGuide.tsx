@@ -9,7 +9,7 @@ const STYLE_GUIDES: Record<string, { title: string; content: string }> = {
   },
 };
 
-// ⟦𓀥𓏙𓋒𓋈⟧ StyleGuide :: auto-generated pointer for public function StyleGuide
+// <REMOVED UUID HERE> StyleGuide :: auto-generated pointer for public function StyleGuide
 export function StyleGuide() {
   const { slug } = useParams<{ slug: string }>();
   const guide = slug ? STYLE_GUIDES[slug] : null;

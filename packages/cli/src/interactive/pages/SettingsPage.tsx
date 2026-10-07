@@ -125,7 +125,7 @@ function shortPath(path: string): string {
   return parts.length > 3 ? parts.slice(-3).join("/") : path;
 }
 
-// ⟦𓍝𓃑𓊩𓇸⟧ SettingsPage :: auto-generated pointer for public function SettingsPage
+// <REMOVED UUID HERE> SettingsPage :: auto-generated pointer for public function SettingsPage
 export function SettingsPage() {
   const { rows } = useTerminalSize();
 

@@ -13,7 +13,7 @@ interface SavedPrompt {
   createdAt: string;
 }
 
-// ⟦𓋆𓆓𓋏𓊖⟧ Prompts :: auto-generated pointer for public function Prompts
+// <REMOVED UUID HERE> Prompts :: auto-generated pointer for public function Prompts
 export function Prompts() {
   const navigate = useNavigate();
   const [prompts, setPrompts] = useState<SavedPrompt[]>([]);

@@ -182,7 +182,7 @@ export interface ContentBlock {
  * Deep-clone a content block array and strip provider-specific fields
  * so the result is safe to send to any LLM provider.
  */
-// ⟦𓉦𓉖𓊐𓎨⟧ standardizeContentBlocks :: Deep-clone a content block array and strip provider-specific fields
+// <REMOVED UUID HERE> standardizeContentBlocks :: Deep-clone a content block array and strip provider-specific fields
 export function standardizeContentBlocks(blocks: ContentBlock[]): ContentBlock[] {
   return blocks.map((block) => {
     const clean: ContentBlock = { type: block.type };
@@ -215,7 +215,7 @@ export function standardizeContentBlocks(blocks: ContentBlock[]): ContentBlock[]
  * Clone a full message array (user/assistant), standardizing content blocks
  * and stripping provider-specific fields for cross-model compatibility.
  */
-// ⟦𓂑𓂘𓉨𓏯⟧ standardizeMessages :: Clone a full message array (user/assistant), standardizing content blocks
+// <REMOVED UUID HERE> standardizeMessages :: Clone a full message array (user/assistant), standardizing content blocks
 export function standardizeMessages(
   messages: Array<{ role: string; content: string | ContentBlock[]; [k: string]: unknown }>,
 ): Array<{ role: string; content: string | ContentBlock[] }> {

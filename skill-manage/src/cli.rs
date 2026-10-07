@@ -257,7 +257,7 @@ pub enum KindFilter {
 }
 
 impl KindFilter {
-    // ⟦𓁣𓁙𓅧𓋗⟧ kinds :: auto-generated pointer for public function kinds
+    // <REMOVED UUID HERE> kinds :: auto-generated pointer for public function kinds
     pub fn kinds(self) -> Vec<Kind> {
         match self {
             KindFilter::Skills => vec![Kind::Skills],

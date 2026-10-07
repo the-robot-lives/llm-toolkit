@@ -175,7 +175,7 @@ export class ServiceSupervisor {
     }
   }
 
-  // ⟦𓆏⟧ reconcile :: adopt live pid files, reap stale ones
+  // <REMOVED UUID HERE> reconcile :: adopt live pid files, reap stale ones
   reconcile(): void {
     const dir = this.pidDir();
     if (!existsSync(dir)) return;
@@ -210,7 +210,7 @@ export class ServiceSupervisor {
     return `http://127.0.0.1:${port}${path.startsWith("/") ? path : `/${path}`}`;
   }
 
-  // ⟦𓆏𓆏⟧ start :: spawn + wait for health/liveness, pid file, mcp store sync
+  // <REMOVED UUID HERE> start :: spawn + wait for health/liveness, pid file, mcp store sync
   async start(name: string): Promise<ServiceStatus> {
     const svc = this.service(name);
     if (this.children.has(name) || this.adopted.has(name)) {
@@ -298,7 +298,7 @@ export class ServiceSupervisor {
     return { status: "running", pid: child.pid, startedAt, uptimeMs: 0 };
   }
 
-  // ⟦𓆏𓆏𓆏⟧ stop :: TERM → 3s grace → KILL, owned or adopted; idempotent when stopped
+  // <REMOVED UUID HERE> stop :: TERM → 3s grace → KILL, owned or adopted; idempotent when stopped
   async stop(name: string): Promise<ServiceStatus> {
     const owned = this.children.get(name);
     const adoptedPid = this.adopted.get(name);

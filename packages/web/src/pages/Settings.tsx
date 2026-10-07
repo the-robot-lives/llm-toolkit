@@ -39,7 +39,7 @@ interface ScanPreview {
   estimatedCost: number;
 }
 
-// ⟦𓏁𓋊𓁹𓏺⟧ Settings :: auto-generated pointer for public function Settings
+// <REMOVED UUID HERE> Settings :: auto-generated pointer for public function Settings
 export function Settings() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
