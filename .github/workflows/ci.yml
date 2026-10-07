@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, stage]
   pull_request:
 
 # Supersede stale PR runs; never cancel main/develop pushes.
