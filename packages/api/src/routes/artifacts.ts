@@ -16,7 +16,7 @@ import { migrateSkillsConfig } from "../services/skills.ts";
 
 export { isArtifactKind };
 
-// ⟦𓋎𓆱𓅯𓋑⟧ createArtifactRoutes :: auto-generated pointer for public function createArtifactRoutes
+// <REMOVED UUID HERE> createArtifactRoutes :: auto-generated pointer for public function createArtifactRoutes
 export function createArtifactRoutes(storage: StorageService, kind: ArtifactKind): Hono {
   const routes = new Hono();
   const configOf = () => {

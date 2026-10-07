@@ -39,7 +39,7 @@ type Overlay =
   | "remove-tag"
   | "find";
 
-// ⟦𓌐𓏮𓀤𓃳⟧ ThreadPage :: auto-generated pointer for public function ThreadPage
+// <REMOVED UUID HERE> ThreadPage :: auto-generated pointer for public function ThreadPage
 export function ThreadPage() {
   const { current, navigate, goBack } = useRouter();
   const id = current.params.id;

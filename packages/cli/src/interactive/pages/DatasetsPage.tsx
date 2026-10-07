@@ -18,7 +18,7 @@ interface Dataset {
 
 type UIMode = "list" | "create-name" | "create-desc";
 
-// ⟦𓃲𓃵𓋳𓈹⟧ DatasetsPage :: auto-generated pointer for public function DatasetsPage
+// <REMOVED UUID HERE> DatasetsPage :: auto-generated pointer for public function DatasetsPage
 export function DatasetsPage() {
   const { navigate } = useRouter();
   const { rows } = useTerminalSize();

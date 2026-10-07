@@ -7,7 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Frame;
 
-// ⟦𓆥𓈶𓇔𓅑⟧ draw :: auto-generated pointer for public function draw
+// <REMOVED UUID HERE> draw :: auto-generated pointer for public function draw
 pub fn draw(f: &mut Frame, app: &App) {
     let area = f.area();
     let chunks = Layout::default()

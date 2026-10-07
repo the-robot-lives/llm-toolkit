@@ -13,7 +13,7 @@ interface SourceMessage {
   rawRecord?: unknown;
 }
 
-// ⟦𓇑𓈏𓁫𓊊⟧ applyOperations :: auto-generated pointer for public function applyOperations
+// <REMOVED UUID HERE> applyOperations :: auto-generated pointer for public function applyOperations
 export function applyOperations(
   messages: SourceMessage[],
   operations: EditOperation[],

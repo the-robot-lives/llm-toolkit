@@ -30,7 +30,7 @@ const TYPE_OPTIONS = [
 
 const STEPS = ["Type", "Range", "Details", "Preview"];
 
-// ⟦𓃾𓂹𓇵𓆰⟧ ConvertPage :: auto-generated pointer for public function ConvertPage
+// <REMOVED UUID HERE> ConvertPage :: auto-generated pointer for public function ConvertPage
 export function ConvertPage() {
   const { current, goBack } = useRouter();
   const id = current.params.id;

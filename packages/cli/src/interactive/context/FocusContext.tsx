@@ -12,12 +12,12 @@ const Context = createContext<FocusContextValue>({ focusZone: "content" });
 
 export const FocusProvider = Context.Provider;
 
-// ⟦𓌉𓐪𓁓𓐈⟧ useFocusZone :: auto-generated pointer for public function useFocusZone
+// <REMOVED UUID HERE> useFocusZone :: auto-generated pointer for public function useFocusZone
 export function useFocusZone(): FocusZone {
   return useContext(Context).focusZone;
 }
 
-// ⟦𓈫𓈨𓏌𓈐⟧ useFocusContext :: auto-generated pointer for public function useFocusContext
+// <REMOVED UUID HERE> useFocusContext :: auto-generated pointer for public function useFocusContext
 export function useFocusContext(): FocusContextValue {
   return useContext(Context);
 }

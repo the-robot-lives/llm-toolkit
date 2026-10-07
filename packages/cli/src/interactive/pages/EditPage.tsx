@@ -88,7 +88,7 @@ function extractText(content: string | any[]): string {
   return parts.join("\n\n");
 }
 
-// ⟦𓌒𓉽𓀈𓊬⟧ EditPage :: auto-generated pointer for public function EditPage
+// <REMOVED UUID HERE> EditPage :: auto-generated pointer for public function EditPage
 export function EditPage() {
   const { current, goBack } = useRouter();
   const id = current.params.id;

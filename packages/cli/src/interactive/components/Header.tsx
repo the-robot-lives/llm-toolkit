@@ -10,7 +10,7 @@ interface HeaderProps {
   onSelectedHarnessIndexChange: (idx: number) => void;
 }
 
-// ⟦𓈂𓊟𓋬𓁬⟧ Header :: auto-generated pointer for public function Header
+// <REMOVED UUID HERE> Header :: auto-generated pointer for public function Header
 export function Header({ isActive, selectedHarnessIndex, onSelectedHarnessIndexChange }: HeaderProps) {
   const { data } = useIndexStatus();
   const { harness, setHarness } = useHarness();

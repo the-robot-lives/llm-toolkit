@@ -15,7 +15,7 @@ interface ListCommandProps {
   args: string[];
 }
 
-// ⟦𓂼𓈘𓎕𓀾⟧ ListCommand :: auto-generated pointer for public function ListCommand
+// <REMOVED UUID HERE> ListCommand :: auto-generated pointer for public function ListCommand
 export function ListCommand({ args }: ListCommandProps) {
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);

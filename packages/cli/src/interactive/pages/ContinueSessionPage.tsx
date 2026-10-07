@@ -19,7 +19,7 @@ type ViewMode = "continuation" | "universal" | "raw";
 
 const VIEW_MODES: ViewMode[] = ["continuation", "universal", "raw"];
 
-// ⟦𓍛𓄓𓁢𓀚⟧ ContinueSessionPage :: auto-generated pointer for public function ContinueSessionPage
+// <REMOVED UUID HERE> ContinueSessionPage :: auto-generated pointer for public function ContinueSessionPage
 export function ContinueSessionPage() {
   const { current, navigate, goBack } = useRouter();
   const id = current.params.id;

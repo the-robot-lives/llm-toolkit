@@ -11,7 +11,7 @@ function parseTagInput(raw: string): string[] {
   return raw.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
 }
 
-// ⟦𓎒𓅖𓊽𓆣⟧ Explore :: auto-generated pointer for public function Explore
+// <REMOVED UUID HERE> Explore :: auto-generated pointer for public function Explore
 export function Explore() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();

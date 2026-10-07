@@ -34,7 +34,7 @@ const COLOR_PRESETS = [
 
 type UIMode = "list" | "create-name" | "create-desc" | "create-color" | "edit-desc" | "pick-color" | "confirm-delete";
 
-// ⟦𓅔𓃭𓀿𓃿⟧ TagsPage :: auto-generated pointer for public function TagsPage
+// <REMOVED UUID HERE> TagsPage :: auto-generated pointer for public function TagsPage
 export function TagsPage() {
   const { navigate } = useRouter();
   const { rows } = useTerminalSize();

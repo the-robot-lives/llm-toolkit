@@ -14,7 +14,7 @@ interface InlineEditProps {
   dimColor?: boolean;
 }
 
-// ⟦𓋷𓂅𓀒𓇮⟧ InlineEdit :: auto-generated pointer for public function InlineEdit
+// <REMOVED UUID HERE> InlineEdit :: auto-generated pointer for public function InlineEdit
 export function InlineEdit({
   value,
   placeholder,

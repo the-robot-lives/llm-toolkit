@@ -7,7 +7,7 @@ interface UseScrollOptions {
   isActive?: boolean;
 }
 
-// ⟦𓀽𓌑𓋉𓌬⟧ useScroll :: auto-generated pointer for public function useScroll
+// <REMOVED UUID HERE> useScroll :: auto-generated pointer for public function useScroll
 export function useScroll({ totalItems, viewportHeight, isActive = true }: UseScrollOptions) {
   const [cursor, setCursorRaw] = useState(0);
   const [offset, setOffset] = useState(0);

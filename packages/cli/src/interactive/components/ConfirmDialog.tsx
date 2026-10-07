@@ -8,7 +8,7 @@ interface ConfirmDialogProps {
   isActive?: boolean;
 }
 
-// ⟦𓉩𓉳𓈅𓊆⟧ ConfirmDialog :: auto-generated pointer for public function ConfirmDialog
+// <REMOVED UUID HERE> ConfirmDialog :: auto-generated pointer for public function ConfirmDialog
 export function ConfirmDialog({ message, onConfirm, onCancel, isActive = true }: ConfirmDialogProps) {
   useInput((input, key) => {
     if (input === "y" || input === "Y") onConfirm();

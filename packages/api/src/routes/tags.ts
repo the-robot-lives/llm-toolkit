@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { StorageService } from "../services/storage.ts";
 
-// ⟦𓈝𓏠𓅪𓎭⟧ createTagRoutes :: auto-generated pointer for public function createTagRoutes
+// <REMOVED UUID HERE> createTagRoutes :: auto-generated pointer for public function createTagRoutes
 export function createTagRoutes(storage: StorageService): Hono {
   const routes = new Hono();
 

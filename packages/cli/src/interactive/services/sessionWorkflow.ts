@@ -80,13 +80,13 @@ export const transferTargets: TransferTarget[] = [
   { harness: "other", label: "Other", state: "todo", note: "Generic target needs an adapter before export." },
 ];
 
-// ⟦𓐩𓌐𓉨𓋖⟧ fetchUniversalConversation :: auto-generated pointer for public function fetchUniversalConversation
+// <REMOVED UUID HERE> fetchUniversalConversation :: auto-generated pointer for public function fetchUniversalConversation
 export async function fetchUniversalConversation(id: string): Promise<UniversalConversation> {
   const response = await apiFetch<{ data: UniversalConversation }>(`/conversations/${id}/universal?raw=true`);
   return response.data;
 }
 
-// ⟦𓅩𓉭𓏣𓀡⟧ buildContinuationPayload :: auto-generated pointer for public function buildContinuationPayload
+// <REMOVED UUID HERE> buildContinuationPayload :: auto-generated pointer for public function buildContinuationPayload
 export function buildContinuationPayload(
   conversation: UniversalConversation,
   targetHarness: SessionHarness,
@@ -116,7 +116,7 @@ export function buildContinuationPayload(
   };
 }
 
-// ⟦𓊇𓄝𓐔𓊪⟧ buildTransferPrompt :: auto-generated pointer for public function buildTransferPrompt
+// <REMOVED UUID HERE> buildTransferPrompt :: auto-generated pointer for public function buildTransferPrompt
 export function buildTransferPrompt(payload: ContinuationPayload): string {
   const header = [
     `Continue session: ${payload.source.title}`,
@@ -139,7 +139,7 @@ export function buildTransferPrompt(payload: ContinuationPayload): string {
   return [...header, ...transcript].join("\n\n");
 }
 
-// ⟦𓃍𓍥𓂞𓊶⟧ buildResumeCommand :: auto-generated pointer for public function buildResumeCommand
+// <REMOVED UUID HERE> buildResumeCommand :: auto-generated pointer for public function buildResumeCommand
 export function buildResumeCommand(meta: Pick<UniversalConversation, "harness" | "projectPath" | "sourcePath">): string | null {
   if (meta.harness !== "claude") return null;
   const sessionId = extractSessionId(meta.sourcePath);
@@ -147,7 +147,7 @@ export function buildResumeCommand(meta: Pick<UniversalConversation, "harness" |
   return `pushd ${meta.projectPath} && claude --resume ${sessionId}`;
 }
 
-// ⟦𓉮𓅜𓀮𓏶⟧ normalizeHarness :: auto-generated pointer for public function normalizeHarness
+// <REMOVED UUID HERE> normalizeHarness :: auto-generated pointer for public function normalizeHarness
 export function normalizeHarness(harness: string): SessionHarness {
   if (harness === "claude" || harness === "codex" || harness === "gemini" || harness === "opencode" || harness === "aider") {
     return harness;

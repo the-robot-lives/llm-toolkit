@@ -51,7 +51,7 @@ interface SidebarProps {
   onSelectedIndexChange: (idx: number) => void;
 }
 
-// ⟦𓌒𓌌𓊚𓉾⟧ Sidebar :: auto-generated pointer for public function Sidebar
+// <REMOVED UUID HERE> Sidebar :: auto-generated pointer for public function Sidebar
 export function Sidebar({ isActive, selectedIndex, onSelectedIndexChange }: SidebarProps) {
   const { current, navigate } = useRouter();
   const allItems = getAllItems();
@@ -118,7 +118,7 @@ export function Sidebar({ isActive, selectedIndex, onSelectedIndexChange }: Side
   );
 }
 
-// ⟦𓉣𓍃𓎗𓅨⟧ getSidebarItemCount :: auto-generated pointer for public function getSidebarItemCount
+// <REMOVED UUID HERE> getSidebarItemCount :: auto-generated pointer for public function getSidebarItemCount
 export function getSidebarItemCount(): number {
   return getAllItems().length;
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useSearch } from "../hooks/useApi.js";
 
-// ⟦𓉵𓈢𓋖𓂘⟧ Search :: auto-generated pointer for public function Search
+// <REMOVED UUID HERE> Search :: auto-generated pointer for public function Search
 export function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();

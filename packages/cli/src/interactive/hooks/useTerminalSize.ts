@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useStdout } from "ink";
 
-// ⟦𓏾𓀂𓊘𓉱⟧ useTerminalSize :: auto-generated pointer for public function useTerminalSize
+// <REMOVED UUID HERE> useTerminalSize :: auto-generated pointer for public function useTerminalSize
 export function useTerminalSize() {
   const { stdout } = useStdout();
   const [size, setSize] = useState({

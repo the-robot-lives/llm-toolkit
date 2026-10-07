@@ -23,7 +23,7 @@ interface ShowCommandProps {
   id?: string;
 }
 
-// ⟦𓏝𓊀𓋬𓆷⟧ ShowCommand :: auto-generated pointer for public function ShowCommand
+// <REMOVED UUID HERE> ShowCommand :: auto-generated pointer for public function ShowCommand
 export function ShowCommand({ id }: ShowCommandProps) {
   if (!id) {
     return <Text color="red">Usage: llm-toolkit show &lt;conversation-id&gt;</Text>;

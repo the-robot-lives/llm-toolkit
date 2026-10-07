@@ -13,7 +13,7 @@ export interface HarnessTransferResult {
   warnings: string[];
 }
 
-// ⟦𓇈𓆇𓍮𓇜⟧ exportUniversalThreadToHarness :: auto-generated pointer for public function exportUniversalThreadToHarness
+// <REMOVED UUID HERE> exportUniversalThreadToHarness :: auto-generated pointer for public function exportUniversalThreadToHarness
 export function exportUniversalThreadToHarness(request: HarnessTransferRequest): HarnessTransferResult {
   switch (request.targetHarness) {
     case "claude":

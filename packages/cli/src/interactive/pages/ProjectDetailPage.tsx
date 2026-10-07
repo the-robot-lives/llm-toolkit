@@ -28,7 +28,7 @@ const SORT_OPTIONS = [
   { label: "Title", value: "title" },
 ];
 
-// ⟦𓐟𓀶𓅮𓅻⟧ ProjectDetailPage :: auto-generated pointer for public function ProjectDetailPage
+// <REMOVED UUID HERE> ProjectDetailPage :: auto-generated pointer for public function ProjectDetailPage
 export function ProjectDetailPage() {
   const { current, navigate, goBack } = useRouter();
   const projectPath = current.params.path;

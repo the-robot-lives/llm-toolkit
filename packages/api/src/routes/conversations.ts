@@ -9,7 +9,7 @@ import { OperationsService } from "../services/operations.ts";
 import type { SearchService } from "../services/search.ts";
 import { prepareContinuationPayload } from "../services/session-workflow.ts";
 
-// ⟦𓆷𓈾𓊲𓅣⟧ createConversationRoutes :: auto-generated pointer for public function createConversationRoutes
+// <REMOVED UUID HERE> createConversationRoutes :: auto-generated pointer for public function createConversationRoutes
 export function createConversationRoutes(storage: StorageService, searchService?: SearchService): Hono {
   const routes = new Hono();
 

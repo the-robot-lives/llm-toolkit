@@ -63,7 +63,7 @@ function canRestart(s: ServiceEntry) {
   return s.status === "running" || s.status === "adopted";
 }
 
-// ⟦𓊝𓆏𓂁𓋜⟧ Services :: local MCP/daemon service management
+// <REMOVED UUID HERE> Services :: local MCP/daemon service management
 export function Services() {
   const [services, setServices] = useState<ServiceEntry[] | null>(null);
   const [loading, setLoading] = useState(true);

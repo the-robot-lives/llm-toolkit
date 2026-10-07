@@ -16,7 +16,7 @@ interface ContentBlockViewProps {
   expanded?: boolean;
 }
 
-// ⟦𓅜𓄌𓎠𓈍⟧ ContentBlockView :: auto-generated pointer for public function ContentBlockView
+// <REMOVED UUID HERE> ContentBlockView :: auto-generated pointer for public function ContentBlockView
 export function ContentBlockView({ block, expanded = false }: ContentBlockViewProps) {
   switch (block.type) {
     case "text":
