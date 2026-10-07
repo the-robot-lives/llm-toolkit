@@ -42,6 +42,12 @@ app: ## Assemble a double-clickable .app under .build/
 	for png in Sources/LLMToolkit/Resources/*.png; do \
 		[ -f "$$png" ] && cp "$$png" "$(APP_DIR)/Contents/Resources/"; \
 	done; \
+	res_bundle="$$($(SWIFT) build -c release --show-bin-path)/$(EXECUTABLE)_$(EXECUTABLE).bundle"; \
+	if [ -d "$$res_bundle" ]; then \
+		ditto "$$res_bundle" "$(APP_DIR)/Contents/Resources/$(EXECUTABLE)_$(EXECUTABLE).bundle"; \
+	else \
+		echo "WARN: SwiftPM resource bundle not found at $$res_bundle"; \
+	fi; \
 	codesign --force --deep --sign - "$(APP_DIR)"; \
 	echo "✓ $(APP_DIR)"
 
