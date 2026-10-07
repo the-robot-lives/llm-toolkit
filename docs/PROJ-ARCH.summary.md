@@ -4,9 +4,9 @@ Local-first **llm-toolkit** (*Claude Assist* / *agent-watch-dog*): index coding-
 
 ## Components
 
-- **API** (Hono :3100) — IndexerService (JSONL → raw → universal → flat messages; chokidar); StorageService; EmbeddingService (MiniLM); SearchService; LlmService; editor/operations; converter/exporter; harness-transform (Claude/Codex); harness-transfer + session-workflow (pending write-back); SkillsService (categories.yaml + per-provider dests). Also serves `packages/web/dist`.
+- **API** (Hono :3100) — IndexerService (JSONL → raw → universal → flat messages; chokidar); StorageService; EmbeddingService (MiniLM); SearchService; LlmService; editor/operations; converter/exporter; harness-transform (Claude/Codex); harness-transfer + session-workflow (pending write-back); SkillsService (categories.yaml + per-provider dests); MemoryService (`/api/memory` via Rust claude-memory napi); ServiceSupervisor (NPL plugin services). Also serves `packages/web/dist`.
 - **Web** — Explore, thread/edit/convert/continue, projects, datasets, prompts, tags, **Skills / Agents / Commands / MCP**, settings, Safety Watch stub, style guide. `hostBridge.ts` for the Mac host.
-- **macOS** — SwiftUI + WKWebView around the same SPA; starts or attaches to `:3100`.
+- **macOS** — SwiftUI + WKWebView around the same SPA; starts or attaches to `:3100`; ClaudeMemoryKit package = REST client for `/api/memory`.
 - **CLI** — `recent` (direct DB), `search`, `list`, `show`, `index`; full Ink TUI.
 - **Shared** — types, JSONL parsers, `ensureApi()`.
 - **skill-manage** — Rust symlink enable/disable/audit + catalog; `llm-toolkit skill …`.
@@ -28,7 +28,8 @@ Local-first **llm-toolkit** (*Claude Assist* / *agent-watch-dog*): index coding-
 - One SPA hosted by browser and Mac
 - Symlink skills from one source tree; never copy
 - One PATH entry for web, TUI, API, and skill management
+- Rust owns Claude-memory FS semantics; Swift is a REST client (contract: docs/claude-memory-contract.md)
 
 ## Stack (short)
 
-Node/tsx · Hono · better-sqlite3 + sqlite-vec · MiniLM · React/Vite/Tailwind · Ink · SwiftUI/WKWebView · Rust skill-manage · pnpm workspaces
+Node/tsx · Hono · better-sqlite3 + sqlite-vec · MiniLM · React/Vite/Tailwind · Ink · SwiftUI/WKWebView · Rust skill-manage + claude-memory (napi) · pnpm workspaces

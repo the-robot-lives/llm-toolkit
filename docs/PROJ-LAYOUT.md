@@ -1,6 +1,6 @@
 # Project Layout
 
-pnpm monorepo: TypeScript packages under `packages/`, native Mac host under `apps/macos/`, embedded Rust skill linker under `skill-manage/`.
+pnpm monorepo: TypeScript packages under `packages/`, native Mac host under `apps/macos/`, embedded Rust skill linker under `skill-manage/`, Rust memory-core workspace under `crates/`.
 
 ```
 llm-toolkit/
@@ -12,6 +12,10 @@ llm-toolkit/
 │   ├── shared/                       # Types, parsers, ensureApi → [layout/shared.md](layout/shared.md)
 │   └── web/                          # Vite + React SPA → [layout/web.md](layout/web.md)
 ├── apps/macos/                       # SwiftUI + WKWebView host → [layout/macos.md](layout/macos.md)
+├── crates/                           # Rust workspace (claude-memory core)
+│   ├── claude-memory/                # dependency-free memory-dir reader/writer (spec)
+│   │   └── tests/golden/             # shared golden fixtures (Rust + Swift suites)
+│   └── claude-memory-node/           # napi binding → packages/api/native (pnpm build:memory-native)
 ├── skill-manage/                     # Rust CLI/TUI symlink manager
 │   ├── src/                          # clap + ratatui
 │   ├── schema/                       # config + catalog examples
@@ -22,6 +26,7 @@ llm-toolkit/
 │   ├── arch/                         # data-flow, storage, agent-watch-dog, skills
 │   ├── howto/                        # task guides
 │   ├── layout/                       # api, cli, shared, web, macos
+│   ├── claude-memory-contract.md     # normative Rust↔Swift memory contract
 │   ├── PROJ-ARCH.md
 │   ├── PROJ-SCHEMA.md                # SQLite + config-artifact reference
 │   ├── PROJ-LAYOUT.md                # this file
@@ -36,6 +41,7 @@ llm-toolkit/
 │   ├── user-stories/                 # US-001…US-100
 │   └── ROADMAP.md
 ├── merge-notes.md                    # branch-sweep notes (sep-1 sweep)
+├── AGENT.md / AGENTS.md / CLAUDE.md  # agent instructions (repo + monorepo policy)
 ├── CHANGELOG.md
 ├── INSTALL.md                        # setup walkthrough
 ├── Makefile                          # install, completions, macos, install-osx
@@ -56,3 +62,4 @@ llm-toolkit/
 | skill-manage config | `llm-toolkit skill init-config` / `SKILL_REPO` — [skill-manage/docs/PROJ-LAYOUT.md](../skill-manage/docs/PROJ-LAYOUT.md) |
 | Runtime data | `~/.llm-toolkit/` (created on API boot) |
 | `apps/macos` | macOS 14+, Swift 5.10+ for `make install-osx` / `macos-run` |
+| Memory native module | `pnpm build:memory-native` → `packages/api/native/*.node` (gitignored; `index.js`/`index.d.ts` tracked) |

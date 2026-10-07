@@ -4,8 +4,9 @@ Data & configuration reference for llm-toolkit. **Persistence layer = a single S
 database** (not a client/server SQL DB — there is no Liquibase/Postgres; migrations are
 code-level `CREATE TABLE IF NOT EXISTS` + `PRAGMA table_info` column-adds in
 [`packages/api/src/services/storage.ts`](../packages/api/src/services/storage.ts), the
-authoritative source). Config artifacts (YAML configs, JSON MCP files, env vars) are
-documented below alongside the schema. For where each schema source lives in the tree,
+authoritative source). Config artifacts (YAML configs, JSON MCP files, env vars), the filesystem
+Claude-memory store, and the NPL plugin config are documented below alongside
+the schema. For where each schema source lives in the tree,
 see [`docs/PROJ-LAYOUT.md`](PROJ-LAYOUT.md) (API: `packages/api/src/{routes,services}`,
 Rust configs: `skill-manage/schema/`, macOS host: `apps/macos/`).
 
@@ -342,6 +343,28 @@ Format auto-detected by path suffix: `*.mcp.json` (mcp-json), `~/.claude.json`
 `.toml` variants (Codex-style). The API reads existing `mcpServers` maps and rewrites
 them (JSON or TOML) when registering the llm-toolkit MCP server.
 
+### NPL plugin config (`npl-plugin.config.yaml`, read/written by `services` routes)
+
+Resolution: nearest `.npl/npl-plugin.config.yaml` walking up from CWD
+(`findProjectRoot`), else user config under
+`$NPL_CONFIG_HOME|$XDG_CONFIG_HOME|~/.config/npl/npl-plugin.config.yaml`.
+Loader: [`packages/shared/src/npl-plugin-config.ts`](../packages/shared/src/npl-plugin-config.ts).
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `version` | number | Config format version (currently `1`) |
+| `services[]` | array | Managed services: `name` (required, `^[a-z0-9-]+$`), stdio (`command`, `args[]`, `cwd`, `env`) or `transport: http` (`url` — required for http, `health_url`, `port`), flags `enabled`, `autostart`, `sync_to_stores` |
+| `mcp_sync.targets[]` | string[] | Host MCP stores to sync service registrations into |
+
+Lifecycle (start/stop/restart) is driven by `packages/api/src/services/service-supervisor.ts`.
+
+### Claude Code project-memory dirs (filesystem, `/api/memory`)
+
+Not in SQLite: CRUD goes through the Rust `crates/claude-memory` napi module
+(`packages/api/native/`). Storage layout, file format (frontmatter + `MEMORY.md`
+index per project memory dir), and the normative Rust↔Swift contract are
+specified in [`docs/claude-memory-contract.md`](claude-memory-contract.md).
+
 ### Runtime data dir (`~/.llm-toolkit/`, env-overridable)
 
 | Path | Content |
@@ -357,6 +380,8 @@ them (JSON or TOML) when registering the llm-toolkit MCP server.
 | `LLM_TOOLKIT_WATCH` | `true` | Enable file watching |
 | `PORT` | `3100` | API port |
 | `SKILL_REPO` | *(unset)* | skill-manage source path expansion |
+| `CLAUDE_MEMORY_ROOT` | `~/.claude/projects` | Memory-route root override (tests) |
+| `NPL_CONFIG_HOME` | *(unset → `XDG_CONFIG_HOME` → `~/.config`)* | Base for user `npl/npl-plugin.config.yaml` |
 
 Default watch sources: `~/.claude/projects` and `~/.codex/sessions` (JSONL).
 
@@ -374,6 +399,8 @@ KV store. Route-group → primary data mapping (endpoint-level detail: `docs/arc
 | `search` | ~2 | messages_fts, conversation_vectors (KNN) |
 | `projects` / `tags` / `prompts` | ~5 each | project_metadata / tag_metadata / saved_prompts |
 | `llm` / `config` | ~6 | settings.app_config (provider selection + keys) |
+| `memory` | ~8 | Filesystem memory dirs via `crates/claude-memory` napi — no SQLite |
+| `services` | ~8 | `npl-plugin.config.yaml` (NPL plugin config) + child processes |
 
 MCP server registration is exposed through `config` routes (rewrites of host
 `mcpServers` maps — see MCP config files section).

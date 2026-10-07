@@ -1,4 +1,5 @@
 import AppKit
+import ClaudeMemoryKit
 import Foundation
 import LLMToolkitKit
 import Observation
@@ -24,6 +25,18 @@ final class AppModel {
     @ObservationIgnored private var child: Process?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var startedChild = false
+    @ObservationIgnored private var memoryModel: MemoryModel?
+
+    /// Lazily-created native Claude Memory state; the client is rebuilt from
+    /// live preferences so an apiURL change takes effect on the next load.
+    var memory: MemoryModel {
+        if let memoryModel { return memoryModel }
+        let model = MemoryModel(serviceFactory: { [apiURL = self.preferences.apiURL] in
+            ClaudeMemoryAPI(baseURL: apiURL)
+        })
+        memoryModel = model
+        return model
+    }
 
     init(
         store: any PreferenceStore = UserDefaultsPreferenceStore(),

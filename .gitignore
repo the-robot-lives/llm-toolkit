@@ -11,3 +11,8 @@ coverage/
 
 # Canonical worktree placement
 .claude/worktrees/
+
+# Rust
+/target
+target/
+packages/api/native/*.node

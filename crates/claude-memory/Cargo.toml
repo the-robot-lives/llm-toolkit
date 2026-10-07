@@ -1,0 +1,8 @@
+[package]
+name = "claude-memory"
+version = "0.1.0"
+edition = "2021"
+description = "Dependency-free reader/writer for Claude Code project memory dirs (frontmatter, MEMORY.md index, CRUD ops)"
+license = "MIT"
+
+[dependencies]

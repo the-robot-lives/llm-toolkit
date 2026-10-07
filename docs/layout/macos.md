@@ -11,6 +11,8 @@ macos/
 ├── Assets/                     # icon masters + media.prompt
 ├── Resources/                  # LLMToolkit.icns / iconset
 ├── scripts/generate-app-icon.sh
+├── Packages/
+│   └── ClaudeMemoryKit/        # Swift REST client for /api/memory (never touches FS; see docs/claude-memory-contract.md)
 ├── Sources/
 │   ├── LLMToolkitKit/          # Testable core
 │   │   ├── ConsoleRoute.swift  #   1:1 map of packages/web/src/App.tsx

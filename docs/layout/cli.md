@@ -10,6 +10,7 @@ cli/
 │   │   ├── list.tsx            #   List conversations
 │   │   ├── recent.ts           #   Recent conversations (time window; no API required)
 │   │   ├── search.tsx          #   Search conversations
+│   │   ├── services.tsx        #   List/start/stop managed services
 │   │   └── show.tsx            #   Display a single conversation
 │   ├── interactive/            # Full-screen interactive TUI application
 │   │   ├── components/         #   Reusable widgets (Layout, Sidebar, dialogs, lists, pagination)

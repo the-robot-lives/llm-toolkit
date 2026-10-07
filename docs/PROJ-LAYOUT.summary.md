@@ -5,15 +5,16 @@ llm-toolkit/
 ├── .gemini/                    # Gemini review-agent config + styleguide
 ├── bin/llm-toolkit             # Launcher (api/web/zellij, CLI, skill proxy)
 ├── packages/
-│   ├── api/                    # Hono REST + SQLite/FTS/vectors + skills routes
-│   │   └── src/{routes,services}/
+│   ├── api/                    # Hono REST + SQLite/FTS/vectors + skills/memory routes
+│   │   └── src/{routes,services}/ + native/ (claude-memory napi)
 │   ├── cli/                    # Ink TUI + one-shot commands
 │   │   └── src/{commands,interactive}/
 │   ├── shared/                 # Types, parsers, ensureApi
 │   └── web/                    # Vite + React + Tailwind SPA
 │       └── src/{components,pages,hostBridge.ts}/
 ├── apps/macos/                 # SwiftUI + WKWebView host
-│   └── Sources/{LLMToolkitKit,LLMToolkit}
+│   └── Sources/{LLMToolkitKit,LLMToolkit} + Packages/ClaudeMemoryKit
+├── crates/                     # Rust workspace: claude-memory core + napi node binding
 ├── skill-manage/               # Rust skill/agent/command linker
 ├── completions/                # bash + zsh
 ├── design/                     # Logos, mockups, style guide, sitemap

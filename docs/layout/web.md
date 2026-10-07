@@ -26,6 +26,7 @@ web/
 │   │   ├── Prompts.tsx
 │   │   ├── Tags.tsx
 │   │   ├── Projects.tsx / ProjectDetail.tsx
+│   │   ├── Services.tsx       # /services — managed service list/start/stop
 │   │   ├── Settings.tsx
 │   │   ├── SafetyWatch.tsx
 │   │   └── StyleGuide.tsx

@@ -1,0 +1,9 @@
+{
+  "name": "@llm-toolkit/claude-memory-native",
+  "version": "0.1.0",
+  "private": true,
+  "napi": {
+    "name": "claude-memory",
+    "packageName": "@llm-toolkit/claude-memory-native"
+  }
+}

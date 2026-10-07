@@ -25,6 +25,8 @@ graph TB
         EMB[EmbeddingService]
         LLM[LlmService]
         SKL[SkillsService]
+        MEM[MemoryService<br/>claude-memory napi]
+        SVC[ServiceSupervisor]
         IDX --> DB[(SQLite + FTS5 + vec)]
         EMB --> DB
         SRH --> DB
@@ -33,6 +35,8 @@ graph TB
         SKL --> DEST["Provider skill dirs"]
         IDX --> CC
         IDX --> CX
+        MEM --> MD["~/.claude/projects/*/memory"]
+        SVC --> NPC["npl-plugin.config.yaml<br/>+ child processes"]
     end
 
     subgraph Clients
@@ -68,7 +72,11 @@ graph TB
 | Session workflow | api | Continue / transfer continuation stubs |
 | SkillsService | api | Scan `categories.yaml` + SKILL.md; symlink enable/disable |
 | ArtifactsService | api | Agents/commands file symlinks + MCP config entries |
-| Hono routes | api | conversations, search, datasets, prompts, projects, tags, config, index, llm, skills, agents, commands, mcp, health |
+| MemoryService | api | `/api/memory` CRUD over Claude Code project-memory dirs via Rust napi module |
+| ServiceSupervisor | api | Start/stop/restart NPL plugin services (`.npl/npl-plugin.config.yaml`) |
+| claude-memory | crates/ | Rust core: dependency-free memory-dir reader/writer + napi binding (`pnpm build:memory-native`) |
+| ClaudeMemoryKit | apps/macos/Packages | Swift REST client for `/api/memory` (no direct FS access) |
+| Hono routes | api | conversations, search, datasets, prompts, projects, tags, config, index, llm, skills, agents, commands, mcp, memory, services, health |
 | Web SPA | web | Explore, thread, edit, convert, continue, library pages, Skills/Agents/Commands/MCP, Settings |
 | macOS host | apps/macos | SwiftUI + WKWebView; native sidebar/menus; `make install-osx` |
 | CLI / TUI | cli | One-shots (`recent`, `search`, …) + full-screen Ink app |
@@ -93,6 +101,16 @@ SQLite at `~/.llm-toolkit/llm-toolkit.db` (`LLM_TOOLKIT_DATA_DIR`; legacy `CLAUD
 Canonical `UniversalMessage` sits between importers and exporters. Claude and Codex importers are live; Gemini / OpenCode / Aider are stubbed. Transform exporters exist for Claude and Codex; transfer write-back is still pending.
 
 → *See [arch/agent-watch-dog.md](arch/agent-watch-dog.md)*
+
+## Claude Memory
+
+`/api/memory` exposes CRUD over Claude Code's project-memory dirs
+(`~/.claude/projects/<project>/memory/`: `MEMORY.md` index + frontmatter
+`slug.md` files). The **Rust** `crates/claude-memory` core (loaded via napi into
+the API) solely owns filesystem semantics; the Swift `ClaudeMemoryKit` package is
+a REST client that never touches the memory root. Golden fixtures pin both.
+
+→ *Contract: [claude-memory-contract.md](claude-memory-contract.md)* · schema: [PROJ-SCHEMA.md](PROJ-SCHEMA.md)*
 
 ## Skills / Agents / Commands / MCP
 
@@ -123,6 +141,7 @@ Web **Skills**, **Agents**, **Commands**, and **MCP** pages (and `llm-toolkit sk
 - **One SPA, two windows** — browser and Mac host the same React console
 - **Symlink skills/agents/commands, don’t copy** — one canonical tree; per-harness dests; MCP is a config entry
 - **Launcher-centric UX** — one PATH entry for web, TUI, API, and `skill`
+- **Rust owns memory semantics** — one normative implementation; Swift is a REST client; golden fixtures decide disputes
 
 ## Technology Stack
 
@@ -139,6 +158,8 @@ Web **Skills**, **Agents**, **Commands**, and **MCP** pages (and `llm-toolkit sk
 | CLI | Ink 5 |
 | macOS | Swift 5.10, SwiftUI, WebKit (macOS 14+) |
 | skill-manage | Rust (clap + ratatui) |
+| Memory core | Rust (`crates/claude-memory`) + napi (`claude-memory-node`) |
+| Swift memory client | ClaudeMemoryKit (apps/macos/Packages) |
 | Packages | pnpm workspaces (`packages/*`) |
 | Launcher | bash (`bin/llm-toolkit`) |
 

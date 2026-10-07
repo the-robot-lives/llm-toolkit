@@ -8,6 +8,7 @@ shared/
 │   ├── parsers/                # Conversation JSONL parsers
 │   ├── types/                  # UniversalMessage, AppConfig, SkillsConfig, …
 │   ├── api-launcher.ts         # Node-only API auto-start (do not import from web)
+│   ├── npl-plugin-config.ts    # NPL plugin config load/save (used by services routes)
 │   ├── __tests__/
 │   └── index.ts                # Re-exports (includes api-launcher)
 ├── package.json
