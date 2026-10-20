@@ -12,5 +12,20 @@
   <body class="bg-surface text-text-bright antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script type="module">
+      // annotate page-comments: vite dev server only (devbox site)
+      if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && location.port === '5173') {
+        const l = document.createElement('script');
+        l.type = 'module';
+        l.src = 'https://cdn.derobot.is/tobor-kit/v1.1.0/annotate.js';
+        l.integrity = 'sha384-/isqjRa3qEr75Ci+vrrq/Ut3FTrC01GaVGVc+6+QIWVmzSi+KKbRNrweUZYwT/w0';
+        l.crossOrigin = 'anonymous';
+        document.head.appendChild(l);
+        const w = document.createElement('noizu-page-comments');
+        w.setAttribute('site', 'devbox');
+        w.setAttribute('api-base', 'https://annotate-srv.therrobotlives.com');
+        document.body.appendChild(w);
+      }
+    </script>
   </body>
 </html>
