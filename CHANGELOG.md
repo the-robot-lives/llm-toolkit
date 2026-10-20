@@ -3,7 +3,7 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## 2026-10-21
-- Web console loads the annotate page-comments widget on the vite dev server only: host-gated script in `packages/web/index.html` (localhost/127.0.0.1 + port 5173) injects the pinned tobor-kit v1.1.0 bundle and mounts `<noizu-page-comments site="devbox">` against `annotate-srv.therrobotlives.com` (#17)
+- Web console loads the annotate page-comments widget on the vite dev server only: host-gated script in `packages/web/index.html` (localhost/127.0.0.1 + port 5173) injects the pinned tobor-kit v1.1.0 bundle (SRI `sha384` + `crossorigin="anonymous"`) and mounts `<noizu-page-comments site="devbox">` against `annotate-srv.therrobotlives.com` (#17)
 
 ## [Unreleased]
 - Agents, Commands, and MCP pages share the Skills targeting bar (providers, Global, projects); agents/commands symlink `*.md`, MCP writes provider config entries
