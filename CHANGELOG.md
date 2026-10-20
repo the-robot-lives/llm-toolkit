@@ -2,6 +2,9 @@
 
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
+## 2026-10-21
+- Web console loads the annotate page-comments widget on local dev hosts only: host-gated script in `packages/web/index.html` (localhost/127.0.0.1) injects the tobor-kit bundle and mounts `<noizu-page-comments site="devbox">` against `annotate-srv.therrobotlives.com` (#17)
+
 ## [Unreleased]
 - Agents, Commands, and MCP pages share the Skills targeting bar (providers, Global, projects); agents/commands symlink `*.md`, MCP writes provider config entries
 - README, PROJ-ARCH, and PROJ-LAYOUT refreshed for the Mac host, Skills page, and current install targets
