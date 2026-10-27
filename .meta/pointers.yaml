@@ -1,0 +1,122 @@
+---
+pointers:
+  10f39db8-e644-535b-aa88-cb224e2df470:
+    created_at: 2026-10-27T05:11:59.289690Z
+    description: SQLite schema owner — boot DDL, PRAGMA column-add migrations, table access.
+    file_path: packages/api/src/services/storage.ts
+    function: StorageService
+    kind: file
+    line: 1
+    locations:
+      - file_path: packages/api/src/services/storage.ts
+        line: 1
+    token: 𓺒𓾍𓣖𓳠
+    updated_at: 2026-10-27T05:11:59.289690Z
+  32fd8a7c-d690-5120-8997-db4f72845272:
+    created_at: 2026-10-27T05:11:59.289721Z
+    description: /api/index rebuild/status/preview wiring over IndexerService.
+    file_path: packages/api/src/routes/index-routes.ts
+    function: Index routes
+    kind: file
+    line: 1
+    locations:
+      - file_path: packages/api/src/routes/index-routes.ts
+        line: 1
+    token: 𔘼𓤫𓩑𔔒
+    updated_at: 2026-10-27T05:11:59.289721Z
+  4b2c3249-a37a-5486-a806-6fc7634583f1:
+    created_at: 2026-10-27T05:11:59.289661Z
+    description: JSONL scan to raw/universal/flat layers + two-tier LLM enrichment.
+    file_path: packages/api/src/services/indexer.ts
+    function: IndexerService
+    kind: file
+    line: 1
+    locations:
+      - file_path: packages/api/src/services/indexer.ts
+        line: 1
+    token: 𓕩𓧑𓻠𓠁
+    updated_at: 2026-10-27T05:11:59.289661Z
+  5bf31556-e398-569b-9d1d-927649316e17:
+    created_at: 2026-10-27T05:11:59.289710Z
+    description: Normative Rust memory-dir reader/writer (Rust-Swift contract).
+    file_path: crates/claude-memory/src/lib.rs
+    function: claude-memory core
+    kind: file
+    line: 1
+    locations:
+      - file_path: crates/claude-memory/src/lib.rs
+        line: 1
+    token: 𔈞𓪇𓮍𓉇
+    updated_at: 2026-10-27T05:11:59.289710Z
+  6a21e625-3d1c-5ec4-a4be-fbc1990d2e80:
+    created_at: 2026-10-27T05:11:59.289703Z
+    description: SPA bootstrap — router, providers, Mac host bridge.
+    file_path: packages/web/src/main.tsx
+    function: Web entrypoint
+    kind: file
+    line: 1
+    locations:
+      - file_path: packages/web/src/main.tsx
+        line: 1
+    token: 𓾟𔊺𓘱𔀠
+    updated_at: 2026-10-27T05:11:59.289703Z
+  ac113d60-0e55-5535-96bf-c019dac15b7e:
+    created_at: 2026-10-27T05:11:59.289717Z
+    description: Cross-package contract — conversations, messages, config, LLM profiles.
+    file_path: packages/shared/src/types/index.ts
+    function: Shared types
+    kind: file
+    line: 1
+    locations:
+      - file_path: packages/shared/src/types/index.ts
+        line: 1
+    token: 𔘷𔋱𔓉𓍮
+    updated_at: 2026-10-27T05:11:59.289717Z
+  b7bbbcd2-e54f-5469-b575-ec3da0df0106:
+    created_at: 2026-10-27T05:11:59.289707Z
+    description: Project entry point — what the toolkit does, install, quick start.
+    file_path: README.md
+    function: llm-toolkit README
+    kind: file
+    line: 3
+    locations:
+      - file_path: README.md
+        line: 3
+    token: 𓿲𓙫𓄪𓦶
+    updated_at: 2026-10-27T05:11:59.289707Z
+  c185f5cf-565a-5c73-9d83-aa118d0c2065:
+    created_at: 2026-10-27T05:11:59.289714Z
+    description: Named LLM profiles — providers, env fallbacks, completion, model discovery.
+    file_path: packages/api/src/services/llm.ts
+    function: LlmService
+    kind: file
+    line: 1
+    locations:
+      - file_path: packages/api/src/services/llm.ts
+        line: 1
+    token: 𔋩𓒞𓿾𔙕
+    updated_at: 2026-10-27T05:11:59.289714Z
+  d2914bef-c7be-5fbc-b662-e1a452f73ba9:
+    created_at: 2026-10-27T05:11:59.289694Z
+    description: CLI dispatch for skill/agent/command linking.
+    file_path: skill-manage/src/main.rs
+    function: skill-manage entry
+    kind: file
+    line: 1
+    locations:
+      - file_path: skill-manage/src/main.rs
+        line: 1
+    token: 𓽐𔇜𓚓𔑩
+    updated_at: 2026-10-27T05:11:59.289694Z
+  d94fd483-e043-5e10-bba1-a024b89d52d4:
+    created_at: 2026-10-27T05:11:59.289686Z
+    description: Hono app assembly — CORS, route mounting, SPA static serving, boot.
+    file_path: packages/api/src/index.ts
+    function: API entrypoint
+    kind: file
+    line: 1
+    locations:
+      - file_path: packages/api/src/index.ts
+        line: 1
+    token: 𓴿𓾠𓭘𔍤
+    updated_at: 2026-10-27T05:11:59.289686Z

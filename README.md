@@ -1,5 +1,7 @@
 # llm-toolkit
 
+<!-- 〚📁:b7bbbcd2-e54f-5469-b575-ec3da0df0106〛 llm-toolkit README :: Project entry point — what the toolkit does, install, quick start. -->
+
 **Repo:** https://github.com/the-robot-lives/llm-toolkit
 
 Local-first console for coding-agent conversations and skills — search, browse, edit, and extract artifacts from Claude Code and Codex transcripts, then symlink SKILL.md packages into each harness's install folders. Also known as *Claude Assist* / *agent-watch-dog*.

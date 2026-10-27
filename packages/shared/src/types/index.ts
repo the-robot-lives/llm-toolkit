@@ -1,3 +1,5 @@
+// 〚📁:ac113d60-0e55-5535-96bf-c019dac15b7e〛 Shared types :: Cross-package contract — conversations, messages, config, LLM profiles.
+
 // Conversation source record types (from JSONL)
 export type RecordType =
   | "permission-mode"

@@ -1,3 +1,5 @@
+// 〚📁:d94fd483-e043-5e10-bba1-a024b89d52d4〛 API entrypoint :: Hono app assembly — CORS, route mounting, SPA static serving, boot.
+
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";

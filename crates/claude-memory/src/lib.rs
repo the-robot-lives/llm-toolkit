@@ -1,3 +1,5 @@
+// 〚📁:5bf31556-e398-569b-9d1d-927649316e17〛 claude-memory core :: Normative Rust memory-dir reader/writer (Rust-Swift contract).
+
 //! Dependency-free (std-only) reader/writer for Claude Code project memory
 //! dirs. Implements `docs/claude-memory-contract.md` — this crate is the
 //! normative implementation; the Swift port must stay behavior-identical.
