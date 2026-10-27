@@ -79,10 +79,10 @@ export function renderCodexConversation(thread: UniversalThread, context: Native
       if ((block.type === "tool_use" || block.type === "tool_result") && nativeOrigin && closedCalls.has(block.toolCallId)) {
         flush();
         const raw = nativeBlockPayload(block, message);
-        const custom = raw?.type === "custom_tool_call" || raw?.type === "custom_tool_call_output" || block.providerType === "custom_tool_call" || block.providerType === "custom_tool_call_output";
+        const custom = closedCalls.get(block.toolCallId) === true;
         if (block.type === "tool_use") {
           emit("response_item", custom
-            ? { type: "custom_tool_call", call_id: block.toolCallId, name: block.name, input: typeof raw?.input === "string" ? raw.input : JSON.stringify(block.input), ...(typeof raw?.namespace === "string" ? { namespace: raw.namespace } : {}) }
+            ? { type: "custom_tool_call", call_id: block.toolCallId, name: block.name, input: typeof block.input.input === "string" && Object.keys(block.input).length === 1 ? block.input.input : JSON.stringify(block.input), ...(typeof raw?.namespace === "string" ? { namespace: raw.namespace } : {}) }
             : { type: "function_call", call_id: block.toolCallId, name: block.name, arguments: nativeArguments(raw, block.input), ...(typeof raw?.namespace === "string" ? { namespace: raw.namespace } : {}) }, time);
         } else {
           emit("response_item", { type: custom ? "custom_tool_call_output" : "function_call_output", call_id: block.toolCallId, output: nativeOutput(raw, block, issues, message.id, blockIndex) }, time);
@@ -133,7 +133,8 @@ export function validateCodexConversation(jsonl: string, context?: NativeConvers
     if (!validTime(meta.timestamp)) add("invalid-session-time", "Use an RFC3339 session timestamp.", 0, ".payload.timestamp", "error", true);
     if (typeof meta.cwd !== "string" || !isAbsolute(meta.cwd)) add("invalid-session-cwd", "Use an absolute native working-directory path.", 0, ".payload.cwd", "error", true);
     if (meta.history_mode != null && meta.history_mode !== "legacy" && meta.history_mode !== "paginated") add("unknown-history-mode", "This validator supports legacy and paginated Codex history modes.", 0, ".payload.history_mode");
-    if (meta.history_base) add("incomplete-history", "This physical rollout inherits an external prefix. Materialize it through the Codex read-only history reader before cloning.", 0, ".payload.history_base", "error", true);
+    if (meta.history_base != null && (!object(meta.history_base) || typeof object(meta.history_base)!.thread_id !== "string" || !Number.isSafeInteger(object(meta.history_base)!.end_ordinal_exclusive) || Number(object(meta.history_base)!.end_ordinal_exclusive) < 0)) add("invalid-history-base", "history_base requires a thread reference and non-negative integer end_ordinal_exclusive.", 0, ".payload.history_base", "error", true);
+    else if (meta.history_base) add("incomplete-history", "This physical rollout inherits an external prefix. Materialize it through the Codex read-only history reader before cloning.", 0, ".payload.history_base", "error", true);
     if (typeof meta.cli_version === "string" && meta.cli_version !== "0.164.0") add("version-drift", "Detailed compatibility is verified against Codex 0.164.0; validate this version with its installed parser as well.", 0, ".payload.cli_version", "warning");
     if (strict) {
       if (meta.history_mode !== "legacy") add("clone-history-mode", "New portable clones must use self-contained legacy history.", 0, ".payload.history_mode");
@@ -255,17 +256,18 @@ function responseToContent(payload: RecordValue): UniversalContentBlock[] {
   }
 }
 
-function closedNativeCalls(messages: UniversalMessage[], sourceHarness: NativeConversationContext["sourceHarness"]): Set<string> {
+function closedNativeCalls(messages: UniversalMessage[], sourceHarness: NativeConversationContext["sourceHarness"]): Map<string, boolean> {
+  const kinds = new Map<string, boolean>();
   const pending = new Set<string>(); const complete = new Set<string>(); const invalid = new Set<string>();
   for (const message of messages) {
     if (message.role === "user" && message.content.some(block => block.type !== "tool_result")) for (const id of pending) invalid.add(id);
     for (const block of message.content) {
     if ((block.type === "tool_use" || block.type === "tool_result") && (message.provenance?.harness ?? sourceHarness) !== "codex") invalid.add(block.toolCallId);
-    if (block.type === "tool_use") { if (!block.toolCallId || pending.has(block.toolCallId) || complete.has(block.toolCallId)) invalid.add(block.toolCallId); pending.add(block.toolCallId); }
+    if (block.type === "tool_use") { const raw = nativeBlockPayload(block, message); kinds.set(block.toolCallId, raw?.type === "custom_tool_call" || block.providerType === "custom_tool_call"); if (!block.toolCallId || pending.has(block.toolCallId) || complete.has(block.toolCallId)) invalid.add(block.toolCallId); pending.add(block.toolCallId); }
     if (block.type === "tool_result") { if (!pending.delete(block.toolCallId) || complete.has(block.toolCallId)) invalid.add(block.toolCallId); complete.add(block.toolCallId); }
   }
   }
-  return new Set([...complete].filter(id => !invalid.has(id) && !pending.has(id)));
+  return new Map([...complete].filter(id => !invalid.has(id) && !pending.has(id)).map(id => [id, kinds.get(id) ?? false]));
 }
 function nativeBlockPayload(block: UniversalContentBlock, message: UniversalMessage): RecordValue | undefined { return object(block.providerRaw) ?? object(object(message.providerRaw)?.payload); }
 function validToolOutput(value: unknown): boolean {

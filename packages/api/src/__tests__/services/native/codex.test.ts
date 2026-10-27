@@ -56,6 +56,15 @@ describe("Codex native conversation adapter", () => {
     expect(foreign.records.some(value => (value.payload as Record<string, unknown>).type === "function_call")).toBe(false);
   });
 
+  it("uses edited custom-tool input and derives the output type from its matching call", () => {
+    const call = message("call", "assistant", [{ type: "tool_use", toolCallId: "custom", name: "apply_patch", input: { input: "edited patch" }, providerType: "custom_tool_call", providerRaw: { type: "custom_tool_call", input: "old patch" } }]);
+    const result = message("result", "tool", [{ type: "tool_result", toolCallId: "custom", content: "ok" }]);
+    const output = renderCodexConversation(thread([call, result]), { ...context, sourceHarness: "codex" });
+    expect(output.records).toContainEqual(expect.objectContaining({ payload: { type: "custom_tool_call", call_id: "custom", name: "apply_patch", input: "edited patch" } }));
+    expect(output.records).toContainEqual(expect.objectContaining({ payload: { type: "custom_tool_call_output", call_id: "custom", output: "ok" } }));
+    expect(validateCodexConversation(output.jsonl, context).valid).toBe(true);
+  });
+
   it("keeps foreign or unresolved calls and protected reasoning as readable history, not fabricated native tool state", () => {
     const output = renderCodexConversation(thread([message("call", "assistant", [{ type: "tool_use", toolCallId: "incomplete", name: "Bash", input: { command: "echo fixture" } }, { type: "redacted_thinking", data: "opaque-secret-signature" }])]), context);
     expect(output.records.some(record => (record.payload as Record<string, unknown>).type === "function_call")).toBe(false);
