@@ -41,4 +41,24 @@ describe("portable conversation flow", () => {
     expect(screen.getByText("/records/0")).toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/clone"))).toBe(false);
   });
+  test("validator remains available when an invalid native source cannot be imported", async () => {
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (url, options) => String(url).includes("/universal") ? { ok: false, json: async () => ({ error: "Source validation failed" }) } as Response : original(url, options));
+    show();
+    await screen.findByRole("heading", { name: "Conversation validator" });
+    fireEvent.click(screen.getByRole("button", { name: "Validate source file" }));
+    await screen.findByText("fixture.invalid");
+    expect(screen.getByLabelText("Conversation content to validate")).toBeInTheDocument();
+  });
+
+  test("standalone validator works without an indexed conversation", async () => {
+    render(<MemoryRouter initialEntries={["/validate-conversation"]}><Routes><Route path="/validate-conversation" element={<ContinueSession />} /></Routes></MemoryRouter>);
+    await screen.findByRole("heading", { name: "Conversation validator" });
+    expect(screen.queryByRole("button", { name: "Validate source file" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Conversation content to validate"), { target: { value: "{ malformed synthetic input" } });
+    fireEvent.click(screen.getByRole("button", { name: "Validate content" }));
+    await screen.findByText("fixture.invalid");
+    expect(screen.getByLabelText("Conversation file to validate")).toBeInTheDocument();
+  });
+
 });

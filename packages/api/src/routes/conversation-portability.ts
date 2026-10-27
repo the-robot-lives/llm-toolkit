@@ -106,5 +106,5 @@ function displayBlock(block: UniversalContentBlock): unknown {
 }
 function failure(c: import("hono").Context, error: unknown) {
   const message = error instanceof SyntaxError ? "Invalid conversation request" : error instanceof Error ? error.message : "Conversation operation failed";
-  return c.json({ error: message }, message === "Conversation not found" ? 404 : /changed|Preview expired/.test(message) ? 409 : 400);
+  return c.json({ error: message }, message === "Conversation not found" ? 404 : /^(?:A source conversation changed|The Codex source changed|Preview expired|Structured message changed)/.test(message) ? 409 : 400);
 }

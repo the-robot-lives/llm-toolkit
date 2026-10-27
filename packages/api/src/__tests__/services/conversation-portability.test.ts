@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createConversationPortabilityRoutes } from "../../routes/conversation-portability.ts";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, mkdirSync, realpathSync, truncateSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { UniversalThread } from "@llm-toolkit/shared";
@@ -298,6 +298,19 @@ finally:p.terminate();p.wait(timeout=3)
     expect(unverified.issues.some(issue => issue.code === "archive_origin_unverified")).toBe(true);
     expect(unverified.jsonl).not.toContain('"type":"tool_use"');
     expect(unverified.jsonl).not.toContain('"type":"function_call"');
+  });
+
+  test("HTTP errors distinguish stale source conflicts from input limits and sanitize malformed bodies", async () => {
+    const app = createConversationPortabilityRoutes(service);
+    const malformed = await app.request("/source/clone-preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{ PRIVATE_BODY_SENTINEL" });
+    expect(malformed.status).toBe(400); expect(await malformed.text()).not.toContain("PRIVATE_BODY_SENTINEL");
+    truncateSync(paths.get("source")!, 50_000_001);
+    const oversized = await app.request("/source/clone-preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    expect(oversized.status).toBe(400); expect(await oversized.text()).toContain("50 MB");
+    const original = thread("racing", directory); writeFileSync(paths.get("source")!, "fixture");
+    const racing = createConversationPortabilityRoutes(new ConversationPortabilityService(storage, undefined, { homeDir: directory, adapters, readThread: async path => { writeFileSync(path, "changed fixture"); return original; } }));
+    const conflict = await racing.request("/source/clone-preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    expect(conflict.status).toBe(409);
   });
 
 });
