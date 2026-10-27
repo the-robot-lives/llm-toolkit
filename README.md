@@ -222,3 +222,14 @@ accessible remote projects and links matching local scopes to their remote IDs.
 **Link a repository** sets its canonical checkout's `.agent-kit.yaml` through
 `npl-scope set --scope repo`; its worktrees inherit that scope unless explicitly
 overridden. Scanning never writes repository configuration automatically.
+
+Tobor project browsing requires choosing an organization; the app never queries
+every organization's projects automatically. In **Agentonomi → MCP Config →
+OAuth Clients → LLM Toolkit Projects → Permissions**, enable `Organization_List`
+and `Project_List`; leave other permissions unchanged. If both are already
+enabled, check the endpoint's effective policy rather than broadening other
+client permissions. The app's **Manage project
+permissions** link opens the exact registered OAuth client. OAuth site approval
+and tool access are separate: a blocked Project_List grant shows an explicit
+permission error. The current service authorizes OAuth automatically and does
+not display a browser consent screen; reconnecting does not change tool access.

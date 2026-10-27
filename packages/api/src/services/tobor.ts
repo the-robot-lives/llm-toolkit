@@ -19,12 +19,20 @@ export const toborFetch: typeof fetch = async (input, init) => {
   return fetch(input, { ...init, redirect: "error", signal: init?.signal ?? AbortSignal.timeout(30_000) });
 };
 
+export class ToborPermissionError extends Error {
+  constructor(readonly tool: string) {
+    super(`${tool === "Project_List" ? "Projects" : "Organizations"} access is disabled for this Tobor connection. The effective tool policy blocks ${tool}. Check this OAuth client and its endpoint permissions in Agentonomi MCP settings.`);
+    this.name = "ToborPermissionError";
+  }
+}
+
 export class ToborService implements OAuthClientProvider {
   private saved: SavedAuth = {};
   private pending?: PendingAuth;
   private login = false;
   private operation = Promise.resolve();
   private readonly file: string;
+  private projectAccess: "unknown" | "available" | "disabled" = "unknown";
 
   constructor(dataDir = process.env.LLM_TOOLKIT_DATA_DIR ?? process.env.CLAUDE_ASSIST_DATA_DIR ?? join(homedir(), ".llm-toolkit")) {
     this.file = join(dataDir, "tobor-oauth.json");
@@ -65,7 +73,7 @@ export class ToborService implements OAuthClientProvider {
   }
 
   status() {
-    return { connected: !!this.saved.tokens, serverUrl: TOBOR_SERVER, expiresAt: this.saved.expiresAt ?? null, connectionId: this.saved.connectionId ?? null, loginPending: !!this.pending && Date.now() - this.pending.started < 600_000 };
+    return { connected: !!this.saved.tokens, serverUrl: TOBOR_SERVER, permissionsUrl: this.saved.client?.client_id ? `https://agentonomi.com/app/admin/mcp-config/oauth-client/${encodeURIComponent(this.saved.client.client_id)}` : null, expiresAt: this.saved.expiresAt ?? null, connectionId: this.saved.connectionId ?? null, projectAccess: this.projectAccess, loginPending: !!this.pending && Date.now() - this.pending.started < 600_000 };
   }
 
   /** Serialize refreshes: rotating refresh tokens must never race. */
@@ -104,6 +112,7 @@ export class ToborService implements OAuthClientProvider {
         const result = await auth(this, { serverUrl: TOBOR_SERVER, authorizationCode: code, scope: pending.scope, fetchFn: toborFetch });
         if (result !== "AUTHORIZED") throw new Error("Authorization was not completed");
         this.saved.connectionId = randomBytes(12).toString("hex");
+        this.projectAccess = "unknown";
         this.persist();
       } finally { this.pending = undefined; }
     });
@@ -113,6 +122,7 @@ export class ToborService implements OAuthClientProvider {
     return this.exclusive(async () => {
       // Disconnect only this app; never revoke shared credentials or delete projects.
       this.saved = {};
+      this.projectAccess = "unknown";
       this.pending = undefined;
       try { unlinkSync(this.file); } catch { /* already absent */ }
     });
@@ -131,39 +141,57 @@ export class ToborService implements OAuthClientProvider {
     const fallback = available.find(item => normalized(item.name) === "toolcall");
     if (!selected && !fallback) throw new Error(`The Tobor connection does not expose ${tool}. Enable Projects and Organizations in its consent settings.`);
     const result = await client.callTool(selected ? { name: selected.name, arguments: args } : { name: fallback!.name, arguments: { tool, arguments: args } });
-    if (result.isError) throw new Error("Tobor rejected the project lookup. Check your organization access.");
+    if (result.isError) {
+      const message = (result.content as Array<{ type: string; text?: string }>).filter(block => block.type === "text").map(block => block.text ?? "").join(" ");
+      if (/disabled for this API key|disabled for this.*client|not allowed.*tool/i.test(message)) {
+        if (tool === "Project_List") this.projectAccess = "disabled";
+        throw new ToborPermissionError(tool);
+      }
+      throw new Error("Tobor rejected the project lookup. Check your organization access.");
+    }
     if (result.structuredContent) return result.structuredContent as Record<string, unknown>;
     const text = (result.content as Array<{ type: string; text?: string }>).filter(block => block.type === "text").map(block => block.text ?? "").join("\n");
     return JSON.parse(text) as Record<string, unknown>;
   }
 
-  listProjects() {
+  private withClient<T>(action: (client: Client) => Promise<T>) {
     return this.exclusive(async () => {
       if (!this.saved.tokens) throw new Error("Connect to Tobor to browse remote projects.");
       const client = new Client({ name: "llm-toolkit-projects", version: "0.1.0" });
       const transport = new StreamableHTTPClientTransport(new URL(TOBOR_SERVER), { authProvider: this, fetch: toborFetch });
-      try {
-        await client.connect(transport);
-        const organizations: Array<{ id: string; slug: string }> = [];
-        for (let offset = 0; offset < 10_000; offset += 100) {
-          const result = await this.call(client, "Organization_List", { limit: 100, offset });
-          const rows = result.organizations;
-          if (!Array.isArray(rows)) throw new Error("Unexpected organizations response");
-          for (const row of rows) if (typeof row.id === "string" && typeof row.slug === "string") organizations.push(row);
-          if (rows.length < 100) break;
-        }
-        const projects: import("@llm-toolkit/shared").ToborProject[] = [];
-        for (const org of organizations) {
-          for (let offset = 0; offset < 10_000; offset += 100) {
-            const result = await this.call(client, "Project_List", { organization: org.id, status: "active", limit: 100, offset });
-            const rows = result.projects;
-            if (!Array.isArray(rows)) throw new Error("Unexpected projects response");
-            for (const row of rows) if (typeof row.id === "string" && typeof row.slug === "string" && typeof row.name === "string") projects.push({ id: row.id, slug: row.slug, name: row.name, organizationId: org.id, organizationSlug: org.slug, status: typeof row.status === "string" ? row.status : "active" });
-            if (rows.length < 100) break;
-          }
-        }
-        return projects;
-      } finally { await client.close().catch(() => {}); }
+      try { await client.connect(transport); return await action(client); }
+      finally { await client.close().catch(() => {}); }
+    });
+  }
+  private async organizations(client: Client) {
+    const organizations: Array<{ id: string; slug: string; name: string }> = [];
+    for (let offset = 0; offset < 10_000; offset += 100) {
+      const result = await this.call(client, "Organization_List", { limit: 100, offset });
+      const rows = result.organizations;
+      if (!Array.isArray(rows)) throw new Error("Unexpected organizations response");
+      for (const row of rows) if (typeof row.id === "string" && typeof row.slug === "string") organizations.push({ id: row.id, slug: row.slug, name: typeof row.name === "string" ? row.name : row.slug });
+      if (rows.length < 100) break;
+    }
+    return organizations;
+  }
+  listOrganizations() { return this.withClient(client => this.organizations(client)); }
+
+  /** Only the explicitly selected organization is queried for projects. */
+  listProjects(organization: string) {
+    return this.withClient(async client => {
+      const organizations = await this.organizations(client);
+      const org = organizations.find(item => item.id === organization || item.slug === organization);
+      if (!org) throw new Error("Organization is not accessible through this Tobor connection.");
+      const projects: import("@llm-toolkit/shared").ToborProject[] = [];
+      for (let offset = 0; offset < 10_000; offset += 100) {
+        const result = await this.call(client, "Project_List", { organization: org.id, status: "active", limit: 100, offset });
+        const rows = result.projects;
+        if (!Array.isArray(rows)) throw new Error("Unexpected projects response");
+        for (const row of rows) if (typeof row.id === "string" && typeof row.slug === "string" && typeof row.name === "string") projects.push({ id: row.id, slug: row.slug, name: row.name, organizationId: org.id, organizationSlug: org.slug, status: typeof row.status === "string" ? row.status : "active" });
+        if (rows.length < 100) break;
+      }
+      this.projectAccess = "available";
+      return projects;
     });
   }
 }
