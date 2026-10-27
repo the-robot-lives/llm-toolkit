@@ -185,7 +185,7 @@ export function validateCodexConversation(jsonl: string, context?: NativeConvers
       else { calls.set(payload.call_id, payload.type); seenCalls.add(payload.call_id); }
     } else if (payload.type === "function_call_output" || payload.type === "custom_tool_call_output") {
       const expected = payload.type === "function_call_output" ? "function_call" : "custom_tool_call";
-      if (typeof payload.call_id !== "string" || calls.get(payload.call_id) !== expected || !validToolOutput(payload.output)) add("orphan-tool-output", "Place output after its matching call and preserve the correct call_id/type.", index, ".payload.call_id", "error", true);
+      if (typeof payload.call_id !== "string" || calls.get(payload.call_id) !== expected || !validToolOutput(payload.output, !strict)) add("orphan-tool-output", "Place output after its matching call and preserve the correct call_id/type.", index, ".payload.call_id", "error", true);
       else calls.delete(payload.call_id);
     } else if (payload.type === "reasoning") {
       if (!Array.isArray(payload.summary) || payload.encrypted_content != null && typeof payload.encrypted_content !== "string") add("invalid-reasoning", "Reasoning requires a summary array and optional encrypted string.", index, ".payload");
@@ -270,10 +270,10 @@ function closedNativeCalls(messages: UniversalMessage[], sourceHarness: NativeCo
   return new Map([...complete].filter(id => !invalid.has(id) && !pending.has(id)).map(id => [id, kinds.get(id) ?? false]));
 }
 function nativeBlockPayload(block: UniversalContentBlock, message: UniversalMessage): RecordValue | undefined { return object(block.providerRaw) ?? object(object(message.providerRaw)?.payload); }
-function validToolOutput(value: unknown): boolean {
+function validToolOutput(value: unknown, allowProtected = false): boolean {
   return typeof value === "string" || Array.isArray(value) && value.every(item => {
     const block = object(item);
-    return block?.type === "input_text" && typeof block.text === "string" || block?.type === "input_image" && (typeof block.image_url === "string" || typeof block.file_id === "string") || block?.type === "input_audio" && typeof block.audio_url === "string";
+    return block?.type === "input_text" && typeof block.text === "string" || block?.type === "input_image" && (typeof block.image_url === "string" || typeof block.file_id === "string") || block?.type === "input_audio" && typeof block.audio_url === "string" || allowProtected && block?.type === "encrypted_content" && typeof block.encrypted_content === "string";
   });
 }
 function nativeOutput(raw: RecordValue | undefined, block: Extract<UniversalContentBlock, { type: "tool_result" }>, issues: ConversationCompatibilityIssue[], messageId: string, blockIndex: number): unknown {
