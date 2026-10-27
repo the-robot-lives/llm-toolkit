@@ -145,7 +145,15 @@ export class ConversationPortabilityService {
     let { document, issues } = request.document !== undefined ? { document: parsePortableConversation(request.document), issues: [] as ConversationCompatibilityIssue[] } : snipConversation(source, request.messageIds);
     const sources = [sourceSnapshot.fingerprint];
     const trustedMessages = new Map(source.messages.map(message => [message.id, message]));
-    const verifiedIncoming = new Set(document.thread.messages.filter(message => { const original = trustedMessages.get(message.id); return original && original.role === message.role && JSON.stringify(original.content) === JSON.stringify(message.content); }).map(message => message.id));
+    const verifiedIncoming = new Set<string>();
+    for (const message of document.thread.messages) {
+      const original = trustedMessages.get(message.id);
+      if (original && original.role === message.role && JSON.stringify(original.content) === JSON.stringify(message.content)) {
+        message.provenance = { ...original.provenance, harness: original.provenance?.harness ?? source.harness, sourcePath: original.provenance?.sourcePath ?? source.sourcePath };
+        message.providerRaw = structuredClone(original.providerRaw); message.providerHints = structuredClone(original.providerHints); message.model = original.model; message.stopReason = original.stopReason;
+        verifiedIncoming.add(message.id);
+      }
+    }
     const insertedIds = new Set<string>();
     if (request.insertIntoConversationId) {
       const targetSnapshot = await this.loadSnapshot(request.insertIntoConversationId);
@@ -190,7 +198,19 @@ export class ConversationPortabilityService {
     const activeThread = structuredClone(document.thread);
     for (const message of activeThread.messages) {
       const trusted = trustedMessages.get(message.id);
-      if (!trusted || trusted.role !== message.role || trusted.content.length !== message.content.length || trusted.content.some((block, index) => block.type !== "text" && JSON.stringify(block) !== JSON.stringify(message.content[index]))) message.provenance = { ...message.provenance, harness: "other", sourcePath: message.provenance?.sourcePath ?? document.thread.sourcePath };
+      const matches = trusted && trusted.role === message.role && trusted.content.length === message.content.length && trusted.content.every((block, index) => block.type === "text" ? message.content[index]?.type === "text" : JSON.stringify(block) === JSON.stringify(message.content[index]));
+      if (matches) {
+        message.provenance = { ...trusted.provenance, harness: trusted.provenance?.harness ?? source.harness, sourcePath: trusted.provenance?.sourcePath ?? source.sourcePath };
+        message.providerRaw = structuredClone(trusted.providerRaw); message.providerHints = structuredClone(trusted.providerHints); message.model = trusted.model; message.stopReason = trusted.stopReason;
+      } else {
+        message.provenance = { ...message.provenance, harness: "other", sourcePath: message.provenance?.sourcePath ?? document.thread.sourcePath };
+        issues.push({ severity: "warning", code: "untrusted_native_blocks", message: "Imported or structurally changed provider blocks are rendered as historical context; native provenance is verified against the source.", messageId: message.id });
+      }
+      if (insertedIds.has(message.id)) message.content = message.content.map(block => {
+        if (block.type !== "redacted_thinking") return block;
+        issues.push({ severity: "warning", code: "inserted_reasoning_opaque", message: "Inserted opaque reasoning remains in the private archive and is not replayed in a new context.", messageId: message.id });
+        return { type: "text", text: "[Historical opaque reasoning retained in the portable archive]" };
+      });
       if (insertedIds.has(message.id)) for (const block of message.content) if (block.type === "thinking" && block.signature) {
         delete block.signature; delete block.providerRaw;
         issues.push({ severity: "warning", code: "inserted_reasoning_opaque", message: "Inserted signed reasoning is retained as historical context because signature validity in the new context is unverified.", messageId: message.id });

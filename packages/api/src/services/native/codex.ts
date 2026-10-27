@@ -192,9 +192,10 @@ export function validateCodexConversation(jsonl: string, context?: NativeConvers
       if (strict) add("protected-reasoning", "Protected reasoning cannot be synthesized or replayed in a portable clone.", index, ".payload");
     } else add("opaque-response-item", "This response type is outside the verified subset; retain it and check with its installed Codex parser.", index, ".payload.type", strict ? "error" : "warning");
   }
+  if (!records.some(record => record.type === "response_item" || record.type === "event_msg" && ["user_message", "agent_message"].includes(String(object(record.payload)?.type)))) add("no-resumable-messages", "No conversation messages are present; this may be a newly created empty thread.", 0, "", strict ? "error" : "warning");
   if (calls.size) add("incomplete-tool-pairs", "The file ends with unresolved tool calls; include their results or convert the incomplete section to readable context.", Math.max(records.length - 1, 0), "", "error", true);
   if (activeTurn) add("incomplete-turn", "This turn has no completion marker. Re-read an active source or explicitly close an imported historical turn.", Math.max(records.length - 1, 0), "", "error", true);
-  return { valid: !issues.some(value => value.severity === "error"), complete: !issues.some(value => /opaque|incomplete|version-drift/.test(value.code)), compatibilityVersion: CODEX_COMPATIBILITY_VERSION, issues };
+  return { valid: !issues.some(value => value.severity === "error"), complete: !issues.some(value => /opaque|incomplete|version-drift|no-resumable/.test(value.code)), compatibilityVersion: CODEX_COMPATIBILITY_VERSION, issues };
 }
 
 /** Parse model-context records once; matching event_msg projections are not duplicate messages. */

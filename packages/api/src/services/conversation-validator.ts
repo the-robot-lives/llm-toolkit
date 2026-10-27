@@ -13,7 +13,7 @@ export async function validateConversationContent(content: string, target: Agent
   if (target === "universal") {
     try {
       const document = parsePortableConversation(content);
-      return report(target, "llm-toolkit.conversation/v1", [], true, document.thread.messages.length);
+      return report(target, "llm-toolkit.conversation/v1", document.thread.messages.length ? [] : [{ severity: "warning", code: "universal.no-resumable-messages", path: "$.thread.messages", message: "The document contains no conversation messages.", repairable: false }], Boolean(document.thread.messages.length), document.thread.messages.length);
     } catch (error) {
       return report(target, "llm-toolkit.conversation/v1", [{ severity: "error", code: "universal.invalid-document", path: "$.thread", message: error instanceof Error ? error.message : "Invalid universal conversation document", repairable: false }], true, 0);
     }
@@ -25,7 +25,7 @@ export async function validateConversationContent(content: string, target: Agent
     const validation = adapter.validate(content, context);
     const issues = validation.issues.map(normalizeIssue);
     if (!validation.valid && !issues.some((issue) => issue.severity === "error")) issues.push({ severity: "error", code: "native.invalid", path: "$", message: "The native conversation did not pass its validator", repairable: false });
-    const complete = validation.complete !== false && !issues.some((issue) => /(?:opaque|unverified|unknown-extension|incomplete-history)/.test(issue.code));
+    const complete = validation.complete !== false && !issues.some((issue) => /(?:opaque|unverified|unknown-extension|incomplete-history|no-resumable)/.test(issue.code));
     return report(target, validation.compatibilityVersion ?? adapter.compatibilityVersion ?? `${target}/unverified`, issues, complete, content.split("\n").filter((line) => line.trim()).length);
   } catch {
     return report(target, adapter.compatibilityVersion ?? `${target}/unverified`, [{ severity: "warning", code: "validator.failed", path: "$", message: "Validation could not complete. No conversation files were changed.", repairable: false }], false, 0);
