@@ -67,6 +67,7 @@ function applyEnvOverlays(config: AppConfig): AppConfig {
 const PROFILE_ENV_KEYS: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   "openai-compatible": "OPENAI_API_KEY",
+  alibaba: "ALIBABA_API_KEY",
 };
 
 const PROFILE_LOCAL_PROVIDERS = new Set(["ollama", "lmstudio", "llamacpp"]);
@@ -145,6 +146,7 @@ function applyProfileEnvOverlays(profile: LlmProfile): void {
   if (profile.apiKey) return;
   const envKey = PROFILE_ENV_KEYS[profile.provider];
   if (envKey && process.env[envKey]) profile.apiKey = process.env[envKey];
+  if (!profile.apiKey && profile.provider === "alibaba") profile.apiKey = process.env.DASHSCOPE_API_KEY;
 }
 
 export function maskKey(key: string | undefined): string | undefined {
@@ -236,7 +238,8 @@ function persistConfig(storage: StorageService, current: AppConfig): void {
   }
   for (const profile of toStore.llmProfiles ?? []) {
     const envKey = PROFILE_ENV_KEYS[profile.provider];
-    if (profile.apiKey && envKey && profile.apiKey === process.env[envKey]) {
+    if (profile.apiKey && ((envKey && profile.apiKey === process.env[envKey]) ||
+      (profile.provider === "alibaba" && profile.apiKey === process.env.DASHSCOPE_API_KEY))) {
       delete profile.apiKey;
     }
   }

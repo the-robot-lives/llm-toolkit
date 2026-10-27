@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { LlmService } from "../services/llm.ts";
 import type { StorageService } from "../services/storage.ts";
-import type { LlmCompletionRequest, LlmConfig } from "@llm-toolkit/shared";
+import type { LlmCompletionRequest, LlmConfig, LlmProfile } from "@llm-toolkit/shared";
 import { loadConfig, maskKey, isMaskedKey } from "./config.ts";
 
 const LLM_ENV_KEYS: Record<string, string> = {
@@ -95,26 +95,44 @@ export function createLlmRoutes(llmService: LlmService, storage: StorageService)
   });
 
   routes.post("/test-profile", async (c) => {
-    const body = await c.req.json() as { id?: string };
-    if (!body?.id) {
-      return c.json({ ok: false, error: "id is required" }, 400);
-    }
+    const body = await c.req.json() as { id?: string; profile?: LlmProfile };
     const config = loadConfig(storage);
-    const profile = (config.llmProfiles ?? []).find((p) => p.id === body.id);
-    if (!profile) {
-      return c.json({ ok: false, error: `Unknown profile: ${body.id}` });
+    const draft = body?.profile;
+    const stored = (config.llmProfiles ?? []).find((p) => p.id === (draft?.id ?? body?.id));
+    const profile = draft ? { ...draft } : stored ? { ...stored } : undefined;
+    const providers = ["anthropic", "alibaba", "openai-compatible", "ollama", "lmstudio", "llamacpp"];
+    if (!profile || !providers.includes(profile.provider) || typeof profile.id !== "string" ||
+        (profile.apiKey !== undefined && typeof profile.apiKey !== "string") ||
+        (profile.baseUrl !== undefined && typeof profile.baseUrl !== "string") ||
+        (profile.model !== undefined && typeof profile.model !== "string")) {
+      return c.json({ ok: false, error: "A valid profile or saved profile id is required" }, 400);
     }
-    const { profileToLlmConfig } = await import("../services/llm.ts");
-    const ephemeral = new (await import("../services/llm.ts")).LlmService();
-    await ephemeral.initialize(profileToLlmConfig(profile));
+    if (isMaskedKey(profile.apiKey)) {
+      // A masked key may only authorize the saved connection it represents.
+      // Never forward an existing credential to a newly edited host/provider.
+      if (!stored || stored.provider !== profile.provider || stored.baseUrl !== profile.baseUrl ||
+          stored.apiType !== profile.apiType) {
+        return c.json({ ok: false, error: "Re-enter the API key to test a changed connection." }, 400);
+      }
+      profile.apiKey = stored.apiKey;
+    }
+    const { profileToLlmConfig, LlmService } = await import("../services/llm.ts");
+    const resolved = profileToLlmConfig(profile);
+    if (!profile.local && !["ollama", "lmstudio", "llamacpp"].includes(profile.provider) && !resolved.apiKey) {
+      return c.json({ ok: false, error: "Enter an API key or configure the provider environment variable." });
+    }
+    const ephemeral = new LlmService();
+    await ephemeral.initialize(resolved);
     if (!ephemeral.available) {
-      return c.json({ ok: false, error: `Profile '${profile.id}' is not available (missing key or bad config)` });
+      return c.json({ ok: false, error: "Check the provider, base URL, and API key." });
     }
     try {
-      const models = await ephemeral.listModels();
-      return c.json({ ok: true, models });
+      const models = await ephemeral.listModels(true);
+      return c.json({ ok: true, models: [...new Set(models)].sort() });
     } catch (err) {
-      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      // Upstream error bodies may contain credentials; return status only.
+      const status = typeof err === "object" && err !== null && "status" in err ? Number(err.status) : undefined;
+      return c.json({ ok: false, error: `Could not fetch models${status ? ` (HTTP ${status})` : ""}. Check the API key and base URL; this endpoint may not support model discovery.` });
     }
   });
 

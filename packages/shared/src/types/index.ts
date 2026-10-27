@@ -368,6 +368,7 @@ export interface ApiError {
 // Config
 export type LlmProvider =
   | "anthropic"
+  | "alibaba"
   | "openai"
   | "ollama"
   | "litellm"
@@ -493,7 +494,7 @@ export interface SkillsConfig {
   destinations?: SkillDestination[];
 }
 
-export type LlmProfileProvider = "anthropic" | "openai-compatible" | "ollama" | "lmstudio" | "llamacpp";
+export type LlmProfileProvider = "anthropic" | "alibaba" | "openai-compatible" | "ollama" | "lmstudio" | "llamacpp";
 
 export interface LlmProfile {
   id: string;
