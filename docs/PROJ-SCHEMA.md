@@ -43,6 +43,8 @@ erDiagram
         TEXT tags
         TEXT status
         TEXT source_path
+        TEXT content_hash
+        INTEGER indexed_at
     }
     messages {
         INTEGER id PK
@@ -108,6 +110,8 @@ package "Core content" {
     * tags : TEXT = '[]'
     * status : TEXT = 'active'
     * source_path : TEXT
+    content_hash : TEXT
+    indexed_at : INTEGER
     --
     * started_at : TEXT
     * updated_at : TEXT
@@ -269,6 +273,8 @@ Lossy search layer (`messages`) + lossless layer (`universal_messages`,
 | tags | TEXT | No | `'[]'` | JSON array of tags |
 | status | TEXT | No | `'active'` | Lifecycle status |
 | source_path | TEXT | No | — | Original JSONL path |
+| content_hash | TEXT | Yes | NULL | Source-file content hash; unchanged files skip re-parse/re-enrich (added by migration) |
+| indexed_at | INTEGER | Yes | NULL | Epoch-ms timestamp of the last enrichment pass (added by migration) |
 
 **Indexes**: `idx_conversations_project (project_path)`, `idx_conversations_updated (updated_at)`, `idx_conversations_harness (harness)`, `idx_conversations_slug (slug)` (unique, added by migration)
 
@@ -300,7 +306,7 @@ Lossy search layer (`messages`) + lossless layer (`universal_messages`,
 
 **tag_metadata** — tag display `color` (default `#06B6D4`) + `description`.
 
-**settings** — key/value app config; primary key used today: `app_config` (JSON blob holding LLM provider selection + keys/params; see `packages/api/src/routes/llm.ts`).
+**settings** — key/value app config; primary key used today: `app_config` (JSON blob holding named LLM profiles `llmProfiles[]` + `defaultProfileId`/`defaultLocalProfileId`, `indexing` defaults `{preferLocal, deepWindowDays}`, and the legacy single-provider `llm` config; provider API keys live inside — see `packages/api/src/services/llm.ts`).
 
 ### Virtual tables
 
@@ -310,8 +316,7 @@ Lossy search layer (`messages`) + lossless layer (`universal_messages`,
 | `conversation_vectors` | vec0 | 384-dim float32 embeddings for semantic KNN over conversations | Created only if sqlite-vec loads |
 | `work_item_vectors` | vec0 | Embeddings over work items | Same |
 
-**Content hashing**: files are hashed at index time; only new/modified JSONL re-parses
-(mod-time/hash tracking in the indexer — no dedicated DB table).
+**Content hashing**: files are hashed at index time; only new/modified JSONL re-parses. Per-conversation hashes persist in `conversations.content_hash`, with enrichment timestamps in `conversations.indexed_at` (written by the two-tier describe/work-items passes).
 
 ## Migrations
 
@@ -322,6 +327,7 @@ migrations via `PRAGMA table_info` checks:
 2. `migrateConversationsMeta` — adds `conversations.slug` (+ unique index), `description`
 3. `migrateConversationHarness` — adds `conversations.harness` (+ index)
 4. `initVectorTable` — loads sqlite-vec, creates vec0 tables (graceful skip on failure)
+5. `migrateIndexingColumns` — adds `conversations.content_hash`, `conversations.indexed_at`
 
 ## Configuration & file-format artifacts
 
@@ -381,6 +387,8 @@ specified in [`docs/claude-memory-contract.md`](claude-memory-contract.md).
 | `PORT` | `3100` | API port |
 | `SKILL_REPO` | *(unset)* | skill-manage source path expansion |
 | `CLAUDE_MEMORY_ROOT` | `~/.claude/projects` | Memory-route root override (tests) |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `ALIBABA_API_KEY` / `DASHSCOPE_API_KEY` | *(unset)* | Per-profile API-key fallbacks when a profile stores no key |
+| `OLLAMA_BASE_URL` | *(unset)* | Base URL for `ollama` profiles without an explicit `baseUrl` |
 | `NPL_CONFIG_HOME` | *(unset → `XDG_CONFIG_HOME` → `~/.config`)* | Base for user `npl/npl-plugin.config.yaml` |
 
 Default watch sources: `~/.claude/projects` and `~/.codex/sessions` (JSONL).
@@ -398,7 +406,7 @@ KV store. Route-group → primary data mapping (endpoint-level detail: `docs/arc
 | `artifacts` | ~7 | settings, runtime data dir |
 | `search` | ~2 | messages_fts, conversation_vectors (KNN) |
 | `projects` / `tags` / `prompts` | ~5 each | project_metadata / tag_metadata / saved_prompts |
-| `llm` / `config` | ~6 | settings.app_config (provider selection + keys) |
+| `llm` / `config` | ~8 | settings.app_config — LLM profiles CRUD (masked-key-safe save), model discovery + test-profile, completion |
 | `memory` | ~8 | Filesystem memory dirs via `crates/claude-memory` napi — no SQLite |
 | `services` | ~8 | `npl-plugin.config.yaml` (NPL plugin config) + child processes |
 

@@ -6,7 +6,7 @@ project-memory dirs, symlinked skill trees, and a supervisor that spawns
 arbitrary commands. Crown jewels: transcript corpus (source + pasted secrets),
 LLM keys in `settings.app_config`, harness config files.
 
-Register: 2 mitigated · 5 partial · 3 open (T-001..T-010).
+Register: 2 mitigated · 6 partial · 3 open (T-001..T-011).
 
 - **T-001 High/open** — API listens on all interfaces (no `hostname` in
   `serve()`); CORS is browser-only. LAN can read transcripts + hit write routes.
@@ -26,6 +26,9 @@ Register: 2 mitigated · 5 partial · 3 open (T-001..T-010).
 - **T-009 Low/open** — no audit trail of writes.
 - **T-010 Low/partial** — pnpm deps, locally rebuilt napi `.node`, model
   download.
+- **T-011 Low/partial** — dev-only CDN widget: the Vite dev server
+  (localhost:5173 gate) injects the SRI-pinned tobor-kit annotate.js from
+  cdn.derobot.is.
 
 Residual risk: loopback-only reachability is *assumed* but not *enforced*;
 binding `127.0.0.1` + Host allowlist would close T-001/T-006.

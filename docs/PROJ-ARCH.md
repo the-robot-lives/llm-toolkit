@@ -62,10 +62,10 @@ graph TB
 | Component | Package | Purpose |
 |-----------|---------|---------|
 | StorageService | api | SQLite WAL: harness schema, FTS5, sqlite-vec, settings |
-| IndexerService | api | Scan JSONL → raw events → universal + flat messages; chokidar watch |
+| IndexerService | api | Scan JSONL → raw events → universal + flat messages; chokidar watch; two-tier incremental LLM enrichment (content-hash skip → describe pass → work-items pass) |
 | EmbeddingService | api | Local MiniLM 384-dim (`@huggingface/transformers`) |
 | SearchService | api | FTS5 + semantic (cosine / sqlite-vec) |
-| LlmService | api | Optional completions (Anthropic + OpenAI-compatible) |
+| LlmService | api | Optional completions via named LLM profiles (Anthropic, Alibaba, OpenAI-compatible, Ollama / LM Studio / llama.cpp); model discovery + per-profile test |
 | Editor / Operations | api | Versioned edits; clone, rehome, archive, tag |
 | Converter / Exporter | api | Extract artifacts; export datasets |
 | Harness transform / transfer | api | Claude/Codex export payloads; transfer façade still pending |
@@ -86,7 +86,7 @@ graph TB
 
 ## Data Flow
 
-IndexerService discovers harness JSONL, stores **raw events**, normalizes **universal messages**, flattens **search messages**, and optionally embeds. Clients talk to `localhost:3100` except `llm-toolkit recent` (direct SQLite). Skills linking is filesystem-only.
+IndexerService discovers harness JSONL, stores **raw events**, normalizes **universal messages**, flattens **search messages**, and optionally embeds. LLM enrichment runs as two passes — conversation describe, then work-item extraction — over conversations whose `content_hash` changed (local-profile model preferred by default; deep window defaults to 14 days). Clients talk to `localhost:3100` except `llm-toolkit recent` (direct SQLite). Skills linking is filesystem-only.
 
 → *See [arch/data-flow.md](arch/data-flow.md)*
 
@@ -141,6 +141,7 @@ Web **Skills**, **Agents**, **Commands**, and **MCP** pages (and `llm-toolkit sk
 - **One SPA, two windows** — browser and Mac host the same React console
 - **Symlink skills/agents/commands, don’t copy** — one canonical tree; per-harness dests; MCP is a config entry
 - **Launcher-centric UX** — one PATH entry for web, TUI, API, and `skill`
+- **Named LLM profiles over globals** — per-profile provider/baseUrl/model/key with env fallbacks; indexing prefers the default local profile
 - **Rust owns memory semantics** — one normative implementation; Swift is a REST client; golden fixtures decide disputes
 
 ## Technology Stack
@@ -151,7 +152,7 @@ Web **Skills**, **Agents**, **Commands**, and **MCP** pages (and `llm-toolkit sk
 | API | Hono + @hono/node-server |
 | Database | better-sqlite3 + sqlite-vec |
 | Embeddings | @huggingface/transformers (`all-MiniLM-L6-v2`) |
-| LLM | @anthropic-ai/sdk + openai-compatible |
+| LLM | @anthropic-ai/sdk + OpenAI-compatible endpoints, driven by named profiles (Anthropic, Alibaba, local servers) |
 | Watch | chokidar |
 | Web | React 18, Vite 6, React Router 7, Tailwind 3.4 |
 | Markdown | react-markdown, KaTeX, Mermaid, syntax highlighter |

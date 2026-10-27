@@ -4,7 +4,7 @@ Local-first **llm-toolkit** (*Claude Assist* / *agent-watch-dog*): index coding-
 
 ## Components
 
-- **API** (Hono :3100) — IndexerService (JSONL → raw → universal → flat messages; chokidar); StorageService; EmbeddingService (MiniLM); SearchService; LlmService; editor/operations; converter/exporter; harness-transform (Claude/Codex); harness-transfer + session-workflow (pending write-back); SkillsService (categories.yaml + per-provider dests); MemoryService (`/api/memory` via Rust claude-memory napi); ServiceSupervisor (NPL plugin services). Also serves `packages/web/dist`.
+- **API** (Hono :3100) — IndexerService (JSONL → raw → universal → flat messages; chokidar; two-tier incremental describe + work-items passes keyed on `content_hash`); StorageService; EmbeddingService (MiniLM); SearchService; LlmService (named LLM profiles: Anthropic, Alibaba, OpenAI-compatible, local servers; model discovery + test-profile); editor/operations; converter/exporter; harness-transform (Claude/Codex); harness-transfer + session-workflow (pending write-back); SkillsService (categories.yaml + per-provider dests); MemoryService (`/api/memory` via Rust claude-memory napi); ServiceSupervisor (NPL plugin services). Also serves `packages/web/dist`.
 - **Web** — Explore, thread/edit/convert/continue, projects, datasets, prompts, tags, **Skills / Agents / Commands / MCP**, settings, Safety Watch stub, style guide. `hostBridge.ts` for the Mac host.
 - **macOS** — SwiftUI + WKWebView around the same SPA; starts or attaches to `:3100`; ClaudeMemoryKit package = REST client for `/api/memory`.
 - **CLI** — `recent` (direct DB), `search`, `list`, `show`, `index`; full Ink TUI.

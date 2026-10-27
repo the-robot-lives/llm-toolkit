@@ -7,6 +7,7 @@ web/
 ├── src/
 │   ├── components/
 │   │   ├── Layout.tsx          # sidebar (Skills first in Library); hides chrome for Mac
+│   │   ├── LlmProfileForm.tsx  # LLM profile editor (provider presets, masked keys, model discovery)
 │   │   └── MarkdownView.tsx
 │   ├── hostBridge.ts           # Mac-host navigate / native-chrome flags
 │   ├── context/HarnessContext.tsx
@@ -34,7 +35,7 @@ web/
 │   ├── App.tsx
 │   └── main.tsx
 ├── public/favicon.svg
-├── index.html
+├── index.html                  # injects the annotate widget on the dev server only (localhost:5173)
 ├── package.json
 ├── vite.config.ts
 └── vitest.config.ts
