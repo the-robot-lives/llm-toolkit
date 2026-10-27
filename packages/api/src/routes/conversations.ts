@@ -8,10 +8,11 @@ import { identifyCandidates, convertToArtifact } from "../services/converter.ts"
 import { OperationsService } from "../services/operations.ts";
 import type { SearchService } from "../services/search.ts";
 import type { IndexerService } from "../services/indexer.ts";
+import type { ProjectCatalog } from "../services/project-catalog.ts";
 import { prepareContinuationPayload } from "../services/session-workflow.ts";
 
 // <REMOVED UUID HERE> createConversationRoutes :: auto-generated pointer for public function createConversationRoutes
-export function createConversationRoutes(storage: StorageService, searchService?: SearchService, indexer?: IndexerService): Hono {
+export function createConversationRoutes(storage: StorageService, searchService?: SearchService, indexer?: IndexerService, projects?: ProjectCatalog): Hono {
   const routes = new Hono();
 
   routes.post("/:id/analyze", async (c) => {
@@ -38,8 +39,9 @@ export function createConversationRoutes(storage: StorageService, searchService?
     const project = c.req.query("project");
     const harness = c.req.query("harness") as AgentHarness | undefined;
 
-    const conversations = await storage.getConversations({ sort, limit, offset, groupBy, project, harness });
-    const total = await storage.getConversationCount(project, harness);
+    const paths = project && projects ? await projects.paths(project) : undefined;
+    const conversations = await storage.getConversations({ sort, limit, offset, groupBy, project, projects: paths, harness });
+    const total = await storage.getConversationCount(paths ?? project, harness);
 
     return c.json({ data: conversations, meta: { total, limit, offset } });
   });

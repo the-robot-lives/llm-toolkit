@@ -198,3 +198,27 @@ License: MIT.
 Choose **Alibaba Cloud (Model Studio)** to configure an Alibaba profile. Select the endpoint preset for your Token Plan, Coding Plan, or standard Model Studio key and region, or edit the base URL. These keys and endpoints are not interchangeable; see [Alibaba's endpoint reference](https://www.alibabacloud.com/help/en/model-studio/base-url).
 
 Enter the key (or set `ALIBABA_API_KEY` / `DASHSCOPE_API_KEY`), then choose **Test & fetch models** before saving. The request uses the current draft fields without saving them or running a completion. Fetched model IDs appear in the Model field's dropdown; you can also enter a model ID manually. Providers that do not expose model discovery return an explicit error rather than a successful empty fallback. Discovery validates access to the model list, not that a completion will succeed for every listed model.
+
+### Tobor projects and repository scopes
+
+Projects groups repositories by their explicit `npl-scope` organization and
+project. A product site and its libraries can share the same project. Registered
+Git worktrees appear with their owning repository, and conversations aggregate
+across all locations without moving or rewriting their source files. Existing
+directory titles, descriptions, tags, and links remain available.
+
+Scope lookup ignores the API process's `NPL_ORG` / `NPL_PROJECT` environment.
+Explicit repository/worktree scope or a matching monorepo registry entry is
+required for grouping; inherited global defaults do not merge unrelated repos.
+The scope utility's inventory includes registered repositories even before they
+have conversations. Unmapped repositories are labeled explicitly; their known worktrees still group
+under the canonical checkout. If `npl-scope` is unavailable, directory browsing
+still works.
+
+Use **Projects → Connect to Tobor** (also available in Settings) to authorize
+Agentonomi's `tobor-tobor` MCP endpoint. This uses its own browser OAuth grant;
+therobot.is memory credentials are never reused. The Projects page lists
+accessible remote projects and links matching local scopes to their remote IDs.
+**Link a repository** sets its canonical checkout's `.agent-kit.yaml` through
+`npl-scope set --scope repo`; its worktrees inherit that scope unless explicitly
+overridden. Scanning never writes repository configuration automatically.
