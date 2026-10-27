@@ -34,7 +34,7 @@ describe("skills routes", () => {
       join(source, "demo-skill", "SKILL.md"),
       "---\nname: demo-skill\ndescription: Demo\n---\n\n# Demo Skill\n",
     );
-    const noopLlm = { reconfigure: async () => {} } as never;
+    const noopLlm = { reconfigure: async () => {}, setProfiles: () => {} } as never;
     app.route("/api/config", createConfigRoutes(storage, noopLlm));
     app.route("/api/skills", createSkillRoutes(storage));
     await app.request("/api/config", {
