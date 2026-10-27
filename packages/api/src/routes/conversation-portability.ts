@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { serializeClaudeJsonl } from "../services/native/claude.ts";
 import { conversationMarkdown } from "@llm-toolkit/shared";
 import type { AgentHarness, EditedMessage, UniversalContentBlock, UniversalMessage } from "@llm-toolkit/shared";
 import { ConversationPortabilityService, type ConversationCloneRequest } from "../services/conversation-portability.ts";
@@ -34,7 +35,7 @@ export function createConversationPortabilityRoutes(service: ConversationPortabi
       const body = await c.req.json() as { content?: string; target?: string };
       if (typeof body.content !== "string" || body.content.length > 50_000_000 || !targets.has(body.target ?? "")) return c.json({ error: "Provide at most 50 MB and a known target" }, 400);
       const records = body.content.split(/\r?\n/).filter((line) => line.trim()).map((line, index) => { try { return JSON.parse(line); } catch { throw new Error(`Invalid JSON at line ${index + 1}; no content was changed`); } });
-      const content = records.map((record) => JSON.stringify(record)).join("\n") + "\n";
+      const content = body.target === "claude" ? serializeClaudeJsonl(records) : records.map((record) => JSON.stringify(record)).join("\n") + "\n";
       return c.json({ data: { content, report: await validateConversationContent(content, body.target as AgentHarness | "universal") } });
     } catch (error) { return c.json({ error: error instanceof SyntaxError ? "Invalid formatting request" : error instanceof Error ? error.message : "Formatting failed" }, 400); }
   });

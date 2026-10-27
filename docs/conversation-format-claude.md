@@ -32,3 +32,17 @@ Both validators check nonempty assistant API message ID and `type: "message"`, s
 The installed application Anthropic SDK `0.39.0` declares the original four reasons plus nullable streaming state. The [official current Message/StopReason types](https://github.com/anthropics/anthropic-sdk-typescript/blob/main/src/resources/messages/messages.ts) additionally document `pause_turn`, `refusal` and `model_context_window_exceeded`; the source validator recognizes these legitimate values while the renderer emits its narrower completed-history subset. A structure-only local sample of 20 transcript files observed 1,446 assistant envelopes, all `type: "message"` with the required ID/type/reason fields; observed reasons were `tool_use`, `end_turn` and `stop_sequence`. No message contents, IDs or paths were emitted or added to fixtures.
 
 Focused regressions cover Codex reasons with flattened tool calls, genuine native tool pairs, invalid assistant ID/type/reason, block/reason mismatches, and incomplete streaming reasons. All 18 focused tests and API typecheck passed without model requests or user-history writes.
+
+## Unicode separators and the Python SDK fork parser (2026-10-27)
+
+Raw U+0085, U+2028 and U+2029 inside JSON strings are valid native JSONL. However, the pinned Python SDK `0.2.174` `_parse_fork_transcript` decodes UTF-8 and uses Python `splitlines()`, which treats these codepoints as record boundaries and can silently discard the affected messages. This is visible in the [official fork parser source](https://github.com/anthropics/claude-agent-sdk-python/blob/717cea09021fac3654879f0a362ed254a73ec35d/src/claude_agent_sdk/_internal/session_mutations.py), and was reproduced with the installed package rather than inferred from an issue summary.
+
+Claude clone serialization and the Claude target's Format JSONL action now escape those three codepoints as JSON Unicode escapes in every record. Parsing yields exactly the original text. The validator reports `sdk-fork-unescaped-line-separator` with a structural line location and `repairable: true` on external raw-separator files. It keeps their native JSONL classification valid and explains the narrower SDK fork interoperability risk. Formatting is an explicit lossless repair; validation never rewrites a user's file.
+
+The optional external-reader regression runs the real SDK in a child process with only `CLAUDE_CONFIG_DIR` redirected to a disposable fixture. It reproduces the raw-separator fork failure, then checks the repaired four-message mixed user/assistant session through both `get_session_messages` and `fork_session`, including exact Unicode content, fresh fork UUIDs and preserved parent relationships. It invokes no model and never changes the real user archive or `HOME`.
+
+```sh
+LLM_TOOLKIT_CLAUDE_SDK_PYTHON=/path/to/isolated-sdk-0.2.174-venv/bin/python pnpm --filter @llm-toolkit/api exec vitest run src/__tests__/services/native-claude.test.ts src/__tests__/services/native-claude-reader.test.ts
+```
+
+A separate quick path check found that this Python SDK sanitizes a non-BMP emoji project-directory character to one hyphen, whereas the CLI-compatible JavaScript UTF-16 sanitizer produces two. This change does not alter native Claude destination encoding; SDK directory lookup in emoji paths remains a separate compatibility limitation. ASCII fixture paths keep the separator regression independent of that issue.
