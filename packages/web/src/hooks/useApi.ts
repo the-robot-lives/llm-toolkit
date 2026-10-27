@@ -112,6 +112,65 @@ export function useSearch(query: string, mode: "fts" | "semantic" = "fts", filte
   return useApiQuery<SearchResponse>(path);
 }
 
+export type LlmProfileProvider =
+  | "anthropic"
+  | "openai-compatible"
+  | "ollama"
+  | "lmstudio"
+  | "llamacpp";
+
+export interface LlmProfile {
+  id: string;
+  name: string;
+  provider: LlmProfileProvider;
+  apiType?: "openai" | "anthropic";
+  baseUrl?: string;
+  model: string;
+  apiKey?: string; // masked "••••" in GET — sending it back keeps the stored key
+  local: boolean;
+}
+
+export interface LlmIndexingConfig {
+  preferLocal: boolean;
+  deepWindowDays: number;
+}
+
+export interface LlmProfilesResponse {
+  profiles: LlmProfile[];
+  defaultProfileId: string;
+  defaultLocalProfileId?: string;
+  indexing: LlmIndexingConfig;
+}
+
+// ⟦𓍿𓄿𓋹𓎡⟧ useLlmProfiles :: profiles + defaults + indexing config
+export function useLlmProfiles() {
+  return useApiQuery<LlmProfilesResponse>("/llm/profiles");
+}
+
+export function testLlmProfile(id: string): Promise<{ ok: boolean; models?: string[]; error?: string }> {
+  return apiFetch("/llm/test-profile", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
+}
+
+export function analyzeConversation(id: string): Promise<{ ok: boolean; items: number }> {
+  return apiFetch(`/conversations/${encodeURIComponent(id)}/analyze`, {
+    method: "POST",
+  });
+}
+
+export function rebuildIndex(options: { useLocalLlm?: boolean; deepWindowDays?: number; force?: boolean } = {}) {
+  return apiFetch("/index/rebuild", {
+    method: "POST",
+    body: JSON.stringify({
+      useLocalLlm: options.useLocalLlm ?? false,
+      deepWindowDays: options.deepWindowDays,
+      force: options.force ?? false,
+    }),
+  });
+}
+
 interface IndexStatusResponse {
   data: {
     status: string;
@@ -122,6 +181,7 @@ interface IndexStatusResponse {
       current: number;
       total: number;
       currentFile?: string;
+      llm?: string;
     };
   };
 }

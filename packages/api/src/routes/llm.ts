@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { LlmService } from "../services/llm.ts";
 import type { StorageService } from "../services/storage.ts";
 import type { LlmCompletionRequest, LlmConfig } from "@llm-toolkit/shared";
+import { loadConfig, maskKey, isMaskedKey } from "./config.ts";
 
 const LLM_ENV_KEYS: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
@@ -12,11 +13,6 @@ const LLM_ENV_KEYS: Record<string, string> = {
   zai: "ZAI_API_KEY",
   litellm: "LITELLM_API_KEY",
 };
-
-function isMaskedKey(key: string | undefined): boolean {
-  if (!key) return false;
-  return key === "***" || /^.{3}\.\.\..{4}$/.test(key);
-}
 
 function resolveApiKey(config: LlmConfig, storage: StorageService): LlmConfig {
   if (config.apiKey && !isMaskedKey(config.apiKey)) return config;
@@ -82,6 +78,43 @@ export function createLlmRoutes(llmService: LlmService, storage: StorageService)
       return c.json({ data: models });
     } catch {
       return c.json({ data: [] });
+    }
+  });
+
+  routes.get("/profiles", (c) => {
+    const config = loadConfig(storage);
+    const profiles = (config.llmProfiles ?? []).map((p) => ({ ...p, apiKey: maskKey(p.apiKey) }));
+    return c.json({
+      data: {
+        profiles,
+        defaultProfileId: config.defaultProfileId ?? "",
+        defaultLocalProfileId: config.defaultLocalProfileId,
+        indexing: config.indexing ?? { preferLocal: true, deepWindowDays: 14 },
+      },
+    });
+  });
+
+  routes.post("/test-profile", async (c) => {
+    const body = await c.req.json() as { id?: string };
+    if (!body?.id) {
+      return c.json({ ok: false, error: "id is required" }, 400);
+    }
+    const config = loadConfig(storage);
+    const profile = (config.llmProfiles ?? []).find((p) => p.id === body.id);
+    if (!profile) {
+      return c.json({ ok: false, error: `Unknown profile: ${body.id}` });
+    }
+    const { profileToLlmConfig } = await import("../services/llm.ts");
+    const ephemeral = new (await import("../services/llm.ts")).LlmService();
+    await ephemeral.initialize(profileToLlmConfig(profile));
+    if (!ephemeral.available) {
+      return c.json({ ok: false, error: `Profile '${profile.id}' is not available (missing key or bad config)` });
+    }
+    try {
+      const models = await ephemeral.listModels();
+      return c.json({ ok: true, models });
+    } catch (err) {
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   });
 

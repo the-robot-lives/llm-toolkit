@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { apiFetch, useIndexStatus } from "../hooks/useApi.js";
+import { apiFetch, useIndexStatus, rebuildIndex } from "../hooks/useApi.js";
+import type { LlmProfile, LlmIndexingConfig } from "../hooks/useApi.js";
+import { LlmProfileForm, emptyProfile } from "../components/LlmProfileForm.js";
 
 interface LlmConfig {
   provider: string;
@@ -14,12 +16,11 @@ interface AppConfig {
   indexPaths: string[];
   embedding: { provider: string; model?: string; apiKey?: string };
   llm?: LlmConfig;
+  llmProfiles?: LlmProfile[];
+  defaultProfileId?: string;
+  defaultLocalProfileId?: string;
+  indexing?: LlmIndexingConfig;
   server: { port: number; host: string };
-}
-
-interface LlmStatus {
-  available: boolean;
-  provider: string;
 }
 
 interface ScanProject {
@@ -46,19 +47,12 @@ export function Settings() {
   const [saving, setSaving] = useState(false);
   const [reindexing, setReindexing] = useState(false);
   const [newPath, setNewPath] = useState("");
-  const [llmStatus, setLlmStatus] = useState<LlmStatus | null>(null);
   const [scanPreview, setScanPreview] = useState<ScanPreview | null>(null);
   const [scanning, setScanning] = useState(false);
   const [excludedProjects, setExcludedProjects] = useState<Set<string>>(new Set());
   const [browsingPath, setBrowsingPath] = useState(false);
   const [dirEntries, setDirEntries] = useState<string[]>([]);
   const [browseBase, setBrowseBase] = useState("");
-  const [testPrompt, setTestPrompt] = useState("");
-  const [testResponse, setTestResponse] = useState<string | null>(null);
-  const [testError, setTestError] = useState<string | null>(null);
-  const [testing, setTesting] = useState(false);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [loadingModels, setLoadingModels] = useState(false);
   const { data: idxData, refetch: refetchIndex } = useIndexStatus();
   const indexStatus = idxData?.data;
 
@@ -70,7 +64,14 @@ export function Settings() {
     };
     apiFetch<{ data: AppConfig }>("/config")
       .then((res) => {
-        setConfig(res.data);
+        const cfg = res.data;
+        // Normalize: ensure profiles/indexing exist (older configs may lack them)
+        cfg.llmProfiles = cfg.llmProfiles ?? (cfg.llm ? [] : []);
+        cfg.indexing = cfg.indexing ?? { preferLocal: true, deepWindowDays: 14 };
+        if (!cfg.defaultProfileId && cfg.llmProfiles.length > 0) {
+          cfg.defaultProfileId = cfg.llmProfiles[0].id;
+        }
+        setConfig(cfg);
         setLoading(false);
       })
       .catch(() => {
@@ -78,31 +79,6 @@ export function Settings() {
         setLoading(false);
       });
   }, []);
-
-  useEffect(() => {
-    apiFetch<{ data: LlmStatus }>("/llm/status")
-      .then((res) => {
-        setLlmStatus(res.data);
-        if (res.data.available) {
-          apiFetch<{ data: string[] }>("/llm/models")
-            .then((r) => setAvailableModels(r.data))
-            .catch(() => {});
-        }
-      })
-      .catch(() => {});
-  }, [saving]);
-
-  const fetchModels = () => {
-    if (!config?.llm?.provider) return;
-    setLoadingModels(true);
-    apiFetch<{ data: string[] }>("/llm/models", {
-      method: "POST",
-      body: JSON.stringify(config.llm),
-    })
-      .then((res) => setAvailableModels(res.data))
-      .catch(() => setAvailableModels([]))
-      .finally(() => setLoadingModels(false));
-  };
 
   const handleSave = async () => {
     if (!config) return;
@@ -133,12 +109,16 @@ export function Settings() {
   const handleReindex = async () => {
     setReindexing(true);
     try {
-      await apiFetch("/index/rebuild", { method: "POST" });
+      await rebuildIndex({
+        useLocalLlm: config?.indexing?.preferLocal ?? true,
+        deepWindowDays: config?.indexing?.deepWindowDays ?? 14,
+        force: false,
+      });
       const pollInterval = setInterval(async () => {
         try {
           const res = await apiFetch<{ data: { status: string; progress?: { phase: string; current: number; total: number; currentFile?: string } } }>("/index/status");
           refetchIndex();
-          if (res.data.status === "idle" && (!res.data.progress || res.data.progress.phase === "idle")) {
+          if (res.data.status === "idle" && (!res.data.progress || res.data.progress.phase === "idle" || res.data.progress.phase === "done")) {
             clearInterval(pollInterval);
             setReindexing(false);
             setScanPreview(null);
@@ -177,26 +157,45 @@ export function Settings() {
     setConfig({ ...config, embedding: { ...config.embedding, ...updates } });
   };
 
-  const updateLlm = (updates: Partial<LlmConfig>) => {
+  const updateIndexing = (updates: Partial<LlmIndexingConfig>) => {
     if (!config) return;
-    setConfig({ ...config, llm: { ...config.llm, provider: config.llm?.provider ?? "", ...updates } });
+    setConfig({ ...config, indexing: { preferLocal: true, deepWindowDays: 14, ...config.indexing, ...updates } });
   };
 
-  const handleTestLlm = async () => {
-    setTesting(true);
-    setTestError(null);
-    setTestResponse(null);
-    const prompt = testPrompt.trim() || "Say hello in one sentence";
-    try {
-      const res = await apiFetch<{ data: { content: string; model: string; provider: string } }>("/llm/complete", {
-        method: "POST",
-        body: JSON.stringify({ messages: [{ role: "user", content: prompt }], maxTokens: 256 }),
-      });
-      setTestResponse(res.data.content);
-    } catch (err) {
-      setTestError(err instanceof Error ? err.message : "Request failed — is the API running and LLM configured?");
-    }
-    setTesting(false);
+  const updateProfile = (id: string, updates: Partial<LlmProfile>) => {
+    if (!config) return;
+    setConfig({
+      ...config,
+      llmProfiles: (config.llmProfiles ?? []).map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    });
+  };
+
+  const addProfile = () => {
+    if (!config) return;
+    const profile = emptyProfile();
+    setConfig({
+      ...config,
+      llmProfiles: [...(config.llmProfiles ?? []), profile],
+      defaultProfileId: config.defaultProfileId ?? profile.id,
+    });
+  };
+
+  const deleteProfile = (id: string) => {
+    if (!config) return;
+    const remaining = (config.llmProfiles ?? []).filter((p) => p.id !== id);
+    const localRemaining = remaining.filter((p) => p.local);
+    setConfig({
+      ...config,
+      llmProfiles: remaining,
+      defaultProfileId:
+        config.defaultProfileId === id
+          ? remaining[0]?.id ?? ""
+          : config.defaultProfileId,
+      defaultLocalProfileId:
+        config.defaultLocalProfileId === id
+          ? localRemaining[0]?.id ?? ""
+          : config.defaultLocalProfileId,
+    });
   };
 
   if (loading) {
@@ -204,38 +203,17 @@ export function Settings() {
   }
 
   const embeddingNeedsKey = config?.embedding.provider && config.embedding.provider !== "local";
-  const llmProvider = config?.llm?.provider ?? "";
-  const llmNeedsKey = llmProvider && llmProvider !== "ollama";
-  const llmNeedsBaseUrl = llmProvider === "ollama" || llmProvider === "litellm" || llmProvider === "custom" || llmProvider === "zai";
-  const llmIsCustom = llmProvider === "custom";
 
-  const ENV_KEY_NAMES: Record<string, string> = {
-    anthropic: "ANTHROPIC_API_KEY",
-    openai: "OPENAI_API_KEY",
-    groq: "GROQ_API_KEY",
-    cerebras: "CEREBRAS_API_KEY",
-    deepseek: "DEEPSEEK_API_KEY",
-    zai: "ZAI_API_KEY",
-    litellm: "LITELLM_API_KEY",
-  };
+  const profiles = config?.llmProfiles ?? [];
+  const localProfiles = profiles.filter((p) => p.local);
+  const indexing = config?.indexing ?? { preferLocal: true, deepWindowDays: 14 };
 
-  const MODEL_PLACEHOLDERS: Record<string, string> = {
-    anthropic: "claude-sonnet-4-20250514",
-    openai: "gpt-4o",
-    ollama: "llama3",
-    litellm: "claude-sonnet-4-6",
-    groq: "llama-3.3-70b",
-    cerebras: "llama-3.3-70b",
-    deepseek: "deepseek-chat",
-    zai: "glm-5.3-flash",
-    custom: "model-name",
-  };
-
-  const BASE_URL_PLACEHOLDERS: Record<string, string> = {
-    ollama: "http://localhost:11434",
-    litellm: "https://inference.noizu.com/v1",
-    zai: "https://api.z.ai/api/coding/paas/v4",
-    custom: "https://api.example.com/v1",
+  const PHASE_LABELS: Record<string, string> = {
+    scan: "Scanning files...",
+    describe: "Describing conversations...",
+    "work-items": "Extracting work items...",
+    embed: "Embedding...",
+    done: "Finishing up...",
   };
 
   return (
@@ -275,7 +253,9 @@ export function Settings() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-xs text-text-dim">
                   <span>
-                    {indexStatus.progress.phase === "scanning" ? "Scanning files..." : `Indexing ${indexStatus.progress.current} / ${indexStatus.progress.total}`}
+                    {PHASE_LABELS[indexStatus.progress.phase]
+                      ?? (indexStatus.progress.phase === "scanning" ? "Scanning files..." : `Indexing ${indexStatus.progress.current} / ${indexStatus.progress.total}`)}
+                    {indexStatus.progress.llm ? ` (${indexStatus.progress.llm})` : ""}
                   </span>
                   {indexStatus.progress.currentFile && (
                     <span className="truncate max-w-xs font-mono text-text-dim">{indexStatus.progress.currentFile}</span>
@@ -289,6 +269,30 @@ export function Settings() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Indexing LLM preferences */}
+          <div className="space-y-3 rounded-md bg-canvas px-4 py-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={indexing.preferLocal}
+                onChange={(e) => updateIndexing({ preferLocal: e.target.checked })}
+                className="accent-cyan-400 shrink-0"
+              />
+              <span className="text-xs text-text-primary">Prefer local LLM for indexing / feature extraction</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-text-muted shrink-0">Deep analysis window (days)</label>
+              <input
+                type="number"
+                min={1}
+                value={indexing.deepWindowDays}
+                onChange={(e) => updateIndexing({ deepWindowDays: Math.max(1, Number(e.target.value) || 1) })}
+                className="w-20 rounded bg-void px-2 py-1 text-xs text-text-primary outline-none border border-border-subtle focus:border-glow"
+              />
+              <span className="text-xs text-text-dim">Recent conversations within this window get deeper LLM analysis.</span>
+            </div>
           </div>
 
           {/* Watch paths */}
@@ -455,205 +459,94 @@ export function Settings() {
           )}
         </section>
 
-        {/* LLM Provider */}
-        <section className="rounded-md border border-border-subtle bg-surface p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-medium text-text-primary">LLM Inference</h2>
-            {llmStatus && (
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                llmStatus.available
-                  ? "bg-green-900/30 text-green-400"
-                  : "bg-yellow-900/30 text-yellow-400"
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${llmStatus.available ? "bg-green-400" : "bg-yellow-400"}`} />
-                {llmStatus.available ? `${llmStatus.provider} connected` : "Not configured"}
-              </span>
-            )}
+        {/* LLM Profiles */}
+        <section className="rounded-md border border-border-subtle bg-surface p-6 space-y-4">
+          <div>
+            <h2 className="text-base font-medium text-text-primary">LLM Profiles</h2>
+            <p className="mt-1 text-xs text-text-dim">
+              Configure one or more LLM providers. Cloud profiles need an API key; LM Studio, Ollama, and llama.cpp run locally with no key required.
+            </p>
           </div>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Provider</label>
-              <select
-                value={llmProvider}
-                onChange={(e) => {
-                  if (!config) return;
-                  const val = e.target.value;
-                  setAvailableModels([]);
-                  if (!val) {
-                    setConfig({ ...config, llm: undefined });
-                  } else if (val === "zai") {
-                    setConfig({
-                      ...config,
-                      llm: {
-                        provider: "zai",
-                        apiKey: config.llm?.apiKey,
-                        model: "glm-5.3-flash",
-                        baseUrl: "https://api.z.ai/api/coding/paas/v4",
-                      },
-                    });
-                  } else {
-                    setConfig({ ...config, llm: { provider: val, apiKey: config.llm?.apiKey } });
-                  }
-                  setAvailableModels([]);
-                }}
-                className="rounded bg-canvas px-3 py-1.5 text-sm text-text-primary border border-border-subtle outline-none"
-              >
-                <option value="">None</option>
-                <option disabled className="text-text-dim">{"── Cloud Providers ──"}</option>
-                <option value="anthropic">Anthropic (Claude)</option>
-                <option value="openai">OpenAI</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="groq">Groq</option>
-                <option value="cerebras">Cerebras</option>
-                <option value="zai">Z.ai (Zhipu/GLM)</option>
-                <option disabled className="text-text-dim">{"── Proxies & Local ──"}</option>
-                <option value="litellm">LiteLLM Proxy</option>
-                <option value="ollama">Ollama (Local)</option>
-                <option disabled className="text-text-dim">{"── Advanced ──"}</option>
-                <option value="custom">Custom Endpoint</option>
-              </select>
-            </div>
-
-            {llmProvider && (
-              <>
-                {llmIsCustom && (
-                  <div>
-                    <label className="block text-xs text-text-muted mb-1">API Type</label>
-                    <select
-                      value={config?.llm?.apiType ?? "openai"}
-                      onChange={(e) => updateLlm({ apiType: e.target.value as "openai" | "anthropic" })}
-                      className="rounded bg-canvas px-3 py-1.5 text-sm text-text-primary border border-border-subtle outline-none"
-                    >
-                      <option value="openai">OpenAI-compatible</option>
-                      <option value="anthropic">Anthropic-compatible</option>
-                    </select>
-                  </div>
-                )}
-
-                {llmNeedsKey && (
-                  <div>
-                    <label className="block text-xs text-text-muted mb-1">API Key</label>
-                    <input
-                      type="password"
-                      value={config?.llm?.apiKey ?? ""}
-                      onChange={(e) => updateLlm({ apiKey: e.target.value || undefined })}
-                      placeholder="Enter API key (or set via environment variable)"
-                      className="w-full rounded bg-canvas px-3 py-1.5 text-sm text-text-primary placeholder:text-text-dim outline-none border border-border-subtle"
-                    />
-                    {ENV_KEY_NAMES[llmProvider] && (
-                      <p className="mt-1 text-xs text-text-dim">
-                        Can also be set via {ENV_KEY_NAMES[llmProvider]} environment variable.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {llmNeedsBaseUrl && (
-                  <div>
-                    <label className="block text-xs text-text-muted mb-1">Base URL</label>
-                    <input
-                      type="text"
-                      value={config?.llm?.baseUrl ?? ""}
-                      onChange={(e) => updateLlm({ baseUrl: e.target.value || undefined })}
-                      placeholder={BASE_URL_PLACEHOLDERS[llmProvider] ?? "https://api.example.com/v1"}
-                      className="w-full rounded bg-canvas px-3 py-1.5 text-sm text-text-primary placeholder:text-text-dim outline-none border border-border-subtle"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs text-text-muted">Model</label>
-                    <button
-                      onClick={fetchModels}
-                      disabled={loadingModels}
-                      className="text-xs text-glow hover:underline disabled:opacity-50"
-                    >
-                      {loadingModels ? "Loading..." : availableModels.length > 0 ? "Refresh models" : "Fetch models"}
-                    </button>
-                  </div>
-                  {availableModels.length > 0 ? (
-                    <>
-                      <select
-                        value={config?.llm?.model ?? ""}
-                        onChange={(e) => updateLlm({ model: e.target.value || undefined })}
-                        className="w-full rounded bg-canvas px-3 py-1.5 text-sm text-text-primary border border-border-subtle outline-none"
-                      >
-                        <option value="">Default ({MODEL_PLACEHOLDERS[llmProvider] ?? "auto"})</option>
-                        {availableModels.map((m) => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-2 mt-2">
-                        <input
-                          type="text"
-                          value={config?.llm?.model ?? ""}
-                          onChange={(e) => updateLlm({ model: e.target.value || undefined })}
-                          placeholder="Or type a model name manually"
-                          className="flex-1 rounded bg-canvas px-3 py-1.5 text-xs text-text-primary placeholder:text-text-dim outline-none border border-border-subtle"
-                        />
-                      </div>
-                      <p className="mt-1 text-xs text-text-dim">
-                        {availableModels.length} model{availableModels.length !== 1 ? "s" : ""} available. Select from list or type a custom name.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <input
-                        type="text"
-                        value={config?.llm?.model ?? ""}
-                        onChange={(e) => updateLlm({ model: e.target.value || undefined })}
-                        placeholder={MODEL_PLACEHOLDERS[llmProvider] ?? "model-name"}
-                        className="w-full rounded bg-canvas px-3 py-1.5 text-sm text-text-primary placeholder:text-text-dim outline-none border border-border-subtle"
-                      />
-                      <p className="mt-1 text-xs text-text-dim">
-                        {loadingModels ? "Fetching available models..." : "Save settings and click \"Fetch models\" to populate the dropdown, or type a model name."}
-                      </p>
-                    </>
-                  )}
-                </div>
-
-                {/* Test Connection */}
-                <div className="rounded-md border border-border-subtle bg-canvas p-4 space-y-3">
-                  <label className="block text-xs text-text-muted font-medium">Test Connection</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={testPrompt}
-                      onChange={(e) => setTestPrompt(e.target.value)}
-                      placeholder="Say hello in one sentence"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !testing) handleTestLlm();
-                      }}
-                      className="flex-1 rounded bg-void px-3 py-1.5 text-sm text-text-primary placeholder:text-text-dim outline-none border border-border-subtle focus:border-glow"
-                    />
-                    <button
-                      onClick={handleTestLlm}
-                      disabled={testing}
-                      className="rounded bg-glow px-4 py-1.5 text-sm font-medium text-void hover:bg-glow/90 disabled:opacity-50 whitespace-nowrap"
-                    >
-                      {testing ? "Sending..." : "Test"}
-                    </button>
-                  </div>
-                  {testError && (
-                    <div className="rounded bg-red-950/30 border border-red-900/50 px-3 py-2">
-                      <p className="text-xs text-red-400">{testError}</p>
-                    </div>
-                  )}
-                  {testResponse && (
-                    <div className="rounded bg-void border border-border-subtle px-3 py-2">
-                      <p className="text-xs text-text-muted mb-1 font-medium">Response:</p>
-                      <p className="text-sm text-text-primary whitespace-pre-wrap">{testResponse}</p>
-                    </div>
-                  )}
-                  <p className="text-xs text-text-dim">
-                    Save settings first, then send a test message to verify the provider is reachable.
-                  </p>
-                </div>
-              </>
+            {profiles.map((profile) => (
+              <LlmProfileForm
+                key={profile.id}
+                profile={profile}
+                onChange={(updates) => updateProfile(profile.id, updates)}
+                onDelete={() => deleteProfile(profile.id)}
+              />
+            ))}
+            {profiles.length === 0 && (
+              <p className="text-xs text-text-dim italic">No profiles configured. Add one to enable LLM features.</p>
             )}
           </div>
+
+          <button
+            onClick={addProfile}
+            className="rounded border border-border-subtle px-3 py-1.5 text-xs text-text-muted hover:text-text-primary hover:border-glow transition-colors"
+          >
+            + Add Profile
+          </button>
+
+          {/* Defaults */}
+          <div className="grid grid-cols-2 gap-4 border-t border-border-subtle pt-4">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Default LLM</label>
+              <select
+                value={config?.defaultProfileId ?? ""}
+                onChange={(e) => setConfig(config ? { ...config, defaultProfileId: e.target.value } : config)}
+                className="w-full rounded bg-canvas px-3 py-1.5 text-sm text-text-primary border border-border-subtle outline-none"
+              >
+                <option value="">None</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Default local LLM</label>
+              <select
+                value={config?.defaultLocalProfileId ?? ""}
+                onChange={(e) => setConfig(config ? { ...config, defaultLocalProfileId: e.target.value || undefined } : config)}
+                className="w-full rounded bg-canvas px-3 py-1.5 text-sm text-text-primary border border-border-subtle outline-none"
+              >
+                <option value="">None</option>
+                {localProfiles.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Local LLM setup help */}
+          <details className="rounded-md border border-border-subtle bg-canvas p-4">
+            <summary className="cursor-pointer text-xs font-medium text-text-muted">Local LLM setup</summary>
+            <div className="mt-3 space-y-3 text-xs text-text-dim">
+              <div>
+                <p className="font-medium text-text-muted">LM Studio</p>
+                <p>
+                  Start the local server: Developer tab → Start Server (port 1234). Enable CORS and serve on
+                  <code className="mx-1 rounded bg-void px-1 py-0.5 font-mono text-text-muted">localhost:1234/v1</code>.
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-text-muted">llama.cpp</p>
+                <p>
+                  Run <code className="rounded bg-void px-1 py-0.5 font-mono text-text-muted">llama-server -m &lt;model&gt; --port 8080</code> —
+                  an OpenAI-compatible endpoint at <code className="rounded bg-void px-1 py-0.5 font-mono text-text-muted">localhost:8080/v1</code>.
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-text-muted">Ollama</p>
+                <p>
+                  Install and <code className="rounded bg-void px-1 py-0.5 font-mono text-text-muted">ollama serve</code> (default
+                  <code className="mx-1 rounded bg-void px-1 py-0.5 font-mono text-text-muted">localhost:11434</code>). Pull a model with
+                  <code className="ml-1 rounded bg-void px-1 py-0.5 font-mono text-text-muted">ollama pull llama3</code>.
+                </p>
+              </div>
+            </div>
+          </details>
         </section>
 
         <p className="text-xs text-text-dim">

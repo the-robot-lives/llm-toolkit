@@ -10,7 +10,7 @@ const tempDir = mkdtempSync(join(tmpdir(), "llm-toolkit-test-"));
 process.env.LLM_TOOLKIT_DATA_DIR = tempDir;
 const storage = new StorageService(join(tempDir, "test.db"));
 
-const noopLlm = { reconfigure: async () => {} } as any;
+const noopLlm = { reconfigure: async () => {}, setProfiles: () => {} } as any;
 
 const app = new Hono();
 
