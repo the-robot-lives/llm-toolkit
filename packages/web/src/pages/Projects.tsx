@@ -238,6 +238,7 @@ export function Projects() {
                   <p className="truncate font-mono text-xs text-text-muted" title={proj.projectPath}>
                     {proj.scope ? `${proj.scope.organization} / ${proj.scope.project}` : proj.projectPath}
                   </p>
+                  {!proj.scope && <p className="text-xs text-text-muted">No explicit organization/project scope</p>}
                   {proj.scope && (() => {
                     const remote = remoteProjects.find(item => item.organizationSlug === proj.scope!.organization && item.slug === proj.scope!.project);
                     return remote ? <a href={`https://agentonomi.com/app/${encodeURIComponent(remote.organizationSlug)}/projects/${encodeURIComponent(remote.id)}`} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="text-xs text-glow underline">Open Tobor project · {remote.name}</a> : <p className="text-xs text-text-muted">{remoteProjects.length ? "No matching project in connected Tobor account" : "Connect to Tobor to verify remote project"}</p>;

@@ -211,7 +211,9 @@ Scope lookup ignores the API process's `NPL_ORG` / `NPL_PROJECT` environment.
 Explicit repository/worktree scope or a matching monorepo registry entry is
 required for grouping; inherited global defaults do not merge unrelated repos.
 The scope utility's inventory includes registered repositories even before they
-have conversations. If `npl-scope` is unavailable, directory browsing still works.
+have conversations. Unmapped repositories are labeled explicitly; their known worktrees still group
+under the canonical checkout. If `npl-scope` is unavailable, directory browsing
+still works.
 
 Use **Projects → Connect to Tobor** (also available in Settings) to authorize
 Agentonomi's `tobor-tobor` MCP endpoint. This uses its own browser OAuth grant;

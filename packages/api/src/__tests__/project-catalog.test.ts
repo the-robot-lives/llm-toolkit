@@ -1,5 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { StorageService } from "../services/storage.ts";
@@ -24,10 +24,11 @@ describe("scoped project catalog", () => {
     const catalog = new ProjectCatalog(storage, {
       resolveScope: async path => path === tree ? { ...scope(main), repo_root: tree } : scope(path, path.endsWith("other") ? "other" : "toolkit"),
       inventory: async () => ({ repositories: [] }),
-      worktrees: async root => root === main ? [main, tree, `${main}/.claude/worktrees/unused`] : [],
+      worktrees: async root => root === main ? [main, `${main}/.git`, tree, `${main}/.claude/worktrees/unused`] : [],
     });
     const group = (await catalog.list()).find(project => project.projectPath === "tobor:robot/toolkit")!;
     expect(group.conversationCount).toBe(3);
+    expect(group.locations.some(location => location.path === `${main}/.git`)).toBe(false);
     expect(group.locations.find(location => location.path === tree)).toMatchObject({ isWorktree: true, title: "In-progress feature", tags: ["feature"] });
     expect((await storage.getProjectMeta(tree))!.title).toBe("In-progress feature");
     const conversations = createConversationRoutes(storage, undefined, undefined, catalog);
@@ -44,4 +45,33 @@ describe("scoped project catalog", () => {
     const catalog = new ProjectCatalog(storage, { resolveScope: async root => ({ ...scope(root), project: { value: "infrastructure", from: "/parent/.agent-kit.yaml" } }), inventory: async () => ({}), worktrees: async () => [] });
     expect((await catalog.list()).map(project => project.projectPath).sort()).toEqual(["/one", "/two"]);
   });
+  test("groups known worktrees of an unmapped repository without assigning an inherited project", async () => {
+    const root = "/unmapped/repository"; const tree = `${root}/.claude/worktrees/task`;
+    await conversation("base", root); await conversation("task", tree);
+    const catalog = new ProjectCatalog(storage, { resolveScope: async path => ({ ...scope(root), repo_root: path, project: { value: "infrastructure", from: "parent:/monorepo/.agent-kit.yaml" } }), inventory: async () => ({}), worktrees: async () => [root, tree] });
+    const rows = await catalog.list();
+    expect(rows).toHaveLength(1); expect(rows[0]).toMatchObject({ projectPath: root, scope: null, conversationCount: 2 });
+    expect(rows[0].locations.find(location => location.path === tree)?.isWorktree).toBe(true);
+    const routes = createConversationRoutes(storage, undefined, undefined, catalog);
+    const result = await (await routes.request("/?project=" + encodeURIComponent(root))).json();
+    expect(result.meta.total).toBe(2);
+  });
+
+  test("reuses canonical scope only when a conventional worktree has no explicit override", async () => {
+    const root = join(dir, "repo"); const plain = join(root, ".claude/worktrees/plain"); const overridden = join(root, ".claude/worktrees/overridden");
+    for (const tree of [plain, overridden]) {
+      mkdirSync(tree, { recursive: true }); const gitdir = join(dir, tree === plain ? "plain-git" : "override-git"); mkdirSync(gitdir);
+      writeFileSync(join(tree, ".git"), `gitdir: ${gitdir}\n`);
+      if (tree === overridden) writeFileSync(join(gitdir, "agent-kit.yaml"), "project: private-project\n");
+    }
+    await conversation("base", root);
+    const resolveScope = vi.fn(async (path: string) => path === overridden ? { ...scope(root, "private-project"), repo_root: path } : scope(root));
+    const catalog = new ProjectCatalog(storage, { resolveScope, inventory: async () => ({}), worktrees: async () => [root, plain, overridden] });
+    const groups = await catalog.list();
+    expect(groups.find(project => project.scope?.project === "toolkit")?.locations.some(location => location.path === plain)).toBe(true);
+    expect(groups.find(project => project.scope?.project === "private-project")?.locations[0].path).toBe(overridden);
+    expect(resolveScope).not.toHaveBeenCalledWith(plain);
+    expect(resolveScope).toHaveBeenCalledWith(overridden);
+  });
+
 });

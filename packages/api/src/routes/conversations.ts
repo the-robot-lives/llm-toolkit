@@ -39,7 +39,7 @@ export function createConversationRoutes(storage: StorageService, searchService?
     const project = c.req.query("project");
     const harness = c.req.query("harness") as AgentHarness | undefined;
 
-    const paths = project?.startsWith("tobor:") && projects ? await projects.paths(project) : undefined;
+    const paths = project && projects ? await projects.paths(project) : undefined;
     const conversations = await storage.getConversations({ sort, limit, offset, groupBy, project, projects: paths, harness });
     const total = await storage.getConversationCount(paths ?? project, harness);
 
