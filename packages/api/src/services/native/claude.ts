@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { basename } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type {
   ConversationCompatibilityIssue, NativeConversationAdapter, NativeConversationArtifact,
   NativeConversationContext, NativeConversationValidation, UniversalContentBlock,
@@ -9,6 +10,8 @@ import type {
 type JsonRecord = Record<string, unknown>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const compatibilityVersion = "claude-code/2.1.311;agent-sdk-python/0.2.174";
+// Anthropic Message response enum; broader than the generated clone subset.
+const nativeStopReasons = new Set(["end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn", "refusal", "model_context_window_exceeded"]);
 const absoluteCwd = (value: unknown) => typeof value === "string" && (/^\//.test(value) || /^[a-zA-Z]:[\\/]/.test(value) || /^\\\\/.test(value));
 const chainTypes = new Set(["user", "assistant", "progress", "system", "attachment"]);
 const isObject = (value: unknown): value is JsonRecord => Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -281,7 +284,18 @@ export function renderClaudeConversation(thread: UniversalThread, context: Nativ
       const rawMessage = isObject(message.providerRaw) ? messageOf(message.providerRaw) : {};
       const sourceId = sameHarness ? string(rawMessage.id) || message.id : message.id;
       if (!assistantIds.has(sourceId)) assistantIds.set(sourceId, `msg_${randomUUID().replaceAll("-", "")}`);
-      Object.assign(native, { id: assistantIds.get(sourceId), type: "message", ...(sameHarness && message.model ? { model: message.model } : {}), stop_reason: content.some(b => b.type === "tool_use") ? "tool_use" : message.stopReason ?? "end_turn", stop_sequence: null });
+      const sourceContent = typeof rawMessage.content === "string" ? [{ type: "text", text: rawMessage.content }] : rawMessage.content;
+      const unchangedNativeBody = sameHarness && rawMessage.role === "assistant"
+        && rawMessage.stop_reason === message.stopReason && isDeepStrictEqual(sourceContent, content);
+      // Preserve compatible completion metadata only with evidence that the
+      // original native body survived. A server pause is not a completed turn.
+      const safeNativeReason = ["end_turn", "max_tokens", "refusal", "model_context_window_exceeded"].includes(message.stopReason ?? "")
+        || message.stopReason === "stop_sequence" && Boolean(string(rawMessage.stop_sequence));
+      const stopReason = content.some(b => b.type === "tool_use") ? "tool_use"
+        : unchangedNativeBody && safeNativeReason ? message.stopReason! : "end_turn";
+      const stopSequence = stopReason === "stop_sequence" ? rawMessage.stop_sequence : null;
+      if (message.stopReason != null && message.stopReason !== stopReason) issue("stop-reason-normalized", "Source stop reason was normalized to match the emitted Claude response blocks.");
+      Object.assign(native, { id: assistantIds.get(sourceId), type: "message", ...(sameHarness && message.model ? { model: message.model } : {}), stop_reason: stopReason, stop_sequence: stopSequence });
       if (message.usage && sameHarness) native.usage = structuredClone(message.usage);
       if (!sameHarness && message.model) issue("source-model-not-restored", "Source model metadata remains in the portable archive; the target CLI uses its own model configuration.");
     }
@@ -330,6 +344,14 @@ export function validateClaudeConversation(jsonl: string, context?: NativeConver
     const message = messageOf(record);
     if (message.role !== record.type || !Array.isArray(message.content) || !message.content.length) { fail("invalid-native-message", "Native message role/content does not match its record type."); continue; }
     const content = message.content as unknown[];
+    if (record.type === "assistant") {
+      if (!string(message.id)) fail("invalid-assistant-id", "Assistant API message id must be a nonempty string.", `${location}/message/id`);
+      if (message.type !== "message") fail("invalid-assistant-type", "Assistant API message type must be message.", `${location}/message/type`);
+      if (!nativeStopReasons.has(string(message.stop_reason))) fail("invalid-stop-reason", "Assistant stop reason is not a supported Claude response value.", `${location}/message/stop_reason`);
+      const usesTool = content.some(b => isObject(b) && b.type === "tool_use");
+      if (usesTool !== (message.stop_reason === "tool_use")) fail("stop-reason-content-mismatch", "Generated stop reason must match whether this response emits native tool calls.", `${location}/message/stop_reason`);
+      if (message.stop_reason === "stop_sequence" && !string(message.stop_sequence)) fail("invalid-stop-sequence", "A stop_sequence response requires the matched sequence string.", `${location}/message/stop_sequence`);
+    }
     if (pending.size && record.type === "assistant" && message.id !== pendingResponse) fail("interrupted-tool-transaction", "A new assistant response appears before earlier tool calls have results.");
     if (pending.size && record.type === "user" && !content.some(b => isObject(b) && b.type === "tool_result")) fail("interrupted-tool-transaction", "A user turn interrupts an unanswered tool transaction.");
     let nonResultSeen = false;
@@ -403,6 +425,13 @@ function validateExistingClaudeRecords(records: JsonRecord[]): NativeConversatio
     if (!absoluteCwd(r.cwd)) add("error", "invalid-cwd", "Message cwd is missing or is not an absolute Unix/Windows directory. Choose the intended destination when cloning.", index, "cwd");
     if (!Number.isFinite(Date.parse(string(r.timestamp)))) add("error", "invalid-timestamp", "Message timestamp is missing or invalid. Preserve a valid original timestamp or supply an explicit replacement in a clone.", index, "timestamp");
     const m = messageOf(r);
+    if (r.type === "assistant") {
+      if (!string(m.id)) add("error", "invalid-assistant-id", "Assistant API message id must be a nonempty string.", index, "message/id");
+      if (m.type !== "message") add("error", "invalid-assistant-type", "Assistant API message type must be message.", index, "message/type");
+      if (m.stop_reason === null || m.stop_reason === undefined) add("warning", "pending-stop-reason", "Assistant stop reason is incomplete, as in an interrupted streaming response. Review before continuing it.", index, "message/stop_reason");
+      else if (!nativeStopReasons.has(string(m.stop_reason))) add("error", "invalid-stop-reason", "Assistant stop reason is not a supported Claude response value.", index, "message/stop_reason");
+      if (m.stop_reason === "stop_sequence" && !string(m.stop_sequence)) add("error", "invalid-stop-sequence", "A stop_sequence response requires the matched sequence string.", index, "message/stop_sequence");
+    }
     if (m.role !== r.type) add("error", "invalid-native-role", "The message role must match its user/assistant transcript entry type.", index, "message/role");
     if (!(typeof m.content === "string" || Array.isArray(m.content))) add("error", "invalid-native-content", "Message content must be a string or an array of content blocks.", index, "message/content");
     for (const [blockIndex, block] of (Array.isArray(m.content) ? m.content : []).entries()) {
@@ -466,7 +495,7 @@ function validateExistingClaudeRecords(records: JsonRecord[]): NativeConversatio
     }
   }
   if (pending.size) add("warning", "unanswered-tool-call", "The active chain ends with interrupted tool calls. Claude can mark them interrupted on resume; a portable clone should render them as historical text to avoid replay ambiguity.", indices.get(chain.at(-1)!) ?? 0, "message/content");
-  return Object.assign({ valid: !issues.some(i => i.severity === "error"), issues }, { compatibilityVersion, complete: !issues.some(i => i.severity === "error" || ["unknown-native-entry", "unvalidated-content-block", "missing-thinking-signature", "unanswered-tool-call", "interrupted-tool-transaction", "duplicate-message-id"].includes(i.code)) });
+  return Object.assign({ valid: !issues.some(i => i.severity === "error"), issues }, { compatibilityVersion, complete: !issues.some(i => i.severity === "error" || ["unknown-native-entry", "unvalidated-content-block", "missing-thinking-signature", "unanswered-tool-call", "interrupted-tool-transaction", "duplicate-message-id", "pending-stop-reason"].includes(i.code)) });
 }
 
 export const claudeConversationAdapter: NativeConversationAdapter = { harness: "claude", compatibilityVersion, render: renderClaudeConversation, validate: validateClaudeConversation };
