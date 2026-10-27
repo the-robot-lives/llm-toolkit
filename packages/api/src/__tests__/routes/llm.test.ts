@@ -36,14 +36,14 @@ describe("draft profile discovery", () => {
   test("tests unsaved Alibaba settings and returns models without persisting", async () => {
     const response = await request({ profile: { ...saved, id: "not-saved", model: "", apiKey: "draft-credential" } });
     expect(await response.json()).toEqual({ ok: true, models: ["qwen-flash", "qwen-max"] });
-    expect(fetch).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ headers: { Authorization: "Bearer draft-credential" } }));
-    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain("/api/v1/models?");
+    expect(construct).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "draft-credential", baseURL: saved.baseUrl }));
+    expect(fetch).not.toHaveBeenCalled();
     expect(setSetting).not.toHaveBeenCalled();
   });
 
   test("resolves masked credentials for the same saved connection", async () => {
     expect((await request({ profile: { ...saved, apiKey: "tes...tial", model: "" } })).status).toBe(200);
-    expect(fetch).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ headers: { Authorization: `Bearer ${saved.apiKey}` } }));
+    expect(construct).toHaveBeenCalledWith(expect.objectContaining({ apiKey: saved.apiKey }));
   });
 
   test.each([
@@ -56,7 +56,7 @@ describe("draft profile discovery", () => {
   });
 
   test("reports authentication failures instead of a false successful empty list", async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response("upstream echoed secret", { status: 401 }));
+    listModels.mockRejectedValue(Object.assign(new Error("upstream echoed secret"), { status: 401 }));
     const result = await (await request({ id: saved.id })).json();
     expect(result.ok).toBe(false);
     expect(result.error).toContain("HTTP 401");
@@ -71,7 +71,8 @@ describe("draft profile discovery", () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response(JSON.stringify({ output: { total: 2, models: [{ model: "page-one" }] } })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ output: { total: 2, models: [{ model: "page-two" }] } })));
-    expect(await (await request({ id: saved.id })).json()).toEqual({ ok: true, models: ["page-one", "page-two"] });
+    expect(await (await request({ profile: { ...saved, baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" } })).json()).toEqual({ ok: true, models: ["page-one", "page-two"] });
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain("https://dashscope-intl.aliyuncs.com/api/v1/models?");
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toContain("page_no=2");
   });
 

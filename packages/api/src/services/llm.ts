@@ -118,7 +118,9 @@ class AnthropicProvider implements LlmProvider {
     try {
       const client = await this.getClient();
       const page = await client.models.list({ limit: 100 }, { timeout: 10_000, maxRetries: 0 });
-      return page.data.map((m) => m.id).sort();
+      const models: string[] = [];
+      for await (const model of page) models.push(model.id);
+      return models.sort();
     } catch (error) {
       if (strict) throw error;
       return [...ANTHROPIC_MODELS];
@@ -187,9 +189,13 @@ class OpenAICompatibleProvider implements LlmProvider {
   async listModels(strict = false): Promise<string[]> {
     try {
       // Model Studio documents a native catalog, separate from its OpenAI
-      // completion URL. Keep the same origin/key so plan credentials never
+      // completion URL. Token/Coding Plans use the compatible /models path.
+      // Keep the same origin/key so plan credentials never
       // cross over to a different Alibaba service.
-      if (this.providerLabel === "alibaba" && this.baseUrl?.replace(/\/$/, "").endsWith("/compatible-mode/v1")) {
+      const host = this.baseUrl ? new URL(this.baseUrl).hostname : "";
+      const nativeCatalogHost = ["dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com", "cn-hongkong.dashscope.aliyuncs.com"].includes(host) ||
+        (host.endsWith(".maas.aliyuncs.com") && !host.startsWith("token-plan."));
+      if (this.providerLabel === "alibaba" && nativeCatalogHost && this.baseUrl?.replace(/\/$/, "").endsWith("/compatible-mode/v1")) {
         const root = this.baseUrl.replace(/\/$/, "").replace(/\/compatible-mode\/v1$/, "");
         const models: string[] = [];
         const signal = AbortSignal.timeout(10_000);

@@ -117,6 +117,7 @@ function migrateLlmProfiles(dbConfig: Partial<AppConfig>): void {
   const legacy = dbConfig.llm;
   const providerMap: Record<string, LlmProfile["provider"]> = {
     anthropic: "anthropic",
+    alibaba: "alibaba",
     openai: "openai-compatible",
     litellm: "openai-compatible",
     groq: "openai-compatible",
