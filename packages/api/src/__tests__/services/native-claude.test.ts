@@ -85,6 +85,28 @@ describe("Claude native conversation adapter", () => {
     expect(validateClaudeConversation(artifact.jsonl, context).valid).toBe(true);
   });
 
+  it("normalizes foreign and stale stop reasons to the actual emitted Claude response", () => {
+    for (const stopReason of ["stop", "tool_calls", "tool_use"]) {
+      const source = thread();
+      source.messages[1].stopReason = stopReason;
+      source.messages[1].provenance = { harness: "codex", sourcePath: "/fixture/foreign.jsonl" };
+      source.messages[1].content = [{ type: "tool_use", toolCallId: "foreign-call", name: "exec_command", input: { cmd: "fixture" } }];
+      const artifact = renderClaudeConversation(source, context);
+      const assistant = artifact.records.find(r => r.type === "assistant")!.message as Record<string, unknown>;
+      expect(assistant.stop_reason).toBe("end_turn");
+      expect(artifact.issues.some(i => i.code === "stop-reason-normalized" && i.severity === "warning")).toBe(true);
+      expect(validateClaudeConversation(artifact.jsonl, context).valid).toBe(true);
+    }
+    const native = thread(parallelRecords());
+    native.messages.filter(m => m.role === "assistant").forEach(m => { m.stopReason = "tool_use"; });
+    const artifact = renderClaudeConversation(native, context);
+    for (const record of artifact.records.filter(r => r.type === "assistant")) {
+      const message = record.message as { content: Array<{ type: string }>; stop_reason: string };
+      expect(message.stop_reason).toBe(message.content.some(b => b.type === "tool_use") ? "tool_use" : "end_turn");
+    }
+    expect(validateClaudeConversation(artifact.jsonl, context).valid).toBe(true);
+  });
+
   it("retains unchanged signed native thinking but renders edited or unsigned thinking as history", () => {
     const block = { type: "thinking", thinking: "Original reasoning", signature: "opaque-source-signature" };
     const source = thread([record("u", null, "user", "Question"), record("a", "u", "assistant", [block, text("Answer")])]);
@@ -144,6 +166,33 @@ describe("standalone Claude transcript validation", () => {
     expect(checked.issues).toEqual([]);
     expect(checked).toMatchObject({ compatibilityVersion: "claude-code/2.1.311;agent-sdk-python/0.2.174" });
   });
+  it("validates assistant API identity, type and stop reasons with sanitized structural diagnostics", () => {
+    for (const [field, value, code] of [["id", null, "invalid-assistant-id"], ["type", "foreign-type", "invalid-assistant-type"], ["stop_reason", "foreign-secret-value", "invalid-stop-reason"]] as const) {
+      const artifact = nativeFixture(); const record = artifact.records.find(r => r.type === "assistant")!;
+      (record.message as Record<string, unknown>)[field] = value;
+      for (const ctx of [undefined, context]) {
+        const report = validateClaudeConversation(raw(artifact.records), ctx);
+        expect(report.valid).toBe(false);
+        expect(report.issues.some(i => i.code === code && i.path?.endsWith(`/message/${field}`))).toBe(true);
+        expect(JSON.stringify(report)).not.toContain("foreign-secret-value");
+      }
+    }
+    const artifact = nativeFixture(); const record = artifact.records.find(r => r.type === "assistant")!;
+    (record.message as Record<string, unknown>).stop_reason = "end_turn";
+    expect(validateClaudeConversation(raw(artifact.records), context).issues.some(i => i.code === "stop-reason-content-mismatch")).toBe(true);
+  });
+  it("keeps interrupted null stop reasons incomplete and legitimate native response values readable", () => {
+    const artifact = renderClaudeConversation(thread(), context);
+    const message = artifact.records.find(r => r.type === "assistant")!.message as Record<string, unknown>;
+    for (const reason of ["end_turn", "max_tokens", "stop_sequence", "pause_turn", "refusal", "model_context_window_exceeded"]) {
+      message.stop_reason = reason; message.stop_sequence = reason === "stop_sequence" ? "fixture sequence" : null;
+      expect(validateClaudeConversation(raw(artifact.records)).valid).toBe(true);
+    }
+    message.stop_reason = null;
+    expect(validateClaudeConversation(raw(artifact.records))).toMatchObject({ valid: true, complete: false });
+    expect(validateClaudeConversation(raw(artifact.records), context).valid).toBe(false);
+  });
+
   it("reports unknown version extensions without deleting them or pretending they are malformed", () => {
     const artifact = nativeFixture();
     const checked = validateClaudeConversation(raw([...artifact.records, { type: "future-native-metadata", value: "not shown in diagnostics" }]));
