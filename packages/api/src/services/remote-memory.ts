@@ -118,8 +118,9 @@ export class RemoteMemoryService implements OAuthClientProvider {
     });
   }
 
-  call(tool: "graph_subgraph" | "recall_preview" | "remember" | "memory_set", args: Record<string, unknown>) {
+  call(tool: "graph_subgraph" | "recall_preview" | "remember" | "memory_set", args: Record<string, unknown>, expectedConnectionId?: string) {
     return this.exclusive(async () => {
+      if (expectedConnectionId && this.saved.connectionId !== expectedConnectionId) throw new Error("Memory connection changed");
       if (!this.saved.tokens) throw new Error("Sign in to therobot.is to access your memories.");
       if (!["graph_subgraph", "recall_preview"].includes(tool) && !this.status().writeEnabled) throw new Error("Reconnect with memory editing enabled to make changes.");
       const client = new Client({ name: "llm-toolkit", version: "0.1.0" });
@@ -129,6 +130,9 @@ export class RemoteMemoryService implements OAuthClientProvider {
         const { tools } = await client.listTools();
         const selected = tools.find((item) => item.name === tool) ?? tools.find((item) => item.name.toLowerCase().replace(/[^a-z0-9]/g, "").endsWith(tool.replaceAll("_", "")));
         if (!selected) throw new Error("The memory service does not support this action.");
+        // Bulk review retries rely on the server's import deduplication contract.
+        // Never silently send an unprotected write to an older server schema.
+        if (tool === "remember" && args.source_ref && !selected.inputSchema?.properties?.source_ref) throw new Error("The memory service does not support safe bulk imports yet.");
         const result = await client.callTool({ name: selected.name, arguments: args });
         if (result.isError) throw new Error("The memory service rejected this action. Check your account permissions and try again.");
         if (result.structuredContent) return result.structuredContent;

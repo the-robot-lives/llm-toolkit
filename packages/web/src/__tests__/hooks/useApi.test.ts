@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { apiFetch } from "../../hooks/useApi.ts";
+import { apiFetch, useLlmProfiles } from "../../hooks/useApi.ts";
+import { renderHook, waitFor } from "@testing-library/react";
 
 describe("apiFetch", () => {
   beforeEach(() => {
@@ -59,5 +60,13 @@ describe("apiFetch", () => {
 
     const callArgs = mockFetch.mock.calls[0];
     expect(callArgs[1].headers["Content-Type"]).toBe("application/json");
+  });
+
+  test("unwraps saved LLM profiles for the extraction profile selector", async () => {
+    const profiles = { profiles: [{ id: "local", name: "Local", model: "model", provider: "ollama", local: true }], defaultProfileId: "local" };
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: profiles }) });
+    const { result } = renderHook(() => useLlmProfiles());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.data).toEqual(profiles);
   });
 });

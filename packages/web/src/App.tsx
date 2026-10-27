@@ -14,6 +14,7 @@ import { Projects } from "./pages/Projects.js";
 import { ProjectDetail } from "./pages/ProjectDetail.js";
 import { Settings } from "./pages/Settings.js";
 import { Memories } from "./pages/Memories.js";
+import { MemoryReview } from "./pages/MemoryReview.js";
 import { Services } from "./pages/Services.js";
 import { Skills } from "./pages/Skills.js";
 import { Agents } from "./pages/Agents.js";
@@ -35,6 +36,7 @@ export function App() {
         <Route path="thread/:id/continue" element={<ContinueSession />} />
         <Route path="thread/:id/edit" element={<Edit />} />
         <Route path="thread/:id/convert" element={<Convert />} />
+        <Route path="thread/:id/memories" element={<MemoryReview />} />
         <Route path="datasets" element={<Datasets />} />
         <Route path="datasets/:name" element={<DatasetDetail />} />
         <Route path="prompts" element={<Prompts />} />
