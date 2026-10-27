@@ -53,7 +53,7 @@ function canInheritWorktree(path: string, canonical: string): boolean {
   // External/legacy worktrees may have a different ancestor registry. Resolve
   // them through the CLI; reuse canonical records only within our convention.
   if (!directory.startsWith(`${canonical}/.claude/worktrees/`)) return false;
-  if (existsSync(resolve(directory, ".agent-kit.yaml"))) return false;
+  if (existsSync(resolve(directory, ".agent-kit.yaml")) || existsSync(resolve(directory, ".agent-kit/projects.tsv"))) return false;
   try {
     const pointer = readFileSync(resolve(directory, ".git"), "utf8").trim();
     if (!pointer.startsWith("gitdir: ")) return false;
@@ -139,7 +139,7 @@ export class ProjectCatalog {
     const repositories = new Map<string, RepositoryScope>();
     for (const scope of knownScopes.values()) {
       const key = scope.common_dir ?? scope.canonical_root ?? scope.repo_root;
-      if (key && !repositories.has(key)) repositories.set(key, scope);
+      if (key && (!repositories.has(key) || scope.repo_root === scope.canonical_root)) repositories.set(key, scope);
     }
     const repositoryScopes = [...repositories.values()];
     for (let i = 0; i < repositoryScopes.length; i += 8) {
@@ -147,6 +147,9 @@ export class ProjectCatalog {
         const root = scope.canonical_root ?? scope.repo_root;
         if (!root) return;
         try {
+          // A transcript may only mention an overridden worktree. Its private
+          // project must never become the default for the owning repository.
+          const canonicalScope = scope.repo_root === root ? scope : knownScopes.get(root) ?? await this.scope(root);
           let cachedTrees = this.trees.get(root);
           if (!cachedTrees || Date.now() - cachedTrees.at > 60_000) {
             cachedTrees = { at: Date.now(), data: await (this.options.worktrees ?? (async root => {
@@ -156,11 +159,12 @@ export class ProjectCatalog {
             this.trees.set(root, cachedTrees);
           }
           for (const path of new Set([root, ...cachedTrees.data])) {
-            if (path === scope.common_dir) continue;
+            if (physical(path) === scope.common_dir) continue;
+            if (path !== root && physical(path) === root && !locations.has(path)) continue;
             if (!locations.has(path)) locations.set(path, { project_path: path, conversation_count: 0, last_active: null });
             if (!knownScopes.has(path)) {
               knownScopes.set(path, canInheritWorktree(path, root)
-                ? { ...scope, repo_root: physical(path), canonical_root: root }
+                ? { ...canonicalScope, repo_root: physical(path), canonical_root: root }
                 : await this.scope(path));
             }
           }

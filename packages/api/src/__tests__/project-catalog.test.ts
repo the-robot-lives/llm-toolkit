@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { StorageService } from "../services/storage.ts";
@@ -58,20 +58,42 @@ describe("scoped project catalog", () => {
   });
 
   test("reuses canonical scope only when a conventional worktree has no explicit override", async () => {
-    const root = join(dir, "repo"); const plain = join(root, ".claude/worktrees/plain"); const overridden = join(root, ".claude/worktrees/overridden");
-    for (const tree of [plain, overridden]) {
-      mkdirSync(tree, { recursive: true }); const gitdir = join(dir, tree === plain ? "plain-git" : "override-git"); mkdirSync(gitdir);
+    const root = join(dir, "repo"); const plain = join(root, ".claude/worktrees/plain"); const overridden = join(root, ".claude/worktrees/overridden"); const registered = join(root, ".claude/worktrees/registered");
+    for (const tree of [plain, overridden, registered]) {
+      mkdirSync(tree, { recursive: true }); const gitdir = join(dir, tree === plain ? "plain-git" : tree === overridden ? "override-git" : "registry-git"); mkdirSync(gitdir);
       writeFileSync(join(tree, ".git"), `gitdir: ${gitdir}\n`);
       if (tree === overridden) writeFileSync(join(gitdir, "agent-kit.yaml"), "project: private-project\n");
+      if (tree === registered) { mkdirSync(join(tree, ".agent-kit")); writeFileSync(join(tree, ".agent-kit/projects.tsv"), "github.com/robot/repo\trobot\tregistry-project\n"); }
     }
     await conversation("base", root);
-    const resolveScope = vi.fn(async (path: string) => path === overridden ? { ...scope(root, "private-project"), repo_root: path } : scope(root));
-    const catalog = new ProjectCatalog(storage, { resolveScope, inventory: async () => ({}), worktrees: async () => [root, plain, overridden] });
+    const resolveScope = vi.fn(async (path: string) => path === overridden || path === registered ? { ...scope(root, path === overridden ? "private-project" : "registry-project"), repo_root: path } : scope(root));
+    const catalog = new ProjectCatalog(storage, { resolveScope, inventory: async () => ({}), worktrees: async () => [root, plain, overridden, registered] });
     const groups = await catalog.list();
     expect(groups.find(project => project.scope?.project === "toolkit")?.locations.some(location => location.path === plain)).toBe(true);
     expect(groups.find(project => project.scope?.project === "private-project")?.locations[0].path).toBe(overridden);
     expect(resolveScope).not.toHaveBeenCalledWith(plain);
     expect(resolveScope).toHaveBeenCalledWith(overridden);
+    expect(resolveScope).toHaveBeenCalledWith(registered);
+    expect(groups.find(project => project.scope?.project === "registry-project")?.locations[0].path).toBe(registered);
+  });
+
+  test("never promotes an indexed private worktree scope into its unindexed canonical checkout", async () => {
+    const root = join(dir, "repo"); const plain = join(root, ".claude/worktrees/plain"); const overridden = join(root, ".claude/worktrees/private");
+    for (const tree of [plain, overridden]) {
+      mkdirSync(tree, { recursive: true }); const gitdir = join(dir, tree === plain ? "plain-git" : "private-git"); mkdirSync(gitdir); writeFileSync(join(tree, ".git"), `gitdir: ${gitdir}\n`);
+      if (tree === overridden) writeFileSync(join(gitdir, "agent-kit.yaml"), "project: private-project\n");
+    }
+    await conversation("private-task", overridden);
+    const resolveScope = vi.fn(async (path: string) => ({ ...scope(root, path === overridden ? "private-project" : "canonical-project"), repo_root: path }));
+    const catalog = new ProjectCatalog(storage, { resolveScope, inventory: async () => ({}), worktrees: async () => [root, plain, overridden] });
+    const groups = await catalog.list();
+    expect(resolveScope).toHaveBeenCalledWith(realpathSync(root));
+    const canonical = groups.find(project => project.scope?.project === "canonical-project")!;
+    expect(canonical.locations.map(location => location.path).sort()).toEqual([realpathSync(root), plain].sort());
+    expect(canonical.conversationCount).toBe(0);
+    const privateProject = groups.find(project => project.scope?.project === "private-project")!;
+    expect(privateProject.locations.map(location => location.path)).toEqual([overridden]);
+    expect(privateProject.conversationCount).toBe(1);
   });
 
 });
