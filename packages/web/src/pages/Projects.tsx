@@ -111,6 +111,7 @@ function InlineEdit({
     return (
       <input
         ref={inputRef}
+        onClick={event => event.stopPropagation()}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
