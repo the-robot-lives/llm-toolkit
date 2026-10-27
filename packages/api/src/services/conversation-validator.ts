@@ -4,8 +4,8 @@ import type { AgentHarness, ConversationCompatibilityIssue, ConversationValidati
 export type NativeAdapters = Partial<Record<NativeConversationHarness, NativeConversationAdapter>>;
 
 export async function nativeConversationAdapters(): Promise<NativeAdapters> {
-  const [claude, codex] = await Promise.all([import("./native/claude.ts"), import("./native/codex.ts")]);
-  return { claude: claude.claudeConversationAdapter, codex: codex.codexConversationAdapter };
+  const [claude, codex, gemini] = await Promise.all([import("./native/claude.ts"), import("./native/codex.ts"), import("./native/gemini.ts")]);
+  return { claude: claude.claudeConversationAdapter, codex: codex.codexConversationAdapter, gemini: gemini.geminiConversationAdapter };
 }
 
 export async function validateConversationContent(content: string, target: AgentHarness | "universal", context?: NativeConversationContext, adapters?: NativeAdapters): Promise<ConversationValidationReport> {
@@ -18,7 +18,7 @@ export async function validateConversationContent(content: string, target: Agent
       return report(target, "llm-toolkit.conversation/v1", [{ severity: "error", code: "universal.invalid-document", path: "$.thread", message: error instanceof Error ? error.message : "Invalid universal conversation document", repairable: false }], true, 0);
     }
   }
-  if (target !== "claude" && target !== "codex") return { schemaVersion: 1, provider: target, compatibilityVersion: "unsupported", status: "unsupported", valid: false, errors: [], warnings: [{ severity: "warning", code: "adapter.unsupported", path: "$", message: `Native ${target} validation is not implemented. Use a universal document or Markdown export.`, repairable: false }] };
+  if (target !== "claude" && target !== "codex" && target !== "gemini") return { schemaVersion: 1, provider: target, compatibilityVersion: "unsupported", status: "unsupported", valid: false, errors: [], warnings: [{ severity: "warning", code: "adapter.unsupported", path: "$", message: `Native ${target} validation is not implemented. Use a universal document or Markdown export.`, repairable: false }] };
   const adapter = (adapters ?? await nativeConversationAdapters())[target];
   if (!adapter) return { schemaVersion: 1, provider: target, compatibilityVersion: "unsupported", status: "unsupported", valid: false, errors: [], warnings: [{ severity: "warning", code: "adapter.unavailable", path: "$", message: "This target adapter is not available in this build.", repairable: false }] };
   try {

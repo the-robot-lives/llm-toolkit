@@ -1,0 +1,28 @@
+# Portable conversations and validation
+
+Open a thread and choose **Format / Clone**. Select one or more source sections, choose the target provider, project directory and title, then **Preview and validate native clone**. The preview reports compatibility changes before **Create native clone** writes anything. To insert sections into an existing conversation, choose that conversation and a message boundary. Toolkit creates a fresh copy containing its prefix, the selected sections and its suffix; both originals remain unchanged. Boundaries inside pending tool exchanges are rejected.
+
+Universal JSON uses `format: llm-toolkit.conversation`, `version: 1` and the existing `UniversalThread` representation. It preserves source order (including equal or inverted timestamps), rich blocks and selected provenance. Noncontiguous selections retain explicit section boundaries; tool dependency expansion is reported. Partial selections exclude unrelated raw archives. Markdown is a readable historical export, not a native resumable session.
+
+Compact and Simplify use a selected configured LLM profile. Compact requires a contiguous selection, previews a clearly labelled historical summary, and retains full originals for restoration. Simplify validates every returned message identifier and source order. Oversized inputs fail explicitly rather than truncating. Structured messages expose individual indexed text blocks for editing; tool/reasoning/attachment blocks remain unchanged and in order. Simplify accepts plain text messages; structured messages use block editing or an explicit compact-summary preview.
+
+A native copy and its `.universal.json` archive are created privately (mode `0600`) with exclusive atomic publication. The complete archive is published first. Files are never overwritten. The archive binds the target provider/session to the exact initial native prefix, permitting later append-only turns. **Restore archived originals into preview** verifies that binding and the native message boundary, restores archived messages and retains later turns. Changed or ambiguous boundaries block restoration. Restoring changes only the preview until another explicit Create action.
+
+Native writers allowlist target fields: historical system/developer text is quoted context; source sandbox/approval settings and tool definitions are never adopted. Cross-provider tools/reasoning/unsupported attachments become labelled historical context with compatibility diagnostics. Original representations remain in the universal archive. Imported or modified provider signatures are not treated as trusted native blocks. See [Claude](conversation-format-claude.md), [Codex](conversation-formats-codex.md) and [Gemini](conversation-format-gemini.md) for pinned schemas, sources and acceptance evidence.
+
+Codex 0.164.0 generated clones were additionally accepted by isolated `thread/resume`, returning the same thread ID and one user/assistant turn. The temporary home used a credential-free fixture provider at `127.0.0.1:9`; only initialize/resume RPCs ran, with no model turn or tools. Claude SDK reader/fork and Gemini published-core reader/converter acceptance were verified; interactive Claude/Gemini CLI resume has not been exercised. Gemini native publication requires an existing registry mapping and matching ownership marker, resolved read-only and fingerprinted through publication. Open Gemini CLI once in the target directory if it is not registered.
+
+## Read-only validator
+
+The desktop Validator accepts native files or universal documents, reports stable structural codes and paths, and offers JSONL whitespace formatting as an explicit preview. It does not fabricate missing history or write source files. Unknown private fields or incomplete history produce incomplete/unsupported status rather than a green claim.
+
+The standalone command works with the app stopped, without API keys or SQLite:
+
+```sh
+llm-toolkit validate-conversation conversation.jsonl --target claude --json
+llm-toolkit validate conversation.json --target universal
+```
+
+Exit status: `0` valid, `1` invalid, `2` incomplete/unsupported, `3` usage/I/O failure. `--api http://127.0.0.1:3100` explicitly opts into the local service. Default-PATH Node 26 launcher smoke tests verified valid/invalid/unsupported exits `0/1/2`; malformed input diagnostics do not echo source text. API equivalents are POST `/api/conversations/validate` and GET `/api/conversations/:id/validate`. Reports use schema version 1, target compatibility version, status, errors and warnings with stable codes, paths and repairability flags.
+
+To extend coverage, add anonymized/synthetic native fixtures next to the provider tests, record the exact installed/published provider version and authoritative schema/reader source, reproduce the gap, then update import/render/validate together. Test semantic roundtrips, tool closure, ordering and the official isolated reader when available. General source validation permits documented native metadata; generated-clone validation is stricter. JSON parsing alone is not acceptance. No model run, personal transcript, credential or provider permission state belongs in a fixture.

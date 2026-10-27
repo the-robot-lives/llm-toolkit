@@ -1,3 +1,4 @@
+import { importGeminiConversation } from "./native/gemini.ts";
 import { importClaudeConversation } from "./native/claude.ts";
 import { importCodexConversation } from "./native/codex.ts";
 // 〚📁:4b2c3249-a37a-5486-a806-6fc7634583f1〛 IndexerService :: JSONL scan to raw/universal/flat layers + two-tier LLM enrichment.
@@ -751,7 +752,10 @@ function parseHarnessFile(harness: AgentHarness, filePath: string): ParsedConver
       return parseClaudeFile(filePath);
     case "codex":
       return parseCodexFile(filePath);
-    case "gemini":
+    case "gemini": {
+      const thread = importGeminiConversation(readFileSync(filePath, "utf-8"), filePath);
+      return { startedAt: thread.startedAt, updatedAt: thread.updatedAt, projectPath: thread.projectPath, title: thread.title, messages: thread.messages.map(universalToSearchMessage), universalMessages: thread.messages, rawEvents: thread.rawEvents ?? [], providerMetadata: thread.providerMetadata };
+    }
     case "opencode":
     case "aider":
     case "other":

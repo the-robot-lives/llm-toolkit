@@ -1,98 +1,44 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { App } from "../../App.tsx";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ContinueSession } from "../../pages/ContinueSession.tsx";
 
-const universalPayload = {
-  data: {
-    id: "conv-1",
-    harness: "claude",
-    sourcePath: "/Users/test/.claude/projects/example/session-123.jsonl",
-    projectPath: "/Users/test/project",
-    title: "Debug deployment",
-    startedAt: "2026-06-01T10:00:00.000Z",
-    updatedAt: "2026-06-01T10:05:00.000Z",
-    messages: [
-      {
-        id: "m1",
-        role: "user",
-        timestamp: "2026-06-01T10:00:00.000Z",
-        content: [{ type: "text", text: "What broke?" }],
-      },
-      {
-        id: "m2",
-        role: "assistant",
-        timestamp: "2026-06-01T10:01:00.000Z",
-        content: [{ type: "text", text: "The deployment failed during rollout." }],
-      },
-    ],
-    rawEvents: [
-      {
-        id: "raw-1",
-        timestamp: "2026-06-01T10:00:00.000Z",
-        harness: "claude",
-        eventType: "message",
-        payload: { type: "user" },
-      },
-    ],
-  },
-};
-
+const thread = { id: "conv-1", harness: "claude", sourcePath: "/fixture/source.jsonl", projectPath: "/fixture/project", title: "Synthetic conversation", startedAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:01Z", messages: [{ id: "m1", role: "user", timestamp: "2026-10-01T00:00:00Z", content: [{ type: "text", text: "Question" }] }, { id: "m2", role: "assistant", timestamp: "2026-10-01T00:00:01Z", content: [{ type: "text", text: "Answer" }] }] };
+const valid = { schemaVersion: 1, provider: "codex", compatibilityVersion: "fixture/v1", status: "valid", valid: true, errors: [], warnings: [] };
 beforeEach(() => {
   vi.restoreAllMocks();
-  vi.stubGlobal("fetch", vi.fn((url: string) => {
-    if (url.includes("/conversations/conv-1/universal")) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(universalPayload),
-      });
-    }
-    return Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve({ data: [], meta: { total: 0, limit: 20 } }),
-    });
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    let data: unknown = [];
+    if (url.includes("/universal")) data = thread;
+    else if (url.endsWith("/format-capabilities")) data = { targets: [{ harness: "claude", native: true, destinations: ["/fixture/claude"], compatibilityVersion: "fixture" }, { harness: "codex", native: true, destinations: ["/fixture/codex"], compatibilityVersion: "fixture" }] };
+    else if (url.endsWith("/clone-preview")) data = { previewId: "p1", targetHarness: "codex", sourcePath: "/fixture/new.jsonl", title: "Copy", projectPath: "/fixture/project", messageCount: 2, jsonl: "{}\n", resumeCommand: "codex resume fixture", report: valid, issues: [] };
+    else if (url.endsWith("/clone")) data = { id: "new", sourcePath: "/fixture/new.jsonl", universalPath: "/fixture/new.jsonl.universal.json", resumeCommand: "codex resume fixture", nativeCreated: true, indexed: true };
+    else if (url.endsWith("/validate")) data = { ...valid, status: "invalid", valid: false, errors: [{ severity: "error", code: "fixture.invalid", path: "/records/0", message: "Invalid fixture shape" }] };
+    return { ok: true, json: async () => ({ data, meta: { total: 0, limit: 200 } }) };
   }));
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText: vi.fn().mockResolvedValue(undefined) },
-  });
 });
+const show = () => render(<MemoryRouter initialEntries={["/thread/conv-1/continue"]}><Routes><Route path="/thread/:id/continue" element={<ContinueSession />} /></Routes></MemoryRouter>);
 
-describe("ContinueSession", () => {
-  test("renders continuation payload and transfer target states", async () => {
-    render(
-      <MemoryRouter initialEntries={["/thread/conv-1/continue"]}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Debug deployment" })).toBeInTheDocument();
-    });
-
-    expect(screen.getByText("Transfer Target")).toBeInTheDocument();
-    expect(screen.getByText("Native resume")).toBeInTheDocument();
-    expect(screen.getByText("Gemini")).toBeInTheDocument();
-    expect(screen.getAllByText("TODO").length).toBeGreaterThan(0);
-    expect(screen.getByText("Continuation Prompt")).toBeInTheDocument();
-    expect(screen.getByText(/Continue session: Debug deployment/)).toBeInTheDocument();
+describe("portable conversation flow", () => {
+  test("requires a validated preview and explicit creation", async () => {
+    show();
+    await screen.findByRole("heading", { name: "Format, snip and clone" });
+    fireEvent.change(screen.getByLabelText("Target provider"), { target: { value: "codex" } });
+    fireEvent.click(screen.getByRole("button", { name: "Preview and validate native clone" }));
+    await screen.findByRole("heading", { name: "Create a new codex conversation" });
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/clone"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Create native clone" }));
+    await screen.findByRole("heading", { name: "Native conversation created" });
+    expect(vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/clone"))?.[1]?.body).toBe(JSON.stringify({ previewId: "p1" }));
   });
-
-  test("switches target harness and raw view", async () => {
-    render(
-      <MemoryRouter initialEntries={["/thread/conv-1/continue"]}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole("heading", { name: "Debug deployment" });
-
-    fireEvent.click(screen.getByRole("button", { name: /Codex/ }));
-    expect(screen.getByText("Native resume is not available for this target; use the universal payload or prompt.")).toBeInTheDocument();
-    expect(screen.getByText(/Target: codex/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Raw" }));
-    expect(screen.getByText("Raw Transcript Events")).toBeInTheDocument();
-    expect(screen.getByText(/raw-1/)).toBeInTheDocument();
+  test("surfaces structural diagnostics without changing a file", async () => {
+    show();
+    await screen.findByRole("heading", { name: "Format, snip and clone" });
+    fireEvent.click(screen.getByRole("button", { name: "Validator" }));
+    fireEvent.change(screen.getByLabelText("Conversation content to validate"), { target: { value: "{}" } });
+    fireEvent.click(screen.getByRole("button", { name: "Validate content" }));
+    await screen.findByText("fixture.invalid");
+    expect(screen.getByText("/records/0")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/clone"))).toBe(false);
   });
 });

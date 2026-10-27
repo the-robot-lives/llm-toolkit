@@ -45,6 +45,7 @@ interface DraftMessage {
   rawEdited?: boolean;
   compactionOriginals?: DraftMessage[];
   universalMessage?: UniversalMessage;
+  textBlockEdits?: Array<{ index: number; text: string }>;
 }
 
 interface DraftEdit {
@@ -680,7 +681,7 @@ export function Edit() {
   const [nativePreview, setNativePreview] = useState<NativeClonePreview | null>(null);
   const [saveError, setSaveError] = useState("");
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState({ role: "user" as string, content: "", mode: "rendered" as "rendered" | "json", rawJson: "", rawError: "" });
+  const [editDraft, setEditDraft] = useState({ role: "user" as string, content: "", mode: "rendered" as "rendered" | "json", rawJson: "", rawError: "", textBlocks: [] as Array<{ index: number; text: string }> });
   const [insertingAt, setInsertingAt] = useState<number | null>(null);
   const [insertTemplate, setInsertTemplate] = useState<MessageTemplate | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -807,6 +808,7 @@ export function Edit() {
 
   const requestTransform = async (type: "compact" | "simplify") => {
     if (!selected.size || !compactProfileId) return;
+    if (type === "simplify" && [...selected].some(index => { const blocks = messages[index].universalMessage?.content; return blocks && (blocks.length !== 1 || blocks[0].type !== "text"); })) { setSaveError("Simplify accepts plain text messages. Edit structured text blocks individually to preserve tools, reasoning and attachments."); return; }
     const indices = [...selected].sort((a, b) => a - b);
     const source = structuredClone(messages);
     const snapshot = JSON.stringify(source);
@@ -869,6 +871,8 @@ export function Edit() {
   };
 
   const startEdit = (idx: number) => {
+    const blocks = messages[idx].universalMessage?.content;
+    if (blocks && !blocks.some(block => block.type === "text")) { setSaveError("This message has no editable text blocks. Tool, reasoning and attachment blocks remain read-only; use Format / Clone to transfer them."); return; }
     setEditingIdx(idx);
     setEditDraft({
       role: messages[idx].role,
@@ -876,6 +880,7 @@ export function Edit() {
       mode: "rendered",
       rawJson: JSON.stringify(rawRecordForMessage(messages[idx], originalRecords), null, 2),
       rawError: "",
+      textBlocks: messages[idx].textBlockEdits ?? messages[idx].universalMessage?.content.flatMap((block, index) => block.type === "text" ? [{ index, text: block.text }] : []) ?? [],
     });
     setInsertingAt(null);
     setInsertTemplate(null);
@@ -889,6 +894,7 @@ export function Edit() {
       mode: "json",
       rawJson: JSON.stringify(rawRecordForMessage(messages[idx], originalRecords), null, 2),
       rawError: "",
+      textBlocks: messages[idx].textBlockEdits ?? messages[idx].universalMessage?.content.flatMap((block, index) => block.type === "text" ? [{ index, text: block.text }] : []) ?? [],
     });
     setInsertingAt(null);
     setInsertTemplate(null);
@@ -915,7 +921,8 @@ export function Edit() {
       nextMessage = {
         ...messages[editingIdx],
         role: editDraft.role as DraftMessage["role"],
-        content: editDraft.content,
+        content: messages[editingIdx].universalMessage && (messages[editingIdx].universalMessage!.content.length !== 1 || messages[editingIdx].universalMessage!.content[0].type !== "text") ? universalMessageText({ ...messages[editingIdx].universalMessage!, content: messages[editingIdx].universalMessage!.content.map((block, index) => block.type === "text" ? { ...block, text: editDraft.textBlocks.find(change => change.index === index)?.text ?? block.text } : block) }) : editDraft.content,
+        textBlockEdits: messages[editingIdx].universalMessage && (messages[editingIdx].universalMessage!.content.length !== 1 || messages[editingIdx].universalMessage!.content[0].type !== "text") ? editDraft.textBlocks : undefined,
         rawEdited: messages[editingIdx].rawEdited,
         rawRecord: messages[editingIdx].rawRecord,
       };
@@ -968,10 +975,12 @@ export function Edit() {
     if (!confirm("Discard all edits and revert to original?")) return;
     try {
       await apiFetch(`/conversations/${id}/draft`, { method: "DELETE" });
+      const universal = await apiFetch<{ data: { messages: UniversalMessage[] } }>(`/conversations/${id}/universal`);
       const initial: DraftMessage[] = originalRecords.map((r, i) => ({
         originalIndex: i,
-        role: detectEffectiveRole(r),
-        content: extractText(r.message.content),
+        role: universal.data.messages[i]?.role ?? detectEffectiveRole(r),
+        content: universal.data.messages[i] ? universalMessageText(universal.data.messages[i]) : extractText(r.message.content),
+        universalMessage: universal.data.messages[i],
       }));
       setMessages(initial);
       setDraftId(null);
@@ -1256,13 +1265,13 @@ export function Edit() {
                       <option value="system">system</option>
                     </select>
                   </div>
-                  <textarea
+                  {msg.universalMessage && (msg.universalMessage.content.length !== 1 || msg.universalMessage.content[0].type !== "text") ? <div className="space-y-2"><p className="text-xs text-text-dim">Edit text blocks individually. Tool, reasoning and attachment blocks retain their order and contents.</p>{editDraft.textBlocks.map(block => <label key={block.index} className="block text-xs">Text block {block.index + 1}<textarea aria-label={`Text block ${block.index + 1}`} className="mt-1 w-full rounded bg-void p-3 font-mono text-xs" value={block.text} onChange={event => setEditDraft(draft => ({ ...draft, textBlocks: draft.textBlocks.map(value => value.index === block.index ? { ...value, text: event.target.value } : value) }))} /></label>)}</div> : <textarea
                     value={editDraft.content}
                     onChange={(e) => setEditDraft((d) => ({ ...d, content: e.target.value }))}
                     rows={Math.min(20, editDraft.content.split("\n").length + 2)}
                     className="w-full rounded bg-void border border-border-subtle px-4 py-3 text-sm text-text-primary placeholder:text-text-dim outline-none focus:border-glow resize-y font-mono leading-relaxed"
                     autoFocus
-                  />
+                  />}
                     </>
                   ) : (
                     <div className="space-y-2">

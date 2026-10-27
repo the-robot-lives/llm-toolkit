@@ -39,8 +39,8 @@ export function validateUniversalThread(value: unknown): asserts value is Univer
   for (const message of value.messages) {
     if (!record(message) || typeof message.id !== "string" || !message.id || ids.has(message.id)) throw new ConversationFormatError("Message IDs must be nonempty and unique");
     ids.add(message.id);
-    if (!ROLES.has(message.role as string) || typeof message.timestamp !== "string" || !Number.isFinite(Date.parse(message.timestamp))) throw new ConversationFormatError(`Invalid role or timestamp for message ${message.id}`);
-    if (!Array.isArray(message.content) || message.content.length > 10_000) throw new ConversationFormatError(`Invalid content for message ${message.id}`);
+    if (!ROLES.has(message.role as string) || typeof message.timestamp !== "string" || !Number.isFinite(Date.parse(message.timestamp))) throw new ConversationFormatError("Invalid message role or timestamp");
+    if (!Array.isArray(message.content) || message.content.length > 10_000) throw new ConversationFormatError("Invalid message content");
     message.content.forEach((block) => validateBlock(block, 0));
   }
   if (value.rawEvents !== undefined && !Array.isArray(value.rawEvents)) throw new ConversationFormatError("Raw event archive must be an array");
@@ -74,6 +74,7 @@ export function snipConversation(thread: UniversalThread, requestedIds?: string[
   const requested = new Set(requestedIds);
   const byId = new Map(thread.messages.map((message) => [message.id, message]));
   if (requestedIds.some((id) => !byId.has(id))) throw new ConversationFormatError("Selection contains an unknown message");
+  if (requested.size === thread.messages.length) return { document: portableConversation(thread), issues: toolPairIssues(thread.messages) };
   const selected = new Set(requestedIds);
   const calls = new Map<string, string[]>();
   for (const message of thread.messages) for (const block of message.content) {

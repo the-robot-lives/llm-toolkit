@@ -306,6 +306,7 @@ export interface EditedMessage {
   rawEdited?: boolean;
   compactionOriginals?: EditedMessage[];
   universalMessage?: UniversalMessage;
+  textBlockEdits?: Array<{ index: number; text: string }>;
 }
 
 // Conversion artifacts

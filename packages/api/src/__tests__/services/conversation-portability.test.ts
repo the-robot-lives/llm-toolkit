@@ -1,9 +1,10 @@
+import { createConversationPortabilityRoutes } from "../../routes/conversation-portability.ts";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { UniversalThread } from "@llm-toolkit/shared";
-import { portableConversation, snipConversation } from "@llm-toolkit/shared";
+import { portableConversation, snipConversation, universalMessageText } from "@llm-toolkit/shared";
 import { StorageService } from "../../services/storage.ts";
 import { ConversationPortabilityService } from "../../services/conversation-portability.ts";
 import { claudeConversationAdapter } from "../../services/native/claude.ts";
@@ -84,4 +85,86 @@ describe("safe native conversation workflow", () => {
     const injected = new ConversationPortabilityService(storage, undefined, { homeDir: directory, adapters, readThread: async (_path, _harness) => target });
     await expect(injected.preview("source", { document: portableConversation(target), insertIntoConversationId: "target", afterMessageId: "call" })).rejects.toThrow("splits a tool call");
   });
+  test.each(["source", "target"])("rejects %s changes during canonical loading", async (changing) => {
+    const { importClaudeConversation } = await import("../../services/native/claude.ts");
+    const changingPath = paths.get(changing)!;
+    const racing = new ConversationPortabilityService(storage, undefined, { homeDir: directory, adapters, readThread: async (path) => {
+      const result = importClaudeConversation(readFileSync(path, "utf8"), path);
+      if (path === changingPath) writeFileSync(path, readFileSync(path, "utf8") + "\n");
+      return result;
+    } });
+    await expect(racing.preview("source", { targetHarness: "claude", insertIntoConversationId: "target" })).rejects.toThrow("changed while loading");
+  });
+
+  test("reopens associated archive after append-only continuation and rejects changed prefixes", async () => {
+    const source = await service.load("source");
+    const preview = await service.preview("source", { targetHarness: "codex" });
+    const created = await service.create("source", preview.previewId);
+    await storage.upsertConversation({ id: "clone", harness: "codex", title: "clone", projectPath: directory, sourcePath: created.sourcePath, startedAt: source.startedAt, updatedAt: source.updatedAt, messageCount: 2 });
+    const suffix = codexConversationAdapter.render(thread("later", directory, ["Later question", "Later answer"]), { sessionId: preview.sessionId, cwd: directory, title: "clone", createdAt: "2026-10-02T00:00:00Z", sourceHarness: "claude" });
+    writeFileSync(created.sourcePath, readFileSync(created.sourcePath, "utf8") + suffix.jsonl.split("\n").slice(1).join("\n"));
+    const reopened = await service.archive("clone");
+    expect(reopened.thread.messages.slice(0, source.messages.length)).toEqual(source.messages);
+    expect(reopened.thread.messages.slice(source.messages.length).map(message => message.content[0])).toEqual([expect.objectContaining({ type: "text", text: "Later question" }), expect.objectContaining({ type: "text", text: "Later answer" })]);
+    writeFileSync(created.sourcePath, "changed prefix");
+    await expect(service.archive("clone")).rejects.toThrow("prefix changed");
+  });
+
+  test("rich source edits are rejected rather than duplicating tool blocks", async () => {
+    const source = thread("rich", directory);
+    source.messages[0].content.push({ type: "tool_use", toolCallId: "t", name: "Read", input: { value: "unchanged" } });
+    const rich = new ConversationPortabilityService(storage, undefined, { homeDir: directory, adapters, readThread: async () => source });
+    await expect(rich.editedDocument("source", [{ originalIndex: 0, role: "user", content: "edited display" }])).rejects.toThrow("Rich messages");
+    expect(source.messages[0].content[1]).toEqual({ type: "tool_use", toolCallId: "t", name: "Read", input: { value: "unchanged" } });
+  });
+
+  test("actual API selects a native Codex tool section and inserts historical context into a fresh Claude target", async () => {
+    const rich = thread("codex-source", directory, ["Tool request", "Tool answer"]); rich.harness = "codex";
+    rich.messages.splice(1, 0,
+      { id: "call", role: "assistant", timestamp: rich.startedAt, provenance: { harness: "codex", sourcePath: "fixture" }, content: [{ type: "tool_use", toolCallId: "c", name: "exec_command", input: { cmd: "fixture only" }, providerType: "function_call" }] },
+      { id: "result", role: "tool", timestamp: rich.startedAt, provenance: { harness: "codex", sourcePath: "fixture" }, content: [{ type: "tool_result", toolCallId: "c", content: "Synthetic tool output", providerType: "function_call_output" }] });
+    const native = codexConversationAdapter.render(rich, { sessionId: "123e4567-e89b-42d3-a456-426614174002", cwd: directory, title: "native Codex", createdAt: rich.startedAt, sourceHarness: "codex" });
+    const path = join(directory, "codex-source.jsonl"); writeFileSync(path, native.jsonl);
+    await storage.upsertConversation({ id: "codex-source", harness: "codex", title: "native Codex", projectPath: directory, sourcePath: path, startedAt: rich.startedAt, updatedAt: rich.updatedAt, messageCount: 4 });
+    const source = await service.load("codex-source"); const target = await service.load("target");
+    const app = createConversationPortabilityRoutes(service);
+    const post = (url: string, body: unknown) => app.request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const sectionResponse = await post("/codex-source/section", { messageIds: [source.messages.find(message => message.role === "tool")!.id] });
+    expect(sectionResponse.status).toBe(200);
+    const section = await sectionResponse.json();
+    const previewResponse = await post("/codex-source/clone-preview", { targetHarness: "claude", document: section.data.document, insertIntoConversationId: "target", afterMessageId: target.messages[0].id });
+    expect(previewResponse.status).toBe(200); const preview = (await previewResponse.json()).data;
+    expect(preview.report.valid).toBe(true);
+    const sourceBefore = readFileSync(path, "utf8"); const targetBefore = readFileSync(paths.get("target")!, "utf8");
+    const createResponse = await post("/codex-source/clone", { previewId: preview.previewId }); expect(createResponse.status).toBe(201);
+    const created = (await createResponse.json()).data;
+    const { importClaudeConversation } = await import("../../services/native/claude.ts");
+    const clone = importClaudeConversation(readFileSync(created.sourcePath, "utf8"), created.sourcePath);
+    const text = clone.messages.flatMap(message => message.content.filter(block => block.type === "text").map(block => block.text)).join("\n");
+    expect(text.indexOf("Target prefix")).toBeLessThan(text.indexOf("Synthetic tool output")); expect(text.indexOf("Synthetic tool output")).toBeLessThan(text.indexOf("Target suffix"));
+    expect(clone.messages.flatMap(message => message.content).some(block => block.type === "tool_use")).toBe(false);
+    expect(readFileSync(path, "utf8")).toBe(sourceBefore); expect(readFileSync(paths.get("target")!, "utf8")).toBe(targetBefore);
+  });
+
+  test("precise text block edits preserve reasoning and closed tool payloads without duplicates", async () => {
+    const source = thread("rich", directory);
+    source.messages[0].content = [{ type: "text", text: "Before" }, { type: "thinking", thinking: "Opaque reasoning", signature: "original" }, { type: "tool_use", toolCallId: "t", name: "Read", input: { path: "fixture" } }, { type: "text", text: "After" }];
+    source.messages[1].content = [{ type: "tool_result", toolCallId: "t", content: "unchanged result" }];
+    const rich = new ConversationPortabilityService(storage, undefined, { homeDir: directory, adapters, readThread: async () => source });
+    const result = await rich.editedDocument("source", [{ originalIndex: 0, role: "user", content: "display only", universalMessage: source.messages[0], textBlockEdits: [{ index: 0, text: "Edited before" }, { index: 3, text: "Edited after" }] }, { originalIndex: 1, role: "assistant", content: universalMessageText(source.messages[1]), universalMessage: source.messages[1] }]);
+    expect(result.thread.messages[0].content).toEqual([{ type: "text", text: "Edited before" }, ...source.messages[0].content.slice(1, 3), { type: "text", text: "Edited after" }]);
+    expect(source.messages[0].content[0]).toEqual({ type: "text", text: "Before" });
+    await expect(rich.editedDocument("source", [{ originalIndex: 0, role: "user", content: "bad", universalMessage: source.messages[0], textBlockEdits: [{ index: 2, text: "not text" }] }])).rejects.toThrow("Invalid structured");
+  });
+
+  test("summary originals survive native reopen and restore instead of returning the summary", async () => {
+    const source = await service.load("source");
+    const edited = await service.editedDocument("source", [{ role: "assistant", content: "[Generated summary] concise", compactionOriginals: source.messages.map((message, index) => ({ originalIndex: index, role: message.role, content: "original display", universalMessage: message })) }]);
+    const preview = await service.preview("source", { targetHarness: "codex", document: edited });
+    const created = await service.create("source", preview.previewId);
+    await storage.upsertConversation({ id: "summary-clone", harness: "codex", title: "summary", projectPath: directory, sourcePath: created.sourcePath, startedAt: source.startedAt, updatedAt: source.updatedAt, messageCount: 1 });
+    expect(importCodexConversation(readFileSync(created.sourcePath, "utf8"), created.sourcePath).messages).toHaveLength(1);
+    expect((await service.archive("summary-clone")).thread.messages).toEqual(source.messages);
+  });
+
 });

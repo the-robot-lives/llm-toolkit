@@ -20,7 +20,7 @@ export function createConversationPortabilityRoutes(service: ConversationPortabi
   });
   routes.get("/format-capabilities", async (c) => {
     const adapters = await nativeConversationAdapters();
-    return c.json({ data: { universalVersion: 1, targets: ["claude", "codex", "gemini", "opencode", "aider", "other"].map((harness) => ({ harness, native: Boolean(adapters[harness as "claude" | "codex"]), compatibilityVersion: adapters[harness as "claude" | "codex"]?.compatibilityVersion ?? "unsupported", destinations: harness === "claude" || harness === "codex" ? service.destinations(harness) : [] })) } });
+    return c.json({ data: { universalVersion: 1, targets: ["claude", "codex", "gemini", "opencode", "aider", "other"].map((harness) => ({ harness, native: Boolean(adapters[harness as "claude" | "codex" | "gemini"]), compatibilityVersion: adapters[harness as "claude" | "codex" | "gemini"]?.compatibilityVersion ?? "unsupported", destinations: harness === "claude" || harness === "codex" || harness === "gemini" ? service.destinations(harness) : [] })) } });
   });
   routes.post("/validate", async (c) => {
     try {
@@ -37,6 +37,10 @@ export function createConversationPortabilityRoutes(service: ConversationPortabi
       const content = records.map((record) => JSON.stringify(record)).join("\n") + "\n";
       return c.json({ data: { content, report: await validateConversationContent(content, body.target as AgentHarness | "universal") } });
     } catch (error) { return c.json({ error: error instanceof Error ? error.message : "Formatting failed" }, 400); }
+  });
+  routes.get("/:id/archive", async (c) => {
+    try { return c.json({ data: await service.archive(c.req.param("id")) }); }
+    catch { return c.json({ error: "No associated archive is available, or its native prefix changed. Originals remain unchanged." }, 409); }
   });
   routes.get("/:id/universal", async (c) => {
     try { const thread = await service.load(c.req.param("id")); if (c.req.query("raw") !== "true") delete thread.rawEvents; return c.json({ data: thread, meta: { total: thread.messages.length } }); }

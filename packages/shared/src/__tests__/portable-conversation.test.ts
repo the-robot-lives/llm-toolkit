@@ -73,4 +73,12 @@ describe("portable conversation documents", () => {
     expect(text).toContain("Historical tool call: Read");
     expect(text).toContain("Contents");
   });
+  test("separate selected regions retain boundaries and all-selection retains raw archive", () => {
+    const source = fixture();
+    const result = snipConversation(source, ["user", "last"]);
+    expect(result.document.selection?.segments?.map(segment => segment.messageIds)).toEqual([["user"], ["last"]]);
+    expect(conversationMarkdown(result.document)).toContain("Source section 2");
+    expect(snipConversation(source, source.messages.map(message => message.id)).document.thread.rawEvents).toEqual(source.rawEvents);
+  });
+
 });

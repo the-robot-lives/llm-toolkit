@@ -74,11 +74,21 @@ export class ConversationPortabilityService {
     } else if (conversation.harness === "codex") {
       const { readCodexConversation } = await import("./native/codex-reader.ts");
       thread = await readCodexConversation(conversation.sourcePath);
+    } else if (conversation.harness === "gemini") {
+      const { importGeminiConversation } = await import("./native/gemini.ts");
+      thread = importGeminiConversation(readConversationFile(conversation.sourcePath), conversation.sourcePath, conversation.projectPath);
     } else {
       thread = { id, harness: conversation.harness, title: conversation.title, sourcePath: conversation.sourcePath, projectPath: conversation.projectPath, startedAt: conversation.startedAt.toISOString(), updatedAt: conversation.updatedAt.toISOString(), messages: await this.storage.getUniversalMessages(id), rawEvents: await this.storage.getRawTranscriptEvents(id) };
     }
     thread = { ...thread, id, title: conversation.title || thread.title, sourcePath: conversation.sourcePath, projectPath: thread.projectPath || conversation.projectPath };
     validateUniversalThread(thread);
+    if (!this.options.readThread && ["claude", "codex", "gemini"].includes(conversation.harness)) {
+      const report = await this.validateSource(id);
+      const history = thread.providerMetadata?.codexHistory as { complete?: boolean } | undefined;
+      const unresolved = report.errors.filter((issue) => !(conversation.harness === "codex" && history?.complete && issue.code === "codex.incomplete-history"));
+      if (unresolved.length) throw new Error(`Source conversation failed structural validation (${unresolved.map((issue) => issue.code).slice(0, 5).join(", ")}). Use the validator to review it before cloning.`);
+      if (report.status === "incomplete" && !(conversation.harness === "codex" && history?.complete)) throw new Error("Source conversation validation is incomplete. Use the validator to review unsupported or missing history before cloning.");
+    }
     return thread;
   }
 
@@ -89,6 +99,36 @@ export class ConversationPortabilityService {
     const thread = await this.load(id);
     if (thread.sourcePath !== fingerprint.path || sourceHash(fingerprint.path) !== fingerprint.hash) throw new Error("A source conversation changed while loading. Preview again before creating a copy.");
     return { thread, fingerprint };
+  }
+
+  async archive(id: string): Promise<PortableConversationDocument> {
+    const conversation = await this.storage.getConversation(id);
+    if (!conversation) throw new Error("Conversation not found");
+    const root = this.destinations(conversation.harness as NativeConversationHarness).find((candidate) => { const rel = relative(candidate, conversation.sourcePath); return rel && !rel.startsWith("..") && !isAbsolute(rel); });
+    if (!root) throw new Error("Archive is outside the configured provider folders");
+    const path = `${conversation.sourcePath}.universal.json`;
+    if (!existsSync(path) || lstatSync(path).isSymbolicLink() || realpathSync(dirname(path)) !== dirname(path) || lstatSync(conversation.sourcePath).isSymbolicLink()) throw new Error("No safe portable archive is available for this conversation");
+    const document = parsePortableConversation(readConversationFile(path));
+    const binding = document.thread.providerMetadata?.portableArchiveBinding as { harness?: string; sessionId?: string; byteLength?: number; sha256?: string } | undefined;
+    if (!binding || binding.harness !== conversation.harness || !binding.sessionId || !Number.isSafeInteger(binding.byteLength) || binding.byteLength! < 1 || binding.byteLength! > 50_000_000) throw new Error("Archive association is missing or invalid");
+    const native = readFileSync(conversation.sourcePath);
+    if (native.length < binding.byteLength! || createHash("sha256").update(native.subarray(0, binding.byteLength)).digest("hex") !== binding.sha256) throw new Error("The conversation prefix changed; its archive cannot be restored safely");
+    const prefix = native.subarray(0, binding.byteLength).toString("utf8");
+    let baseline: UniversalThread;
+    if (conversation.harness === "claude") baseline = (await import("./native/claude.ts")).importClaudeConversation(prefix, conversation.sourcePath);
+    else if (conversation.harness === "codex") baseline = (await import("./native/codex.ts")).importCodexConversation(prefix, conversation.sourcePath);
+    else baseline = (await import("./native/gemini.ts")).importGeminiConversation(prefix, conversation.sourcePath, conversation.projectPath);
+    const current = await this.load(id);
+    if (current.messages.length < baseline.messages.length || baseline.messages.some((message, index) => current.messages[index]?.id !== message.id)) throw new Error("The archived history boundary no longer resolves; restore is blocked to preserve later turns");
+    document.thread.messages = document.thread.messages.flatMap(message => {
+      const originals = message.providerMetadata?.compactionOriginals;
+      if (!message.providerMetadata?.generatedSummary || !Array.isArray(originals)) return [message];
+      return originals.map((value: EditedMessage) => value.universalMessage ? structuredClone(value.universalMessage) : { id: randomUUID(), role: value.role, timestamp: message.timestamp, content: [{ type: "text" as const, text: value.content }], provenance: { harness: "other" as const, sourcePath: document.thread.sourcePath } });
+    });
+    document.thread.messages.push(...structuredClone(current.messages.slice(baseline.messages.length)));
+    validateUniversalThread(document.thread);
+    document.thread.providerMetadata = { ...document.thread.providerMetadata, archiveRestore: { appendedMessagesPreserved: current.messages.length - baseline.messages.length } };
+    return document;
   }
 
   async section(id: string, messageIds?: string[]) { return snipConversation(await this.load(id), messageIds); }
@@ -104,9 +144,11 @@ export class ConversationPortabilityService {
     const source = sourceSnapshot.thread;
     let { document, issues } = request.document !== undefined ? { document: parsePortableConversation(request.document), issues: [] as ConversationCompatibilityIssue[] } : snipConversation(source, request.messageIds);
     const sources = [sourceSnapshot.fingerprint];
+    const trustedMessages = new Map(source.messages.map(message => [message.id, message]));
     if (request.insertIntoConversationId) {
       const targetSnapshot = await this.loadSnapshot(request.insertIntoConversationId);
       const target = targetSnapshot.thread;
+      for (const message of target.messages) trustedMessages.set(message.id, message);
       const boundary = request.afterMessageId === undefined ? target.messages.at(-1)?.id ?? null : request.afterMessageId;
       assertInsertionBoundary(target, boundary);
       document = insertConversationSection(portableConversation(target), document, boundary);
@@ -114,7 +156,7 @@ export class ConversationPortabilityService {
       issues.push({ severity: "info", code: "target_copy", message: "The existing target conversation remains unchanged. A new copy will contain its prefix, the inserted section, and its suffix." });
     }
     const targetHarness = request.targetHarness ?? document.thread.harness;
-    if (targetHarness !== "claude" && targetHarness !== "codex") throw new Error(`Native ${targetHarness} cloning is unsupported. Export universal JSON or Markdown instead.`);
+    if (targetHarness !== "claude" && targetHarness !== "codex" && targetHarness !== "gemini") throw new Error(`Native ${targetHarness} cloning is unsupported. Export universal JSON or Markdown instead.`);
     const projectPath = request.projectPath ?? document.thread.projectPath;
     if (!isAbsolute(projectPath) || projectPath.includes("\0") || !existsSync(projectPath) || !statSync(projectPath).isDirectory()) throw new Error("Choose an existing absolute project directory for the new conversation");
     const cwd = realpathSync(projectPath);
@@ -122,9 +164,29 @@ export class ConversationPortabilityService {
     const root = request.destinationRoot ? canonicalRoot(expandHome(request.destinationRoot, this.options.homeDir)) : roots[0];
     if (!roots.includes(root)) throw new Error("Choose a configured destination root");
     const context: NativeConversationContext = { sessionId: randomUUID(), cwd, title: request.title?.trim() || `${document.thread.title} (copy)`, createdAt: new Date().toISOString(), sourceHarness: document.thread.harness };
+    if (targetHarness === "gemini") {
+      const { resolveGeminiProjectIdentifier } = await import("./native/gemini.ts");
+      const registryPath = join(this.options.homeDir ?? homedir(), ".gemini", "projects.json");
+      let registry: { projects?: Record<string, string> };
+      let registryHash: string;
+      try { const registryContent = readConversationFile(registryPath); registryHash = createHash("sha256").update(registryContent).digest("hex"); registry = JSON.parse(registryContent); } catch { throw new Error("Open Gemini CLI once in the target project to register its conversation folder, then preview again."); }
+      const slug = registry.projects?.[cwd];
+      if (!slug || !/^[a-z0-9-]+$/.test(slug)) throw new Error("Open Gemini CLI once in the target project to register its conversation folder, then preview again.");
+      const markerPath = join(this.options.homeDir ?? homedir(), ".gemini", "tmp", slug, ".project_root");
+      let marker: string;
+      try { marker = readConversationFile(markerPath); } catch { throw new Error("Gemini project ownership could not be verified. Open Gemini CLI in the target project first."); }
+      context.geminiProjectIdentifier = resolveGeminiProjectIdentifier(registry, cwd, { [slug]: marker }) ?? undefined;
+      if (!context.geminiProjectIdentifier || sourceHash(registryPath) !== registryHash) throw new Error("Gemini project registration changed or could not be verified. Open Gemini CLI in the target project and preview again.");
+      sources.push({ path: registryPath, hash: registryHash }, { path: markerPath, hash: createHash("sha256").update(marker).digest("hex") });
+    }
     const adapter = (this.options.adapters ?? await nativeConversationAdapters())[targetHarness];
     if (!adapter) throw new Error("This native target adapter is unavailable. Export a universal document instead.");
-    const artifact = adapter.render(document.thread, context);
+    const activeThread = structuredClone(document.thread);
+    for (const message of activeThread.messages) {
+      const trusted = trustedMessages.get(message.id);
+      if (!trusted || trusted.role !== message.role || trusted.content.length !== message.content.length || trusted.content.some((block, index) => block.type !== "text" && JSON.stringify(block) !== JSON.stringify(message.content[index]))) message.provenance = { ...message.provenance, harness: "other", sourcePath: message.provenance?.sourcePath ?? document.thread.sourcePath };
+    }
+    const artifact = adapter.render(activeThread, context);
     const validation = await validateConversationContent(artifact.jsonl, targetHarness, context, this.options.adapters);
     issues = [...issues, ...artifact.issues];
     if (document.selection?.segments && document.selection.segments.length > 1) issues.push({ severity: "warning", code: "section_gaps", message: `${document.selection.segments.length} separate source sections are being copied in source order. Intervening messages are omitted.` });
@@ -153,7 +215,9 @@ export class ConversationPortabilityService {
     const removeOwned = (path: string) => { const original = owned.get(path); if (!original || !existsSync(path)) return; const current = lstatSync(path); if (current.dev === original.dev && current.ino === original.ino) unlinkSync(path); };
     try {
       exclusiveWrite(nativeStage, preview.artifact.jsonl); remember(nativeStage);
-      exclusiveWrite(sidecarStage, JSON.stringify(preview.document, null, 2) + "\n"); remember(sidecarStage);
+      const archived = structuredClone(preview.document);
+      archived.thread.providerMetadata = { ...archived.thread.providerMetadata, portableArchiveBinding: { harness: preview.artifact.harness, sessionId: preview.context.sessionId, byteLength: Buffer.byteLength(preview.artifact.jsonl), sha256: createHash("sha256").update(preview.artifact.jsonl).digest("hex") } };
+      exclusiveWrite(sidecarStage, JSON.stringify(archived, null, 2) + "\n"); remember(sidecarStage);
       const validation = await validateConversationContent(readFileSync(nativeStage, "utf8"), preview.artifact.harness, preview.context, this.options.adapters);
       if (!validation.valid) throw new Error("The staged native file failed validation. Originals are unchanged.");
       for (const source of preview.sources) if (sourceHash(source.path) !== source.hash) throw new Error("A source conversation changed while preparing the copy. Preview again before creating it.");
@@ -193,15 +257,25 @@ export class ConversationPortabilityService {
       if (supplied) { validateUniversalThread({ ...source, messages: [supplied] }); message = structuredClone(supplied); }
       else if (original) message = structuredClone(original);
       else message = { id: randomUUID(), role: edit.role, timestamp: new Date().toISOString(), content: [{ type: "text", text: edit.content }], provenance: { harness: "other", sourcePath: source.sourcePath } };
+      if (edit.textBlockEdits) {
+        if (!original || !supplied || JSON.stringify(original.content) !== JSON.stringify(supplied.content) || original.role !== edit.role) throw new Error("Structured message changed since the editor loaded. Reload before editing text blocks.");
+        message = structuredClone(original);
+        const seen = new Set<number>();
+        for (const change of edit.textBlockEdits) {
+          if (!Number.isInteger(change.index) || seen.has(change.index) || message.content[change.index]?.type !== "text" || typeof change.text !== "string" || change.text.length > 1_000_000) throw new Error("Invalid structured text block edit");
+          seen.add(change.index);
+          message.content[change.index] = { ...message.content[change.index], type: "text", text: change.text };
+        }
+        return message;
+      }
       if (original && !edit.injected && edit.content === universalMessageText(original) && edit.role === original.role && !edit.rawEdited) return message;
       if (edit.rawEdited && edit.rawRecord && typeof edit.rawRecord === "object") {
         // Raw provider edits become explicit text in a new copy; arbitrary policy/header fields are never transplanted.
         message.content = [{ type: "text", text: edit.content }];
         message.providerMetadata = { ...message.providerMetadata, rawEditArchive: edit.rawRecord };
       } else {
-        const firstText = message.content.findIndex((block) => block.type === "text");
-        if (firstText >= 0) message.content[firstText] = { type: "text", text: edit.content };
-        else message.content.unshift({ type: "text", text: edit.content });
+        if (message.content.length !== 1 || message.content[0].type !== "text") throw new Error("Rich messages contain structured tool, reasoning or attachment blocks. Keep them unchanged, select sections to clone, or compact them with an explicit summary preview.");
+        message.content = [{ type: "text", text: edit.content }];
       }
       message.role = edit.role;
       if (edit.compactionOriginals?.length) message.providerMetadata = { ...message.providerMetadata, compactionOriginals: edit.compactionOriginals, generatedSummary: true };
