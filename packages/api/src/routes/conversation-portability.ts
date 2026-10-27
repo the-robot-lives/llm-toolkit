@@ -36,7 +36,7 @@ export function createConversationPortabilityRoutes(service: ConversationPortabi
       const records = body.content.split(/\r?\n/).filter((line) => line.trim()).map((line, index) => { try { return JSON.parse(line); } catch { throw new Error(`Invalid JSON at line ${index + 1}; no content was changed`); } });
       const content = records.map((record) => JSON.stringify(record)).join("\n") + "\n";
       return c.json({ data: { content, report: await validateConversationContent(content, body.target as AgentHarness | "universal") } });
-    } catch (error) { return c.json({ error: error instanceof Error ? error.message : "Formatting failed" }, 400); }
+    } catch (error) { return c.json({ error: error instanceof SyntaxError ? "Invalid formatting request" : error instanceof Error ? error.message : "Formatting failed" }, 400); }
   });
   routes.get("/:id/archive", async (c) => {
     try { return c.json({ data: await service.archive(c.req.param("id")) }); }
@@ -105,6 +105,6 @@ function displayBlock(block: UniversalContentBlock): unknown {
   return block;
 }
 function failure(c: import("hono").Context, error: unknown) {
-  const message = error instanceof Error ? error.message : "Conversation operation failed";
-  return c.json({ error: message }, message === "Conversation not found" ? 404 : 400);
+  const message = error instanceof SyntaxError ? "Invalid conversation request" : error instanceof Error ? error.message : "Conversation operation failed";
+  return c.json({ error: message }, message === "Conversation not found" ? 404 : /changed|Preview expired/.test(message) ? 409 : 400);
 }
