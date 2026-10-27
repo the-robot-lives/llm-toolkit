@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { conversationMarkdown, parsePortableConversation, snipConversation, universalMessageText } from "@llm-toolkit/shared";
+import { conversationMarkdown, parsePortableConversation, snipConversation, universalMessageText } from "@llm-toolkit/shared/portable-conversation";
 import type { ConversationCompatibilityIssue, ConversationValidationReport, PortableConversationDocument, UniversalThread } from "@llm-toolkit/shared";
 import { apiFetch, useConversations } from "../hooks/useApi.js";
 import { CloneApproval, ValidationReport, type NativeClonePreview } from "../components/ConversationValidation.js";

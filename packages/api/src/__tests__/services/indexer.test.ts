@@ -177,17 +177,17 @@ describe("IndexerService", () => {
   });
 
   test("accepts pending harnesses without inventing transcript parsing", async () => {
-    const filePath = join(tempDir, "gemini-session.jsonl");
+    const filePath = join(tempDir, "opencode-session.jsonl");
     writeFileSync(filePath, JSON.stringify({ type: "unknown", text: "pending transcript shape" }));
 
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const indexer = new IndexerService(storage, [{ harness: "gemini", path: tempDir, format: "jsonl" }]);
+    const indexer = new IndexerService(storage, [{ harness: "opencode", path: tempDir, format: "jsonl" }]);
 
     await indexer.indexFile(filePath);
 
-    const conversations = await storage.getConversations({ harness: "gemini" });
+    const conversations = await storage.getConversations({ harness: "opencode" });
     expect(conversations).toHaveLength(0);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("gemini transcript import is stubbed"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("opencode transcript import is stubbed"));
 
     warn.mockRestore();
   });

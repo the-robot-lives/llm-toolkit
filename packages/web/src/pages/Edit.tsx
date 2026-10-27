@@ -3,7 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch, useLlmProfiles } from "../hooks/useApi.js";
 import { MarkdownView } from "../components/MarkdownView.js";
 import { CloneApproval, type NativeClonePreview } from "../components/ConversationValidation.js";
-import { universalMessageText, type UniversalMessage } from "@llm-toolkit/shared";
+import { universalMessageText } from "@llm-toolkit/shared/portable-conversation";
+import type { UniversalMessage } from "@llm-toolkit/shared";
 
 interface ContentBlock {
   type: "text" | "tool_use" | "tool_result" | "thinking";

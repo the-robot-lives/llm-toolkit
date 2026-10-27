@@ -207,4 +207,33 @@ finally:p.terminate();p.wait(timeout=3)
     expect(readFileSync(created.sourcePath, "utf8")).toContain("Historical");
   }, 25_000);
 
+  test.each(["claude", "codex"] as const)("same-%s tool reinsertion preserves closed native pairs with fresh collision-safe IDs", async (harness) => {
+    const rich = thread("same-source", directory, ["Tool request", "Tool answer"]); rich.harness = harness;
+    rich.messages.splice(1, 0,
+      { id: "same-call", role: "assistant", timestamp: rich.startedAt, provenance: { harness, sourcePath: "fixture" }, content: [{ type: "tool_use", toolCallId: "c", name: harness === "claude" ? "Read" : "exec_command", input: { value: "unchanged" }, ...(harness === "codex" ? { providerType: "function_call" } : {}) }] },
+      { id: "same-result", role: harness === "claude" ? "user" : "tool", timestamp: rich.startedAt, provenance: { harness, sourcePath: "fixture" }, content: [{ type: "tool_result", toolCallId: "c", content: "Paired result", ...(harness === "codex" ? { providerType: "function_call_output" } : {}) }] });
+    const native = adapters[harness].render(rich, { sessionId: "123e4567-e89b-42d3-a456-426614174004", cwd: directory, title: "native pair", createdAt: rich.startedAt, sourceHarness: harness });
+    const path = join(directory, `same-${harness}.jsonl`); writeFileSync(path, native.jsonl);
+    await storage.upsertConversation({ id: "same-source", harness, title: "native pair", projectPath: directory, sourcePath: path, startedAt: rich.startedAt, updatedAt: rich.updatedAt, messageCount: 4 });
+    if (harness === "codex") {
+      const targetNative = codexConversationAdapter.render(thread("codex-target", directory, ["Target prefix", "Target suffix"]), { sessionId: "123e4567-e89b-42d3-a456-426614174005", cwd: directory, title: "Codex target", createdAt: rich.startedAt, sourceHarness: "claude" });
+      writeFileSync(paths.get("target")!, targetNative.jsonl);
+      await storage.upsertConversation({ id: "target", harness: "codex", title: "Codex target", projectPath: directory, sourcePath: paths.get("target")!, startedAt: rich.startedAt, updatedAt: rich.updatedAt, messageCount: 2 });
+    }
+    const targetBefore = readFileSync(paths.get("target")!, "utf8");
+    const source = await service.load("same-source"); const target = await service.load("target");
+    const call = source.messages.find(message => message.content.some(block => block.type === "tool_use"))!;
+    const section = snipConversation(source, [call.id]).document;
+    const preview = await service.preview("same-source", { targetHarness: harness, document: section, insertIntoConversationId: "target", afterMessageId: target.messages[0].id });
+    expect(preview.report.valid).toBe(true); const created = await service.create("same-source", preview.previewId);
+    const output = harness === "claude" ? (await import("../../services/native/claude.ts")).importClaudeConversation(readFileSync(created.sourcePath, "utf8"), created.sourcePath) : importCodexConversation(readFileSync(created.sourcePath, "utf8"), created.sourcePath);
+    const blocks = output.messages.flatMap(message => message.content);
+    const emittedCall = blocks.find(block => block.type === "tool_use")!; const emittedResult = blocks.find(block => block.type === "tool_result")!;
+    expect(emittedCall).toEqual(expect.objectContaining({ type: "tool_use", input: { value: "unchanged" } }));
+    expect(emittedResult).toEqual(expect.objectContaining({ type: "tool_result", toolCallId: (emittedCall as { toolCallId: string }).toolCallId, content: "Paired result" }));
+    expect((emittedCall as { toolCallId: string }).toolCallId).not.toBe("c");
+    expect(readFileSync(path, "utf8")).toBe(native.jsonl);
+    expect(readFileSync(paths.get("target")!, "utf8")).toBe(targetBefore);
+  });
+
 });

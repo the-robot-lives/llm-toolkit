@@ -145,6 +145,8 @@ export class ConversationPortabilityService {
     let { document, issues } = request.document !== undefined ? { document: parsePortableConversation(request.document), issues: [] as ConversationCompatibilityIssue[] } : snipConversation(source, request.messageIds);
     const sources = [sourceSnapshot.fingerprint];
     const trustedMessages = new Map(source.messages.map(message => [message.id, message]));
+    const verifiedIncoming = new Set(document.thread.messages.filter(message => { const original = trustedMessages.get(message.id); return original && original.role === message.role && JSON.stringify(original.content) === JSON.stringify(message.content); }).map(message => message.id));
+    const insertedIds = new Set<string>();
     if (request.insertIntoConversationId) {
       const targetSnapshot = await this.loadSnapshot(request.insertIntoConversationId);
       const target = targetSnapshot.thread;
@@ -152,6 +154,10 @@ export class ConversationPortabilityService {
       const boundary = request.afterMessageId === undefined ? target.messages.at(-1)?.id ?? null : request.afterMessageId;
       assertInsertionBoundary(target, boundary);
       document = insertConversationSection(portableConversation(target), document, boundary);
+      for (const message of document.thread.messages) {
+        const origin = message.providerMetadata?.portableSource as { messageId?: string } | undefined;
+        if (origin?.messageId && verifiedIncoming.has(origin.messageId) && !target.messages.some(existing => existing.id === message.id)) { trustedMessages.set(message.id, structuredClone(message)); insertedIds.add(message.id); }
+      }
       sources.push(targetSnapshot.fingerprint);
       issues.push({ severity: "info", code: "target_copy", message: "The existing target conversation remains unchanged. A new copy will contain its prefix, the inserted section, and its suffix." });
     }
@@ -185,6 +191,10 @@ export class ConversationPortabilityService {
     for (const message of activeThread.messages) {
       const trusted = trustedMessages.get(message.id);
       if (!trusted || trusted.role !== message.role || trusted.content.length !== message.content.length || trusted.content.some((block, index) => block.type !== "text" && JSON.stringify(block) !== JSON.stringify(message.content[index]))) message.provenance = { ...message.provenance, harness: "other", sourcePath: message.provenance?.sourcePath ?? document.thread.sourcePath };
+      if (insertedIds.has(message.id)) for (const block of message.content) if (block.type === "thinking" && block.signature) {
+        delete block.signature; delete block.providerRaw;
+        issues.push({ severity: "warning", code: "inserted_reasoning_opaque", message: "Inserted signed reasoning is retained as historical context because signature validity in the new context is unverified.", messageId: message.id });
+      }
     }
     const artifact = adapter.render(activeThread, context);
     const validation = await validateConversationContent(artifact.jsonl, targetHarness, context, this.options.adapters);
