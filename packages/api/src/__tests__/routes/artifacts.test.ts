@@ -33,7 +33,7 @@ describe("agents routes", () => {
       join(source, "demo-agent.md"),
       "---\nname: demo-agent\ndescription: Demo\n---\n\n# Demo Agent\n",
     );
-    const noopLlm = { reconfigure: async () => {} } as never;
+    const noopLlm = { reconfigure: async () => {}, setProfiles: () => {} } as never;
     app.route("/api/config", createConfigRoutes(storage, noopLlm));
     app.route("/api/agents", createArtifactRoutes(storage, "agents"));
     await app.request("/api/config", {
