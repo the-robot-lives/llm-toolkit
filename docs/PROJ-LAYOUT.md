@@ -5,6 +5,7 @@ pnpm monorepo: TypeScript packages under `packages/`, native Mac host under `app
 ```
 llm-toolkit/
 ├── .gemini/                          # Gemini code-review agent config + styleguide
+├── .github/                          # CI workflows (GitHub Actions: test/build gates; PR + stage-branch triggers)
 ├── bin/llm-toolkit                   # bash launcher (api/web/zellij, CLI, skill proxy)
 ├── packages/                         # pnpm workspaces (packages/*)
 │   ├── api/                          # Hono REST + SQLite/FTS/vec → [layout/api.md](layout/api.md)
@@ -56,7 +57,7 @@ llm-toolkit/
 
 | File | Action |
 |------|--------|
-| `pnpm-lock.yaml` / `package.json` | `pnpm install` (Node ≥ 18, pnpm ≥ 8) |
+| `pnpm-lock.yaml` / `package.json` | `pnpm install` (pnpm ≥ 8; `devEngines` pins Node 22.23.4 — pnpm downloads it automatically) |
 | `Makefile` | `make install` → `~/.local/bin/llm-toolkit` + completions; `make install-osx` → `/Applications/LLM Toolkit.app` |
 | `INSTALL.md` | First-time walkthrough |
 | skill-manage config | `llm-toolkit skill init-config` / `SKILL_REPO` — [skill-manage/docs/PROJ-LAYOUT.md](../skill-manage/docs/PROJ-LAYOUT.md) |

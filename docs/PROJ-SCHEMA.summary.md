@@ -17,7 +17,7 @@ erDiagram
 
 | Table | PK | Cols | Notes |
 |-------|----|------|-------|
-| conversations | TEXT id | 12 | harness, project_path, slug (uniq), tags JSON, status, source_path |
+| conversations | TEXT id | 14 | harness, project_path, slug (uniq), tags JSON, status, source_path; content_hash + indexed_at drive incremental re-index |
 | messages | INTEGER id | 5 | lossy FTS rows; FK conversation_id |
 | universal_messages | TEXT id | 5 | structured JSON payload; cross-harness transfer |
 | raw_transcript_events | TEXT id | 6 | provider-native audit/replay |
@@ -28,7 +28,7 @@ erDiagram
 | saved_prompts | TEXT id | 10 | tags/evals JSON, conversation provenance |
 | project_metadata | TEXT project_path | 5 | title/description/tags |
 | tag_metadata | TEXT name | 4 | color (default #06B6D4), description |
-| settings | TEXT key | 3 | `app_config` JSON = LLM provider config (holds keys) |
+| settings | TEXT key | 3 | `app_config` JSON = LLM profiles + indexing defaults (holds keys) |
 
 Virtual: `messages_fts` (FTS5, trigger-synced), `conversation_vectors` +
 `work_item_vectors` (vec0, float[384], only if sqlite-vec loads).

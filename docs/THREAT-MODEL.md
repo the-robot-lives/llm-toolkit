@@ -14,6 +14,7 @@ Grounding: components and data flow per [PROJ-ARCH.md](PROJ-ARCH.md); implementi
 graph LR
     LAN["LAN / other local users"] -.->|:3100 listens on ALL interfaces| API
     WEB["Browser SPA<br/>(localhost origins only, CORS)"] -->|/api/*| API
+    WEB -.->|"dev server only (localhost:5173):<br/>SRI-pinned tobor-kit annotate.js"| CDN["cdn.derobot.is"]
     MAC["macOS host"] --> API
     CLI["CLI / TUI"] --> API
 
@@ -49,10 +50,11 @@ graph LR
 | T-008 | Low | Tampering | Symlink enable/disable of skills/agents/commands | Mitigated — refuses to remove real paths; verifies targets stay within sources; never deletes real copies |
 | T-009 | Low | Repudiation | No audit log of edits, memory writes, config rewrites | Open (accepted for local tool) |
 | T-010 | Low | Supply chain | pnpm deps, prebuilt napi `.node` binaries (`pnpm build:memory-native`), transformers model download | Partial — lockfile committed; `.node` artifacts gitignored/rebuilt locally |
+| T-011 | Low | Supply chain | Dev-only CDN embed: `packages/web/index.html` injects the tobor-kit annotate widget from cdn.derobot.is when the Vite dev server runs on localhost:5173, posting page comments to annotate-srv.therrobotlives.com | Partial — SRI `sha384` + `crossorigin` pin, localhost+port gate; dev machines only |
 
 ## Mitigation Coverage
 
-2 mitigated · 5 partial · 3 open. Open items (T-001, T-006, T-009) are all on the perimeter: the accepted-risk posture assumes loopback-only reachability, which the code does not currently enforce.
+2 mitigated · 6 partial · 3 open. Open items (T-001, T-006, T-009) are all on the perimeter: the accepted-risk posture assumes loopback-only reachability, which the code does not currently enforce.
 
 ## Residual Risk
 
