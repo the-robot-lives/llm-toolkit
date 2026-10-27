@@ -31,6 +31,15 @@ describe("agent families", () => {
     expect(screen.queryByText("npl-coder-glm-flash")).not.toBeInTheDocument();
     expect(screen.getAllByText("npl-coder").length).toBeGreaterThan(0);
   });
+  test("generic variants have an expandable synthetic parent without a nonexistent agent action", async () => {
+    const generic = [row("agent-groq-haiku", { parent: "agent", variant: { provider: "groq", model: "gpt-oss-20b", tier: "haiku" } })];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo) => Promise.resolve({ ok: true, json: () => Promise.resolve(String(input).includes("/config") ? { data: { agents: { sourceFolders: [], providers: ["claude"] } } } : { data: { skills: generic, categories: [], destinations: [], providers: ["claude"], discoveredFolders: [] } }) })));
+    render(<MemoryRouter><Agents /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Expand agent variants (1)" }));
+    expect(screen.getByText("agent")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "agent" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("agent-groq-haiku").length).toBeGreaterThan(0);
+  });
   test("missing parents become synthetic families, cycles and unannotated suffixes stay visible", () => {
     const rows = [row("variant", { parent: "missing" }), row("a", { parent: "b" }), row("b", { parent: "a" }), row("legacy-glm")];
     const groups = groupAgentFamilies(rows, rows);

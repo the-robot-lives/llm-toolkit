@@ -3,6 +3,7 @@ import {
   lstatSync,
   mkdirSync,
   readdirSync,
+  statSync,
   readFileSync,
   readlinkSync,
   realpathSync,
@@ -418,14 +419,25 @@ function listMarkdownItems(root: string, kind: ArtifactKind): ArtifactItem[] {
   }
   for (const name of entries) {
     if (name.startsWith(".")) continue;
-    const path = join(root, name);
+    let path = join(root, name);
     let st;
     try {
       st = lstatSync(path);
     } catch {
       continue;
     }
-    if (st.isSymbolicLink()) continue;
+    if (st.isSymbolicLink()) {
+      // Follow installed file aliases, never directories or non-Markdown targets.
+      // Keep the logical filename as identity and the canonical source for edits
+      // and relinking, so an installed alias cannot become a self-referential link.
+      if (!name.toLowerCase().endsWith(".md")) continue;
+      try {
+        path = realpathSync(path);
+        if (!path.toLowerCase().endsWith(".md")) continue;
+        st = statSync(path);
+        if (!st.isFile()) continue;
+      } catch { continue; }
+    }
     if (st.isFile() && name.toLowerCase().endsWith(".md") && !SKIP_MD.has(name.toLowerCase())) {
       const stem = name.slice(0, -3);
       let title: string | undefined;
