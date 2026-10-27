@@ -94,13 +94,23 @@ export function snipConversation(thread: UniversalThread, requestedIds?: string[
   }
   const messages = thread.messages.filter((message) => selected.has(message.id));
   const dependencyMessageIds = messages.filter((message) => !requested.has(message.id)).map((message) => message.id);
+  const segments: Array<{ messageIds: string[]; omittedBefore: number }> = [];
+  let previous = -1;
+  for (let index = 0; index < thread.messages.length; index++) {
+    const message = thread.messages[index];
+    if (!selected.has(message.id)) continue;
+    if (!segments.length || index !== previous + 1) segments.push({ messageIds: [], omittedBefore: index - previous - 1 });
+    segments[segments.length - 1].messageIds.push(message.id);
+    previous = index;
+  }
   // A section must never smuggle unrelated raw history or provider-level caches into its export.
   const { rawEvents: _rawEvents, providerMetadata: _metadata, ...source } = thread;
   const document = portableConversation({ ...source, messages });
-  document.selection = { sourceThreadId: thread.id, requestedMessageIds: [...requestedIds], includedMessageIds: messages.map((message) => message.id), dependencyMessageIds };
+  document.selection = { sourceThreadId: thread.id, requestedMessageIds: [...requestedIds], includedMessageIds: messages.map((message) => message.id), dependencyMessageIds, segments };
   const issues = toolPairIssues(messages);
   if (dependencyMessageIds.length) issues.push({ severity: "info", code: "tool_dependencies_included", message: `${dependencyMessageIds.length} additional message(s) included to keep tool calls and results together.` });
   if (thread.rawEvents?.length) issues.push({ severity: "info", code: "section_archive_filtered", message: "Unselected raw events are excluded. Selected messages retain their own provider provenance." });
+  if (segments.length > 1) issues.push({ severity: "warning", code: "noncontiguous_sections", message: `${segments.length} separate source sections are included in order; intervening messages are omitted, not summarized.` });
   return { document, issues };
 }
 
@@ -151,7 +161,12 @@ function blockText(block: UniversalContentBlock): string {
 
 export function conversationMarkdown(document: PortableConversationDocument): string {
   const parsed = parsePortableConversation(document);
-  return [`# ${parsed.thread.title}`, `Source: ${parsed.thread.harness}`, ...parsed.thread.messages.map((message, index) => `## ${index + 1}. ${message.role}\n\n${universalMessageText(message)}`)].join("\n\n");
+  const sections = new Map(parsed.selection?.segments?.map((segment, index) => [segment.messageIds[0], { ...segment, index }]) ?? []);
+  return [`# ${parsed.thread.title}`, `Source: ${parsed.thread.harness}`, ...parsed.thread.messages.map((message, index) => {
+    const section = sections.get(message.id);
+    const boundary = section ? `---\n\n### Source section ${section.index + 1}${section.omittedBefore ? ` (${section.omittedBefore} preceding messages omitted)` : ""}\n\n` : "";
+    return `${boundary}## ${index + 1}. ${message.role}\n\n${universalMessageText(message)}`;
+  })].join("\n\n");
 }
 
 export function toolPairIssues(messages: UniversalMessage[]): ConversationCompatibilityIssue[] {

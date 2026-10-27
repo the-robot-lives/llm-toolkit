@@ -297,7 +297,7 @@ export interface ThreadEdit {
 
 export interface EditedMessage {
   originalIndex?: number;
-  role: "user" | "assistant" | "system";
+  role: UniversalRole;
   content: string;
   injected?: boolean;
   collapsed?: boolean;
