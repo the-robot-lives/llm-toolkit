@@ -3,6 +3,7 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## 2026-10-27
+- feat(memories): Scan conversations into editable, evidence-backed memory drafts with emotional values, bulk approval and explicit connection-bound deduplicated commits — PR #27 → develop
 - fix(skills): Drive nested skill discovery, categories and symlink targets from validated authoritative catalogs with visible provenance and warnings — PR #26 → develop
 - fix(agents): Include symlinked Markdown aliases in family catalogs and verify synthetic agent groups preserve individual controls — PR #25 → develop
 
