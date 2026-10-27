@@ -3,6 +3,7 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## 2026-10-27
+- fix(skills): Drive nested skill discovery, categories and symlink targets from validated authoritative catalogs with visible provenance and warnings — PR #26 → develop
 - fix(agents): Include symlinked Markdown aliases in family catalogs and verify synthetic agent groups preserve individual controls — PR #25 → develop
 
 - feat(agents): Collapse explicit parent/model variants into expandable agent families with searchable provider metadata — PR #23 → develop

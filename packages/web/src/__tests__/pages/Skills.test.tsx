@@ -65,6 +65,13 @@ describe("Skills", () => {
     expect(screen.getByRole("button", { name: /AI & Agent Engineering/ })).toBeInTheDocument();
   });
 
+  test("shows catalog provenance and skipped-entry warnings", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo) => Promise.resolve({ ok: true, json: () => Promise.resolve(String(input).includes("/config") ? { data: { skills: { sourceFolders: ["/tmp/skills"], providers: ["claude"] } } } : { data: { ...catalog, sources: [{ path: "/tmp/skills", catalogFile: "/tmp/skills/catalog.yaml", skillCount: 1, warnings: ["missing: catalog path is missing; entry skipped."] }] } }) })));
+    renderSkills();
+    await screen.findByRole("region", { name: "Skill catalogs" });
+    expect(screen.getByText("/tmp/skills/catalog.yaml")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("entry skipped");
+  });
   test("lists skills in the selected catalog", async () => {
     renderSkills();
     await waitFor(() => {

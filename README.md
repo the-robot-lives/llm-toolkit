@@ -115,6 +115,25 @@ The **Skills**, **Agents**, **Commands**, and **MCP** sidebar pages share one ta
 
 Agents/commands use the matching `agents/` and `commands/` folders. MCP writes `~/.claude.json` / `.mcp.json`, Codex/Grok `config.toml`, Gemini `settings.json`, or OpenCode `opencode.json`. Details: [docs/arch/skills.md](docs/arch/skills.md).
 
+For nested skills, add a `catalog.yaml` at the source root. Its `skills` mapping
+is authoritative; `path` points to a skill directory relative to that root:
+
+```yaml
+version: 1
+skills:
+  nrp-example:
+    path: skills/ai-agent-platforms/run-plans/nrp-example
+    category: plans
+    tags: [agents, planning]
+```
+
+`categories.yaml` supplies category labels and flows. Catalog paths and their
+`SKILL.md` files must resolve inside the source root. Invalid entries are skipped
+with visible warnings; an invalid catalog never falls back to directory guesses.
+Roots without a catalog retain legacy discovery. Enabling a skill installs a
+flat `<target>/<name>` symlink to its catalog directory, preserving nested assets
+and references. Existing install conflicts still require confirmation and backup.
+
 Agent model variants can declare a family in their YAML frontmatter. The Agents
 view collapses these under the parent, with an expand button for individual
 variants. Search includes provider, model, tier and account metadata and reveals

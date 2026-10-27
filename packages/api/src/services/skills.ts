@@ -8,6 +8,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   symlinkSync,
   unlinkSync,
 } from "node:fs";
@@ -27,6 +28,7 @@ import { ARTIFACT_DEST_SPECS, ARTIFACT_KIND_ORDER, SKILL_PROVIDER_ORDER, SKILL_P
 
 const SKIP_DIRS = new Set(["shared", "evals", "docs", "skills", "node_modules", ".git", "assets", "references"]);
 const CATEGORIES_FILES = ["categories.yaml", "categories.yml"];
+const CATALOG_FILES = ["catalog.yaml", "catalog.yml"];
 
 export function expandPath(path: string): string {
   const trimmed = path.trim();
@@ -204,11 +206,15 @@ export interface DiscoveredSkill {
   sourceRoot: string;
   categoryId: string;
   installs: SkillInstall[];
+  catalogFile?: string;
+  tags?: string[];
 }
 
 export interface SkillSourceInfo {
   path: string;
   categoriesFile?: string;
+  catalogFile?: string;
+  warnings?: string[];
   skillCount: number;
 }
 
@@ -236,12 +242,57 @@ export function findCategoriesFile(dir: string): string | undefined {
   return undefined;
 }
 
+export function findSkillCatalog(dir: string): string | undefined {
+  return CATALOG_FILES.map(name => join(dir, name)).find(path => {
+    try { const info = lstatSync(path); return info.isFile() || info.isSymbolicLink(); } catch { return false; }
+  });
+}
+
+function assertSkillName(name: string) {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,199}$/.test(name)) throw new SkillActionError("Invalid skill name", 400);
+}
+
+/** Catalog paths are relative to the catalog root and may not escape through links. */
+function readCatalogSkills(root: string, catalogFile: string): { skills: DiscoveredSkill[]; warnings: string[] } {
+  const warnings: string[] = [];
+  const skills: DiscoveredSkill[] = [];
+  try {
+    const canonicalRoot = realpathSync(root);
+    const canonicalCatalog = realpathSync(catalogFile);
+    if (!canonicalCatalog.startsWith(`${canonicalRoot}/`) || !statSync(canonicalCatalog).isFile()) throw new Error("Catalog leaves its source root");
+    const parsed = asRecord(parseYamlLite(readFileSync(canonicalCatalog, "utf-8")));
+    if (parsed.version !== 1 || !parsed.skills || typeof parsed.skills !== "object" || Array.isArray(parsed.skills)) {
+      return { skills, warnings: ["Catalog must declare version: 1 and a skills mapping; no directory fallback was used."] };
+    }
+    for (const [name, value] of Object.entries(asRecord(parsed.skills))) {
+      try {
+        assertSkillName(name);
+        const entry = asRecord(value);
+        const relative = typeof entry.path === "string" ? entry.path : "";
+        if (!relative || relative.includes("\0") || isAbsolute(relative)) throw new Error("path must be relative");
+        const path = resolve(root, relative);
+        if (path !== resolve(root) && !path.startsWith(`${resolve(root)}/`)) throw new Error("path leaves the catalog root");
+        const canonical = realpathSync(path);
+        const skillFile = realpathSync(join(canonical, "SKILL.md"));
+        if (!canonical.startsWith(`${canonicalRoot}/`) || !skillFile.startsWith(`${canonicalRoot}/`) || !statSync(canonical).isDirectory() || !statSync(skillFile).isFile()) throw new Error("path must contain SKILL.md inside the catalog root");
+        const text = readFileSync(skillFile, "utf-8");
+        const meta = parseSkillFrontmatter(text);
+        skills.push({ name, title: stringValue(entry.title) || meta.title || titleFromHeading(text), description: stringValue(entry.description) || meta.description, path: canonical, sourceRoot: root, categoryId: stringValue(entry.category) || "uncategorized", installs: [], catalogFile, tags: stringList(entry.tags) });
+      } catch {
+        warnings.push(`${name}: catalog path is missing, invalid, or outside its source root; entry skipped.`);
+      }
+    }
+  } catch {
+    warnings.push("Catalog could not be read; no directory fallback was used.");
+  }
+  return { skills, warnings };
+}
+
 export function discoverSourceFolders(fromDirs: string[] = [process.cwd()]): string[] {
   const found: string[] = [];
   const seen = new Set<string>();
   const consider = (dir: string) => {
-    const categories = findCategoriesFile(dir);
-    if (!categories) return;
+    if (!findCategoriesFile(dir) && !findSkillCatalog(dir)) return;
     const resolved = resolve(dir);
     if (seen.has(resolved)) return;
     seen.add(resolved);
@@ -344,6 +395,7 @@ export function scanSkills(config: SkillsConfig): SkillsCatalog {
 
   for (const root of sourceFolders) {
     const categoriesFile = findCategoriesFile(root);
+    const catalogFile = findSkillCatalog(root);
     let count = 0;
     if (categoriesFile) {
       try {
@@ -363,12 +415,21 @@ export function scanSkills(config: SkillsConfig): SkillsCatalog {
       }
     }
 
-    for (const skill of listSkillDirs(root)) {
+    const listed = catalogFile ? readCatalogSkills(root, catalogFile) : { skills: listSkillDirs(root), warnings: [] };
+    for (const skill of listed.skills) {
       count += 1;
       if (skillsByName.has(skill.name)) continue;
       skillsByName.set(skill.name, skill);
+      if (catalogFile) skillToCategory.set(skill.name, skill.categoryId);
+      if (catalogFile && skill.categoryId !== "uncategorized" && !categoriesById.has(skill.categoryId)) {
+        categoriesById.set(skill.categoryId, { id: skill.categoryId, title: skill.categoryId, skills: [] });
+      }
+      if (catalogFile && skill.categoryId !== "uncategorized") {
+        const category = categoriesById.get(skill.categoryId)!;
+        category.skills = unique([...category.skills, skill.name]);
+      }
     }
-    sources.push({ path: root, categoriesFile, skillCount: count });
+    sources.push({ path: root, categoriesFile, catalogFile, warnings: listed.warnings, skillCount: count });
   }
 
   const uncategorized: string[] = [];
@@ -392,7 +453,10 @@ export function scanSkills(config: SkillsConfig): SkillsCatalog {
   }
 
   for (const cat of categoriesById.values()) {
-    cat.skills = cat.skills.filter((name) => skillsByName.has(name));
+    cat.skills = cat.skills.filter((name) => {
+      const skill = skillsByName.get(name);
+      return skill && (!skill.catalogFile || skill.categoryId === cat.id);
+    });
   }
 
   return {
@@ -434,6 +498,7 @@ export function enableSkill(
   destinationId: string,
   replace = false,
 ): SkillInstall {
+  assertSkillName(name);
   const catalog = scanSkills(config);
   const skill = catalog.skills.find((s) => s.name === name);
   if (!skill) throw new SkillActionError(`unknown skill: ${name}`, 404);
@@ -473,6 +538,7 @@ export function disableSkill(
   name: string,
   destinationId: string,
 ): SkillInstall {
+  assertSkillName(name);
   const catalog = scanSkills(config);
   const skill = catalog.skills.find((s) => s.name === name);
   const dest = catalog.destinations.find((d) => d.id === destinationId);
@@ -500,7 +566,7 @@ export function disableSkill(
   const underSource = skill
     ? samePath(target, skill.path) || config.sourceFolders.map(expandPath).some((root) => isUnder(target, root))
     : config.sourceFolders.map(expandPath).some((root) => isUnder(target, root));
-  if (existsSync(target) && !underSource && skill && !samePath(target, skill.path)) {
+  if (existsSync(target) && !underSource) {
     throw new SkillActionError(
       `symlink points outside sources: ${linkPath} -> ${target}`,
       409,
@@ -811,6 +877,18 @@ function parseYamlList(
 }
 
 function parseScalar(raw: string): YamlValue {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const values: string[] = [];
+    let token = "", quote = "";
+    for (const char of trimmed.slice(1, -1)) {
+      if ((char === "\"" || char === "'") && (!quote || quote === char)) quote = quote ? "" : char;
+      if (char === "," && !quote) { values.push(token); token = ""; }
+      else token += char;
+    }
+    if (token.trim()) values.push(token);
+    return values.map(value => parseScalar(value.trim()));
+  }
   const value = unquote(raw);
   if (value === "null" || value === "~") return null;
   if (value === "true") return true;
