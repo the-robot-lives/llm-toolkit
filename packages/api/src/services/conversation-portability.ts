@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, existsSync, lstatSync, linkSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, lstatSync, linkSync, mkdirSync, openSync, readFileSync, readSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { conversationMarkdown, insertConversationSection, parsePortableConversation, portableConversation, snipConversation, universalMessageText, validateUniversalThread } from "@llm-toolkit/shared";
@@ -22,7 +22,7 @@ export interface ConversationCloneRequest {
 interface PreviewState {
   sourceId: string;
   expiresAt: number;
-  sources: Array<{ path: string; hash: string }>;
+  sources: Array<{ path: string; hash: string; byteLength?: number }>;
   document: PortableConversationDocument;
   context: NativeConversationContext;
   artifact: NativeConversationArtifact;
@@ -95,7 +95,7 @@ export class ConversationPortabilityService {
   private async loadSnapshot(id: string) {
     const conversation = await this.storage.getConversation(id);
     if (!conversation) throw new Error("Conversation not found");
-    const fingerprint = { path: conversation.sourcePath, hash: sourceHash(conversation.sourcePath) };
+    const fingerprint = { path: conversation.sourcePath, hash: sourceHash(conversation.sourcePath), byteLength: statSync(conversation.sourcePath).size };
     const thread = await this.load(id);
     if (thread.sourcePath !== fingerprint.path || sourceHash(fingerprint.path) !== fingerprint.hash) throw new Error("A source conversation changed while loading. Preview again before creating a copy.");
     return { thread, fingerprint };
@@ -111,6 +111,7 @@ export class ConversationPortabilityService {
     const document = parsePortableConversation(readConversationFile(path));
     const binding = document.thread.providerMetadata?.portableArchiveBinding as { harness?: string; sessionId?: string; byteLength?: number; sha256?: string } | undefined;
     if (!binding || binding.harness !== conversation.harness || !binding.sessionId || !Number.isSafeInteger(binding.byteLength) || binding.byteLength! < 1 || binding.byteLength! > 50_000_000) throw new Error("Archive association is missing or invalid");
+    if (statSync(conversation.sourcePath).size > 50_000_000) throw new Error("Archive restoration supports at most 50 MB; no content was truncated");
     const native = readFileSync(conversation.sourcePath);
     if (native.length < binding.byteLength! || createHash("sha256").update(native.subarray(0, binding.byteLength)).digest("hex") !== binding.sha256) throw new Error("The conversation prefix changed; its archive cannot be restored safely");
     const prefix = native.subarray(0, binding.byteLength).toString("utf8");
@@ -118,6 +119,7 @@ export class ConversationPortabilityService {
     if (conversation.harness === "claude") baseline = (await import("./native/claude.ts")).importClaudeConversation(prefix, conversation.sourcePath);
     else if (conversation.harness === "codex") baseline = (await import("./native/codex.ts")).importCodexConversation(prefix, conversation.sourcePath);
     else baseline = (await import("./native/gemini.ts")).importGeminiConversation(prefix, conversation.sourcePath, conversation.projectPath);
+    if (baseline.providerMetadata?.sessionId !== binding.sessionId) throw new Error("Archive session identity does not match its native prefix");
     const current = await this.load(id);
     if (current.messages.length < baseline.messages.length || baseline.messages.some((message, index) => current.messages[index]?.id !== message.id)) throw new Error("The archived history boundary no longer resolves; restore is blocked to preserve later turns");
     document.thread.messages = document.thread.messages.flatMap(message => {
@@ -143,8 +145,23 @@ export class ConversationPortabilityService {
     const sourceSnapshot = await this.loadSnapshot(id);
     const source = sourceSnapshot.thread;
     let { document, issues } = request.document !== undefined ? { document: parsePortableConversation(request.document), issues: [] as ConversationCompatibilityIssue[] } : snipConversation(source, request.messageIds);
-    const sources = [sourceSnapshot.fingerprint];
+    const sources: PreviewState["sources"] = [sourceSnapshot.fingerprint];
     const trustedMessages = new Map(source.messages.map(message => [message.id, message]));
+    if (document.thread.id !== source.id) {
+      const origin = await this.storage.getConversation(document.thread.id);
+      const recorded = document.thread.providerMetadata?.portableArchiveSources;
+      const expected = Array.isArray(recorded) && origin ? recorded.find((value: unknown) => value && typeof value === "object" && (value as { path?: unknown }).path === origin.sourcePath) as { path: string; hash: string; byteLength?: number } | undefined : undefined;
+      let verified = false;
+      if (origin && expected && typeof expected.hash === "string") {
+        try {
+          if (sourcePrefixMatches(origin.sourcePath, expected)) {
+            const original = await this.loadSnapshot(origin.id);
+            if (sourcePrefixMatches(origin.sourcePath, expected)) { for (const message of original.thread.messages) trustedMessages.set(message.id, message); sources.push(original.fingerprint); verified = true; }
+          }
+        } catch { /* Archived originals remain readable when their native source is unavailable. */ }
+      }
+      if (!verified) issues.push({ severity: "warning", code: "archive_origin_unverified", message: "Archived or imported originals could not be verified against their unchanged native source. Structured provider blocks will remain historical context." });
+    }
     const verifiedIncoming = new Set<string>();
     for (const message of document.thread.messages) {
       const original = trustedMessages.get(message.id);
@@ -246,7 +263,7 @@ export class ConversationPortabilityService {
     try {
       exclusiveWrite(nativeStage, preview.artifact.jsonl); remember(nativeStage);
       const archived = structuredClone(preview.document);
-      archived.thread.providerMetadata = { ...archived.thread.providerMetadata, portableArchiveBinding: { harness: preview.artifact.harness, sessionId: preview.context.sessionId, byteLength: Buffer.byteLength(preview.artifact.jsonl), sha256: createHash("sha256").update(preview.artifact.jsonl).digest("hex") } };
+      archived.thread.providerMetadata = { ...archived.thread.providerMetadata, portableArchiveSources: preview.sources, portableArchiveBinding: { harness: preview.artifact.harness, sessionId: preview.context.sessionId, byteLength: Buffer.byteLength(preview.artifact.jsonl), sha256: createHash("sha256").update(preview.artifact.jsonl).digest("hex") } };
       exclusiveWrite(sidecarStage, JSON.stringify(archived, null, 2) + "\n"); remember(sidecarStage);
       const validation = await validateConversationContent(readFileSync(nativeStage, "utf8"), preview.artifact.harness, preview.context, this.options.adapters);
       if (!validation.valid) throw new Error("The staged native file failed validation. Originals are unchanged.");
@@ -367,4 +384,12 @@ export function legacyMessageText(message: UniversalMessage): string {
     if (block.type === "tool_result") { const text = typeof block.content === "string" ? block.content : universalMessageText({ ...message, content: block.content }); return `${block.isError ? "[Tool Output: Error]" : "[Tool Output]"}\n${text}`; }
     return universalMessageText({ ...message, content: [block] });
   }).filter(Boolean).join("\n\n");
+}
+
+function sourcePrefixMatches(path: string, expected: { hash: string; byteLength?: number }): boolean {
+  if (expected.byteLength === undefined) return sourceHash(path) === expected.hash;
+  if (!Number.isSafeInteger(expected.byteLength) || expected.byteLength < 1 || expected.byteLength > 50_000_000 || statSync(path).size < expected.byteLength) return false;
+  const descriptor = openSync(path, "r");
+  try { const prefix = Buffer.alloc(expected.byteLength); return readSync(descriptor, prefix, 0, prefix.length, 0) === prefix.length && createHash("sha256").update(prefix).digest("hex") === expected.hash; }
+  finally { closeSync(descriptor); }
 }

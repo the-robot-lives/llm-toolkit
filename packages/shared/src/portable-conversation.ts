@@ -106,7 +106,8 @@ export function snipConversation(thread: UniversalThread, requestedIds?: string[
   }
   // A section must never smuggle unrelated raw history or provider-level caches into its export.
   const { rawEvents: _rawEvents, providerMetadata: _metadata, ...source } = thread;
-  const document = portableConversation({ ...source, messages });
+  const archiveSources = record(thread.providerMetadata) && Array.isArray(thread.providerMetadata.portableArchiveSources) ? thread.providerMetadata.portableArchiveSources.filter((value) => record(value) && value.path === thread.sourcePath).map((value) => ({ path: value.path, hash: value.hash, byteLength: value.byteLength })) : undefined;
+  const document = portableConversation({ ...source, messages, ...(archiveSources?.length ? { providerMetadata: { portableArchiveSources: archiveSources } } : {}) });
   document.selection = { sourceThreadId: thread.id, requestedMessageIds: [...requestedIds], includedMessageIds: messages.map((message) => message.id), dependencyMessageIds, segments };
   const issues = toolPairIssues(messages);
   if (dependencyMessageIds.length) issues.push({ severity: "info", code: "tool_dependencies_included", message: `${dependencyMessageIds.length} additional message(s) included to keep tool calls and results together.` });

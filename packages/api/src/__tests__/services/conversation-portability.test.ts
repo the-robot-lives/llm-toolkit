@@ -181,16 +181,20 @@ describe("safe native conversation workflow", () => {
     const preview = await service.preview("source", { targetHarness: "codex" }); expect(preview.report.valid).toBe(true);
     const created = await service.create("source", preview.previewId);
     const script = `import json,os,subprocess,selectors,time,sys
-p=subprocess.Popen(['codex','app-server','--listen','stdio://'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,env={'PATH':os.environ['PATH'],'CODEX_HOME':sys.argv[1],'TMPDIR':os.environ.get('TMPDIR','/tmp')})
+p=subprocess.Popen(['codex','app-server','--listen','stdio://'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env={'PATH':os.environ['PATH'],'CODEX_HOME':sys.argv[1],'TMPDIR':os.environ.get('TMPDIR','/tmp')})
 s=selectors.DefaultSelector();s.register(p.stdout,selectors.EVENT_READ)
 def req(i,m,params):
- p.stdin.write(json.dumps({'jsonrpc':'2.0','id':i,'method':m,'params':params})+'\\n');p.stdin.flush();end=time.monotonic()+10
+ p.stdin.write((json.dumps({'jsonrpc':'2.0','id':i,'method':m,'params':params})+'\\n').encode());p.stdin.flush();end=time.monotonic()+15;buffer=b''
  while time.monotonic()<end:
-  if not s.select(.1):continue
-  line=p.stdout.readline()
-  if not line:raise Exception('server exited')
-  x=json.loads(line)
-  if x.get('id')==i:return x
+  if b'\\n' not in buffer:
+   if not s.select(.1):continue
+   chunk=os.read(p.stdout.fileno(),65536)
+   if not chunk:raise Exception('server exited')
+   buffer+=chunk
+  while b'\\n' in buffer:
+   line,buffer=buffer.split(b'\\n',1)
+   x=json.loads(line)
+   if x.get('id')==i:return x
  raise Exception('timeout')
 try:
  req(1,'initialize',{'clientInfo':{'name':'toolkit-fixture','version':'1'},'capabilities':{'experimentalApi':True}})
@@ -256,6 +260,44 @@ finally:p.terminate();p.wait(timeout=3)
     const native = codexConversationAdapter.render(empty.thread, { sessionId: "123e4567-e89b-42d3-a456-426614174006", cwd: directory, title: "empty", createdAt: empty.thread.startedAt, sourceHarness: "claude" });
     const general = await validateConversationContent(native.jsonl, "codex", undefined, adapters); expect(general.status).toBe("incomplete"); expect(general.valid).toBe(false);
     expect((await validateConversationContent(native.jsonl, "codex", { sessionId: "123e4567-e89b-42d3-a456-426614174006", cwd: directory, title: "empty", createdAt: empty.thread.startedAt, sourceHarness: "claude" }, adapters)).status).toBe("invalid");
+  });
+
+  test.each(["claude", "codex"] as const)("%s compacted native history restores verified native tools and preserves appended turns", async harness => {
+    const rich = thread("source", directory, ["Request", "Answer"]); rich.harness = harness;
+    rich.messages.splice(1, 0,
+      { id: "archive-call", role: "assistant", timestamp: rich.startedAt, provenance: { harness, sourcePath: "fixture" }, content: [{ type: "tool_use", toolCallId: "archived-tool", name: "Read", input: { path: "fixture" }, ...(harness === "codex" ? { providerType: "function_call" } : {}) }] },
+      { id: "archive-result", role: harness === "claude" ? "user" : "tool", timestamp: rich.startedAt, provenance: { harness, sourcePath: "fixture" }, content: [{ type: "tool_result", toolCallId: "archived-tool", content: "Archived result", ...(harness === "codex" ? { providerType: "function_call_output" } : {}) }] });
+    const native = adapters[harness].render(rich, { sessionId: "123e4567-e89b-42d3-a456-426614174007", cwd: directory, title: "source", createdAt: rich.startedAt, sourceHarness: harness });
+    writeFileSync(paths.get("source")!, native.jsonl);
+    await storage.upsertConversation({ id: "source", harness, title: "source", projectPath: directory, sourcePath: paths.get("source")!, startedAt: rich.startedAt, updatedAt: rich.updatedAt, messageCount: 4 });
+    const canonical = await service.load("source");
+    const compacted = await service.editedDocument("source", [{ role: "assistant", content: "[Generated summary] Request processed", compactionOriginals: canonical.messages.map((message, index) => ({ originalIndex: index, role: message.role, content: universalMessageText(message), universalMessage: message })) }]);
+    const preview = await service.preview("source", { targetHarness: harness, document: compacted }); const clone = await service.create("source", preview.previewId);
+    expect(statSync(clone.universalPath).mode & 0o777).toBe(0o600);
+    const later = adapters[harness].render(thread("later", directory, ["Appended question", "Appended answer"]), { sessionId: preview.sessionId, cwd: directory, title: "later", createdAt: "2026-10-02T00:00:00Z", sourceHarness: "claude" });
+    let records = later.records;
+    if (harness === "codex") records = records.filter(record => record.type !== "session_meta");
+    else { const prior = preview.jsonl.trim().split("\n").map(line => JSON.parse(line)).filter(record => record.type === "user" || record.type === "assistant").at(-1); const first = records.find(record => record.type === "user" || record.type === "assistant")!; first.parentUuid = prior.uuid; }
+    writeFileSync(clone.sourcePath, readFileSync(clone.sourcePath, "utf8") + records.map(record => JSON.stringify(record)).join("\n") + "\n");
+    await storage.upsertConversation({ id: "compact-clone", harness, title: "compact", projectPath: directory, sourcePath: clone.sourcePath, startedAt: rich.startedAt, updatedAt: rich.updatedAt, messageCount: 3 });
+    const sourceLater = adapters[harness].render(thread("origin-later", directory, ["Original appended question", "Original appended answer"]), { sessionId: "123e4567-e89b-42d3-a456-426614174007", cwd: directory, title: "original later", createdAt: "2026-10-03T00:00:00Z", sourceHarness: "claude" });
+    let sourceRecords = sourceLater.records;
+    if (harness === "codex") sourceRecords = sourceRecords.filter(record => record.type !== "session_meta");
+    else { const previous = native.records.filter(record => record.type === "user" || record.type === "assistant").at(-1)!; sourceRecords.find(record => record.type === "user" || record.type === "assistant")!.parentUuid = previous.uuid; }
+    const continuedOriginal = native.jsonl + sourceRecords.map(record => JSON.stringify(record)).join("\n") + "\n";
+    writeFileSync(paths.get("source")!, continuedOriginal);
+    const restored = await service.archive("compact-clone");
+    const restoredPreview = await service.preview("compact-clone", { targetHarness: harness, document: restored }); const output = await service.create("compact-clone", restoredPreview.previewId);
+    const actual = harness === "claude" ? (await import("../../services/native/claude.ts")).importClaudeConversation(readFileSync(output.sourcePath, "utf8"), output.sourcePath) : importCodexConversation(readFileSync(output.sourcePath, "utf8"), output.sourcePath);
+    const blocks = actual.messages.flatMap(message => message.content);
+    expect(blocks.some(block => block.type === "tool_use")).toBe(true); expect(blocks.some(block => block.type === "tool_result" && block.content === "Archived result")).toBe(true);
+    expect(actual.messages.map(universalMessageText).join("\n")).toContain("Appended answer");
+    expect(readFileSync(paths.get("source")!, "utf8")).toBe(continuedOriginal);
+    writeFileSync(paths.get("source")!, "changed prefix" + continuedOriginal);
+    const unverified = await service.preview("compact-clone", { targetHarness: harness, document: restored });
+    expect(unverified.issues.some(issue => issue.code === "archive_origin_unverified")).toBe(true);
+    expect(unverified.jsonl).not.toContain('"type":"tool_use"');
+    expect(unverified.jsonl).not.toContain('"type":"function_call"');
   });
 
 });
