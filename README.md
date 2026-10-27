@@ -174,6 +174,14 @@ Open **Settings → Memories · therobot.is**, or **Memories** in the sidebar, a
 
 The native app keeps the existing local editor under **Claude Memory Files**. Connecting does not upload, move, or delete local files. Disconnect removes this app's local OAuth credentials and preserves your remote memories. Credentials are stored server-side in the Toolkit data directory with owner-only permissions, never in browser storage or Settings responses. The local API listens only on `127.0.0.1`.
 
+### Review memories from a conversation
+
+Open a conversation and choose **Extract memories**. Select a saved LLM profile and choose **Scan conversation**. The scan sends conversational text to that model, excludes tool output and private reasoning, and reports exactly how much was included (up to the first 120,000 text characters). It does not write to the memory store.
+
+Review each candidate's content, context, source message excerpts, and estimated emotional values. Edit arousal and dominance between 0 and 1, or valence between −1 and 1. Select or disable candidates individually, or use **Select all / Select none**. Edits survive navigation locally, and the extracted draft is retained in the Toolkit database. A successful rescan replaces a review only after confirmation.
+
+Choose **Commit to memory** when ready. This requires a therobot.is connection with editing enabled and sends only selected candidates. Successful entries are locked with a receipt; failed or quarantined entries remain editable. Retrying uses stable import references to avoid storing the same candidate twice. Committed memories remain in the store if you later replace a review.
+
 ```bash
 pnpm dev:api          # Hono, reload
 pnpm dev:web          # Vite, :5173

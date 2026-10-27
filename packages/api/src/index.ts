@@ -24,6 +24,9 @@ import { createArtifactRoutes } from "./routes/artifacts.ts";
 import { createServiceRoutes } from "./routes/services.ts";
 import { createMemoryRoutes } from "./routes/memory.ts";
 import { createRemoteMemoryRoutes } from "./routes/remote-memory.ts";
+import { createMemoryExtractionRoutes } from "./routes/memory-extraction.ts";
+import { MemoryExtractionService } from "./services/memory-extraction.ts";
+import { RemoteMemoryService } from "./services/remote-memory.ts";
 import { ServiceSupervisor } from "./services/service-supervisor.ts";
 import { StorageService } from "./services/storage.ts";
 import { IndexerService } from "./services/indexer.ts";
@@ -93,7 +96,9 @@ app.route("/api/commands", createArtifactRoutes(storage, "commands"));
 app.route("/api/mcp", createArtifactRoutes(storage, "mcp"));
 app.route("/api/services", createServiceRoutes(supervisor, { projectRoot }));
 app.route("/api/memory", createMemoryRoutes());
-app.route("/api/remote-memory", createRemoteMemoryRoutes());
+const remoteMemory = new RemoteMemoryService(dataDir);
+app.route("/api/remote-memory", createRemoteMemoryRoutes(remoteMemory));
+app.route("/api/memory-extraction", createMemoryExtractionRoutes(new MemoryExtractionService(storage, llmService, remoteMemory)));
 
 const webDist = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "web", "dist");
 if (existsSync(join(webDist, "index.html"))) {

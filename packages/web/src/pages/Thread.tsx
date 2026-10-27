@@ -407,6 +407,7 @@ export function Thread() {
           <button onClick={() => navigate(-1)} className="btn-action" title="Go back to the previous page">Back</button>
           <button onClick={() => navigate(`/thread/${id}/edit`)} className="btn-action-primary" title="Edit this thread — collapse, remove, reorder, or inject messages (non-destructive)">Edit</button>
           <button onClick={() => navigate(`/thread/${id}/convert`)} className="btn-action-primary" title="Extract a reusable artifact — agent, skill, command, snippet, or runbook">Convert</button>
+          <button onClick={() => navigate(`/thread/${id}/memories`)} className="btn-action-primary" title="Scan this conversation and review memories before committing them">Extract memories</button>
           <button onClick={() => navigate(`/thread/${id}/continue`)} className="btn-action-primary" title="Prepare a continuation or transfer payload from the universal transcript">Continue / Transfer</button>
           <div className="mx-1 h-5 w-px bg-border-subtle" />
           <button onClick={handleClone} className="btn-action" title="Create a duplicate of this conversation with a new ID">Clone</button>

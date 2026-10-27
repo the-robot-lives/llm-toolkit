@@ -145,7 +145,8 @@ export interface LlmProfilesResponse {
 
 // ⟦𓍿𓄿𓋹𓎡⟧ useLlmProfiles :: profiles + defaults + indexing config
 export function useLlmProfiles() {
-  return useApiQuery<LlmProfilesResponse>("/llm/profiles");
+  const query = useApiQuery<{ data: LlmProfilesResponse }>("/llm/profiles");
+  return { ...query, data: query.data?.data ?? null };
 }
 
 export function testLlmProfile(profile: LlmProfile): Promise<{ ok: boolean; models?: string[]; error?: string }> {

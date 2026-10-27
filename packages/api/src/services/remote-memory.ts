@@ -129,6 +129,9 @@ export class RemoteMemoryService implements OAuthClientProvider {
         const { tools } = await client.listTools();
         const selected = tools.find((item) => item.name === tool) ?? tools.find((item) => item.name.toLowerCase().replace(/[^a-z0-9]/g, "").endsWith(tool.replaceAll("_", "")));
         if (!selected) throw new Error("The memory service does not support this action.");
+        // Bulk review retries rely on the server's import deduplication contract.
+        // Never silently send an unprotected write to an older server schema.
+        if (tool === "remember" && args.source_ref && !selected.inputSchema?.properties?.source_ref) throw new Error("The memory service does not support safe bulk imports yet.");
         const result = await client.callTool({ name: selected.name, arguments: args });
         if (result.isError) throw new Error("The memory service rejected this action. Check your account permissions and try again.");
         if (result.structuredContent) return result.structuredContent;

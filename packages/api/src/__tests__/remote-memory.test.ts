@@ -82,6 +82,15 @@ describe("Remote memory OAuth", () => {
       expect(await response.text()).not.toContain("private-token");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+  test("refuses bulk writes when a server does not advertise source-ref deduplication", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "memory-oauth-"));
+    try {
+      const service = new RemoteMemoryService(dir);
+      service.saveTokens({ access_token: "private-token", token_type: "Bearer", scope: "mcp:read mcp:write" });
+      await expect(service.call("remember", { content: "reviewed memory", source_ref: "stable-import-id" })).rejects.toThrow("safe bulk imports");
+      expect(sdk.callTool).not.toHaveBeenCalled();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
 });
 
 describe("Remote memory browser boundaries", () => {
