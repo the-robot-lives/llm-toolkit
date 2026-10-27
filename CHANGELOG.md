@@ -3,7 +3,7 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## 2026-10-27
-- feat(settings): Configure ordered multi-root Skills/Agents/Commands sources with raw-config-safe saves, stale-source action guards, nested discovery and previewed exclusive catalog generation — PR #34 → develop
+- feat(settings): Configure ordered multi-root Skills/Agents/Commands sources with raw-config-safe saves, stale-source action guards, nested discovery and previewed exclusive catalog generation — PR #34 (optional-source compatibility fix #35) → develop
 - feat(memories): Show recall ranks, scores and retrieval contributions; replace Pin text with an accessible thumbtack and accurate pruning tooltip — PR #30 → develop
 - fix(projects): Query only a selected organization and honor enabled/included manifest policy for legacy Tobor read aliases — PR #29 → develop
 - feat(projects): Group scoped repositories/worktrees and aggregate conversations; add separate Tobor OAuth and repository project linking — PR #28 → develop

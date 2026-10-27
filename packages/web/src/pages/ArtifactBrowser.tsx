@@ -653,9 +653,9 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
         </div>
       )}
 
-      {kind !== "mcp" && catalog?.sources.some(source => source.catalogFile || source.warnings?.length) && (
+      {kind !== "mcp" && (catalog?.sources ?? []).some(source => source.catalogFile || source.warnings?.length) && (
         <section aria-label={kind === "skills" ? "Skill catalogs" : "Source notices"} className="space-y-2 rounded-md border border-border-subtle bg-canvas p-3 text-xs">
-          {catalog.sources.filter(source => source.catalogFile || source.warnings?.length).map(source => (
+          {(catalog?.sources ?? []).filter(source => source.catalogFile || source.warnings?.length).map(source => (
             <div key={source.path}>
               <p className="text-text-muted">{source.skillCount} skills from <code className="break-all">{source.catalogFile ?? source.path}</code></p>
               {source.warnings?.map(warning => <p key={warning} role="alert" className="mt-1 text-yellow-400">{warning}</p>)}
