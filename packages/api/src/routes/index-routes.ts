@@ -1,3 +1,5 @@
+// 〚📁:32fd8a7c-d690-5120-8997-db4f72845272〛 Index routes :: /api/index rebuild/status/preview wiring over IndexerService.
+
 import { Hono } from "hono";
 import type { IndexerService, IndexAllOptions } from "../services/indexer.ts";
 

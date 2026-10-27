@@ -1,3 +1,5 @@
+// 〚📁:c185f5cf-565a-5c73-9d83-aa118d0c2065〛 LlmService :: Named LLM profiles — providers, env fallbacks, completion, model discovery.
+
 import type { LlmConfig, LlmCompletionRequest, LlmCompletionResponse, ContentBlock, LlmProfile } from "@llm-toolkit/shared";
 import { standardizeContentBlocks } from "@llm-toolkit/shared";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";

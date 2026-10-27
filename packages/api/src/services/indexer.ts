@@ -1,3 +1,5 @@
+// 〚📁:4b2c3249-a37a-5486-a806-6fc7634583f1〛 IndexerService :: JSONL scan to raw/universal/flat layers + two-tier LLM enrichment.
+
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";

@@ -1,3 +1,5 @@
+// 〚📁:d2914bef-c7be-5fbc-b662-e1a452f73ba9〛 skill-manage entry :: CLI dispatch for skill/agent/command linking.
+
 mod audit;
 mod catalog;
 mod cli;

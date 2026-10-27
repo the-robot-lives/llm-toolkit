@@ -1,3 +1,5 @@
+// 〚📁:10f39db8-e644-535b-aa88-cb224e2df470〛 StorageService :: SQLite schema owner — boot DDL, PRAGMA column-add migrations, table access.
+
 import Database from "better-sqlite3";
 import type {
   AgentHarness,
