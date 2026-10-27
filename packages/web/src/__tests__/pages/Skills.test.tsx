@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Skills } from "../../pages/Skills.tsx";
 
@@ -71,6 +71,23 @@ describe("Skills", () => {
     await screen.findByRole("region", { name: "Skill catalogs" });
     expect(screen.getByText("/tmp/skills/catalog.yaml")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("entry skipped");
+  });
+  test("refreshes selected detail after source changes and sends the displayed path with actions", async () => {
+    let active = "/roots/a/agent-architect";
+    const fetcher = vi.fn((input: RequestInfo, options?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/config")) return Promise.resolve({ ok: true, json: async () => ({ data: { skills: { sourceFolders: ["/roots/a", "/roots/b"], providers: ["claude"] } } }) });
+      if (url.endsWith("/apply")) return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      const row = { ...catalog.skills[0], path: active, installs: [{ destinationId: "global-claude", status: "disabled", linkPath: "/target/agent-architect" }] };
+      if (url.endsWith("/agent-architect")) return Promise.resolve({ ok: true, json: async () => ({ data: { ...row, skillMarkdown: "# Agent", files: [] } }) });
+      return Promise.resolve({ ok: true, json: async () => ({ data: { ...catalog, skills: [row] } }) });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    renderSkills("/skills/agent-architect"); await screen.findByText("/roots/a/agent-architect");
+    active = "/roots/b/agent-architect"; window.dispatchEvent(new Event("artifact-sources-changed"));
+    await screen.findByText("/roots/b/agent-architect"); expect(screen.queryByText("/roots/a/agent-architect")).not.toBeInTheDocument();
+    const detail = screen.getByRole("complementary"); fireEvent.click(within(detail).getByRole("button", { name: "Global Claude disabled" }));
+    await waitFor(() => expect(fetcher.mock.calls.some(([url, options]) => String(url).endsWith("/apply") && JSON.parse(String(options?.body)).expectedSource === active)).toBe(true));
   });
   test("lists skills in the selected catalog", async () => {
     renderSkills();

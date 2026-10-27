@@ -6,6 +6,7 @@ Claude Assist — local dev tool for searching, browsing, editing, and mining Cl
 - feat(conversations): Add versioned Gemini JSON/JSONL validation, active-history import and registry-aware safe cloning with isolated published-reader proof — PR #33 → epic.portable-conversations
 - feat(conversations): Add versioned Codex native rendering, actionable format validation and read-only paginated history materialization with installed-parser fixtures — PR #32 → epic.portable-conversations
 - feat(conversations): Add versioned Claude native JSONL validation, active-chain imports and fresh clone rendering with isolated official SDK reader/fork proofs — PR #31 → epic.portable-conversations
+- feat(settings): Configure ordered multi-root Skills/Agents/Commands sources with raw-config-safe saves, stale-source action guards, nested discovery and previewed exclusive catalog generation — PR #34 (optional-source compatibility fix #35) → develop
 - feat(memories): Show recall ranks, scores and retrieval contributions; replace Pin text with an accessible thumbtack and accurate pruning tooltip — PR #30 → develop
 - fix(projects): Query only a selected organization and honor enabled/included manifest policy for legacy Tobor read aliases — PR #29 → develop
 - feat(projects): Group scoped repositories/worktrees and aggregate conversations; add separate Tobor OAuth and repository project linking — PR #28 → develop

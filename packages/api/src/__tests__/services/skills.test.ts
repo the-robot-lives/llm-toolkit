@@ -231,7 +231,7 @@ describe("catalog-driven nested skills", () => {
       const cfg = { sourceFolders: [source], destinations: [{ id: "test", label: "Test", path: destination, kind: "global" as const, provider: "claude" as const }] };
       const catalog = scanSkills(cfg);
       expect(catalog.skills.map(skill => skill.name)).toEqual(["nested", "nrp-demo"]);
-      expect(catalog.skills[0]).toMatchObject({ categoryId: "engineering", tags: ["code", "tools"], catalogFile: join(source, "catalog.yaml") });
+      expect(catalog.skills[0]).toMatchObject({ categoryId: "engineering", tags: ["code", "tools"], catalogFile: realpathSync(join(source, "catalog.yaml")) });
       expect(catalog.categories.find(category => category.id === "wrong")?.skills).toEqual([]);
       expect(catalog.categories.find(category => category.id === "engineering")?.skills).toEqual(["nested"]);
       expect(readSkillDetail(cfg, "nrp-demo")?.skillMarkdown).toContain("Deep plan");

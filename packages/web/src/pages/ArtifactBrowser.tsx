@@ -91,6 +91,7 @@ interface SkillRow {
   categoryId: string;
   catalogFile?: string;
   tags?: string[];
+  alternatives?: { path: string; sourceRoot: string }[];
   installs: SkillInstall[];
 }
 
@@ -158,6 +159,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
   const statusFilter = (searchParams.get("status") as "all" | "enabled" | "disabled") || "all";
 
   const [catalog, setCatalog] = useState<SkillsCatalog | null>(null);
+  const [sourceRevision, setSourceRevision] = useState(0);
   const [config, setConfig] = useState<SkillsConfig | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -196,11 +198,19 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
   }, [reload]);
 
   useEffect(() => {
+    const changed = () => { reload().then(() => setSourceRevision(value => value + 1)).catch(err => setError(err instanceof Error ? err.message : "Could not refresh sources")); };
+    window.addEventListener("artifact-sources-changed", changed);
+    return () => window.removeEventListener("artifact-sources-changed", changed);
+  }, [reload]);
+
+  const selectedSourcePath = catalog?.skills.find(item => item.name === selectedName)?.path;
+  useEffect(() => {
     if (!selectedName) {
       setSelected(null);
       return;
     }
     let cancelled = false;
+    setSelected(null);
     apiFetch<{ data: SkillDetail }>(`${apiPath}/${encodeURIComponent(selectedName)}`)
       .then((res) => {
         if (!cancelled) setSelected(res.data);
@@ -211,7 +221,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
     return () => {
       cancelled = true;
     };
-  }, [selectedName, apiPath, meta.singular]);
+  }, [selectedName, apiPath, meta.singular, selectedSourcePath, sourceRevision]);
 
   const saveConfig = async (next: SkillsConfig) => {
     const res = await apiFetch<{ data: Record<string, SkillsConfig | undefined> }>("/config", {
@@ -252,13 +262,21 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
     await patchTargets({ providers: next });
   };
 
+  const saveSources = async (paths: string[]) => {
+    if (["skills", "agents", "commands"].includes(kind)) {
+      await apiFetch("/config/artifact-sources", { method: "PATCH", body: JSON.stringify({ [kind]: paths }) });
+      await reload();
+      window.dispatchEvent(new Event("artifact-sources-changed"));
+    } else if (config) await saveConfig({ ...config, sourceFolders: paths });
+  };
+
   const addSource = async (path: string) => {
     if (!config || !path.trim()) return;
     const expanded = path.trim();
     if (config.sourceFolders.includes(expanded)) return;
     setBusy("source");
     try {
-      await saveConfig({ ...config, sourceFolders: [...config.sourceFolders, expanded] });
+      await saveSources([...(config.sourceFolders.length ? config.sourceFolders : catalog?.sources.map(source => source.path) ?? []), expanded]);
       setNewSource("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add source folder");
@@ -270,7 +288,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
     if (!config) return;
     setBusy("source");
     try {
-      await saveConfig({ ...config, sourceFolders: config.sourceFolders.filter((p) => p !== path) });
+      await saveSources(config.sourceFolders.filter((p) => p !== path));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not remove source folder");
     }
@@ -307,7 +325,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
     try {
       await apiFetch(`${apiPath}/apply`, {
         method: "POST",
-        body: JSON.stringify({ name: skill.name, destinationIds: destIds, enabled, replace }),
+        body: JSON.stringify({ name: skill.name, expectedSource: skill.path, destinationIds: destIds, enabled, replace }),
       });
       await reload();
       if (selectedName === skill.name) {
@@ -635,11 +653,11 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
         </div>
       )}
 
-      {kind === "skills" && catalog?.sources.some(source => source.catalogFile || source.warnings?.length) && (
-        <section aria-label="Skill catalogs" className="space-y-2 rounded-md border border-border-subtle bg-canvas p-3 text-xs">
-          {catalog.sources.filter(source => source.catalogFile || source.warnings?.length).map(source => (
+      {kind !== "mcp" && (catalog?.sources ?? []).some(source => source.catalogFile || source.warnings?.length) && (
+        <section aria-label={kind === "skills" ? "Skill catalogs" : "Source notices"} className="space-y-2 rounded-md border border-border-subtle bg-canvas p-3 text-xs">
+          {(catalog?.sources ?? []).filter(source => source.catalogFile || source.warnings?.length).map(source => (
             <div key={source.path}>
-              <p className="text-text-muted">{source.skillCount} skills from <code className="break-all">{source.catalogFile}</code></p>
+              <p className="text-text-muted">{source.skillCount} skills from <code className="break-all">{source.catalogFile ?? source.path}</code></p>
               {source.warnings?.map(warning => <p key={warning} role="alert" className="mt-1 text-yellow-400">{warning}</p>)}
             </div>
           ))}
@@ -815,6 +833,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
                 <p className="text-[11px] italic text-text-dim">Turn on Global or pick a project to choose destinations.</p>
               )}
             </div>
+            {!!selected.alternatives?.length && <div className="mb-3 text-xs text-amber-300"><p>Other definitions are shadowed by the first configured source. Reorder sources in Settings to select one.</p>{selected.alternatives.map(item => <code key={item.path} className="block break-all">{item.path}</code>)}</div>}
             {selected.catalogFile && <p className="mb-2 break-all text-[10px] text-text-dim">Catalog: {selected.catalogFile}</p>}
             <code className="mb-2 block break-all font-mono text-[10px] text-text-dim">{selected.path}</code>
             {selected.files.length > 0 && (
