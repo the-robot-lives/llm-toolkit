@@ -155,7 +155,7 @@ export class ToborService implements OAuthClientProvider {
         const projects: import("@llm-toolkit/shared").ToborProject[] = [];
         for (const org of organizations) {
           for (let offset = 0; offset < 10_000; offset += 100) {
-            const result = await this.call(client, "Project_List", { organization: org.id, limit: 100, offset });
+            const result = await this.call(client, "Project_List", { organization: org.id, status: "active", limit: 100, offset });
             const rows = result.projects;
             if (!Array.isArray(rows)) throw new Error("Unexpected projects response");
             for (const row of rows) if (typeof row.id === "string" && typeof row.slug === "string" && typeof row.name === "string") projects.push({ id: row.id, slug: row.slug, name: row.name, organizationId: org.id, organizationSlug: org.slug, status: typeof row.status === "string" ? row.status : "active" });

@@ -86,7 +86,7 @@ export class ProjectCatalog {
       try {
         let cached = this.inventories.get(root);
         if (!cached || Date.now() - cached.at > 60_000) {
-          cached = { at: Date.now(), data: await (this.options.inventory ?? (async root => await runScope(["inventory", "--json", "--dir", root]) as Inventory))(root) };
+          cached = { at: Date.now(), data: await (this.options.inventory ?? (async root => await runScope(["inventory", "--json", "--ignore-env", "--dir", root]) as Inventory))(root) };
           this.inventories.set(root, cached);
         }
         const inventory = cached.data;
