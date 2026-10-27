@@ -72,19 +72,48 @@ export function claudeConversationChain(records: JsonRecord[]): JsonRecord[] {
   const anchors = new Map<string, JsonRecord>();
   for (const r of chain) if (r.type === "assistant" && string(messageOf(r).id)) anchors.set(string(messageOf(r).id), r);
   const callOwners = new Map<string, string | null>();
-  for (const r of entries.filter(r => r.type === "assistant")) {
+  const siblingsByFamily = new Map<string, JsonRecord[]>();
+  const familyByAssistantId = new Map<string, string>();
+  const resultsByFamily = new Map<string, JsonRecord[]>();
+  const answeredByFamily = new Map<string, Set<string>>();
+  const uniqueEntries = [...byId.values()];
+  for (const r of uniqueEntries) {
+    if (r.type !== "assistant") continue;
     const family = string(messageOf(r).id);
+    if (!family) continue;
+    const siblings = siblingsByFamily.get(family) ?? [];
+    siblings.push(r); siblingsByFamily.set(family, siblings);
+    familyByAssistantId.set(string(r.uuid), family);
     for (const id of blockIds(r, "tool_use", "id")) {
       callOwners.set(id, callOwners.has(id) && callOwners.get(id) !== family ? null : family);
+    }
+  }
+  for (const r of uniqueEntries) {
+    if (r.type !== "user") continue;
+    const ids = blockIds(r, "tool_result", "tool_use_id");
+    if (!ids.length) continue;
+    const families = new Set<string>();
+    const parentFamily = familyByAssistantId.get(string(r.parentUuid));
+    const sourceFamily = familyByAssistantId.get(string(r.sourceToolAssistantUUID));
+    if (parentFamily) families.add(parentFamily);
+    if (sourceFamily) families.add(sourceFamily);
+    ids.forEach(id => { const owner = callOwners.get(id); if (owner) families.add(owner); });
+    for (const family of families) {
+      const bucket = resultsByFamily.get(family) ?? [];
+      bucket.push(r); resultsByFamily.set(family, bucket);
+      if (reached.has(string(r.uuid))) {
+        const answered = answeredByFamily.get(family) ?? new Set<string>();
+        ids.forEach(id => answered.add(id)); answeredByFamily.set(family, answered);
+      }
     }
   }
   const inserts = new Map<string, JsonRecord[]>();
   for (const [family, anchor] of anchors) {
     const sameWriter = (r: JsonRecord) => Boolean(r.isSidechain) === Boolean(anchor.isSidechain) && r.agentId === anchor.agentId;
-    const siblings = entries.filter(r => r.type === "assistant" && messageOf(r).id === family && sameWriter(r));
+    const siblings = (siblingsByFamily.get(family) ?? []).filter(sameWriter);
     const siblingIds = new Set(siblings.map(r => string(r.uuid)));
-    const results = entries.filter(r => r.type === "user" && sameWriter(r) && !reached.has(string(r.uuid)) && blockIds(r, "tool_result", "tool_use_id").length);
-    const answered = new Set(chain.flatMap(r => blockIds(r, "tool_result", "tool_use_id")));
+    const results = (resultsByFamily.get(family) ?? []).filter(r => sameWriter(r) && !reached.has(string(r.uuid)));
+    const answered = new Set(answeredByFamily.get(family) ?? []);
     const recoveredResults: JsonRecord[] = [];
     for (const result of results) {
       const ids = blockIds(result, "tool_result", "tool_use_id");
@@ -126,6 +155,7 @@ function toUniversalBlock(raw: unknown): UniversalContentBlock {
 export function importClaudeConversation(jsonl: string, sourcePath: string): UniversalThread {
   const records = readRecords(jsonl);
   const ordinal = new Map<JsonRecord, number>();
+  const physicalIndices = new Map(records.map((record, index) => [record, index]));
   let contentIndex = 0;
   records.forEach(r => { if (r.type === "user" || r.type === "assistant") ordinal.set(r, contentIndex++); });
   const active = claudeConversationChain(records);
@@ -139,7 +169,7 @@ export function importClaudeConversation(jsonl: string, sourcePath: string): Uni
       providerMessageId: string(record.uuid), model: typeof native.model === "string" ? native.model : undefined,
       stopReason: typeof native.stop_reason === "string" ? native.stop_reason : undefined,
       ...(isObject(native.usage) && typeof native.usage.input_tokens === "number" && typeof native.usage.output_tokens === "number" ? { usage: native.usage as unknown as UniversalMessage["usage"] } : {}),
-      provenance: { harness: "claude", sourcePath, rawIndex: records.indexOf(record), parentId: typeof record.parentUuid === "string" ? record.parentUuid : null },
+      provenance: { harness: "claude", sourcePath, rawIndex: physicalIndices.get(record), parentId: typeof record.parentUuid === "string" ? record.parentUuid : null },
       providerHints: { sessionId: record.sessionId, isCompactSummary: record.isCompactSummary, isSidechain: record.isSidechain },
       providerMetadata: { apiMessageId: native.id }, providerRaw: structuredClone(record),
     };
