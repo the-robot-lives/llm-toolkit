@@ -3,6 +3,7 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## 2026-10-27
+- feat(memories): Show recall ranks, scores and retrieval contributions; replace Pin text with an accessible thumbtack and accurate pruning tooltip — PR #30 → develop
 - fix(projects): Query only a selected organization and honor enabled/included manifest policy for legacy Tobor read aliases — PR #29 → develop
 - feat(projects): Group scoped repositories/worktrees and aggregate conversations; add separate Tobor OAuth and repository project linking — PR #28 → develop
 - feat(memories): Scan conversations into editable, evidence-backed memory drafts with emotional values, bulk approval and explicit connection-bound deduplicated commits — PR #27 → develop
