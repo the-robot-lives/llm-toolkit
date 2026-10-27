@@ -21,6 +21,7 @@ import { createSkillRoutes } from "./routes/skills.ts";
 import { createArtifactRoutes } from "./routes/artifacts.ts";
 import { createServiceRoutes } from "./routes/services.ts";
 import { createMemoryRoutes } from "./routes/memory.ts";
+import { createRemoteMemoryRoutes } from "./routes/remote-memory.ts";
 import { ServiceSupervisor } from "./services/service-supervisor.ts";
 import { StorageService } from "./services/storage.ts";
 import { IndexerService } from "./services/indexer.ts";
@@ -55,7 +56,8 @@ const supervisor = new ServiceSupervisor({
 
 const app = new Hono();
 
-app.use("*", logger());
+// OAuth authorization codes must never enter request logs.
+app.use("*", (c, next) => c.req.path === "/api/remote-memory/oauth/callback" ? next() : logger()(c, next));
 app.use(
   "*",
   cors({
@@ -89,6 +91,7 @@ app.route("/api/commands", createArtifactRoutes(storage, "commands"));
 app.route("/api/mcp", createArtifactRoutes(storage, "mcp"));
 app.route("/api/services", createServiceRoutes(supervisor, { projectRoot }));
 app.route("/api/memory", createMemoryRoutes());
+app.route("/api/remote-memory", createRemoteMemoryRoutes());
 
 const webDist = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "web", "dist");
 if (existsSync(join(webDist, "index.html"))) {
@@ -137,7 +140,8 @@ async function start() {
     }
   });
 
-  serve({ fetch: app.fetch, port }, async () => {
+  // This local console holds OAuth grants. Never expose it on LAN interfaces.
+  serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, async () => {
     console.log(`llm-toolkit api listening on http://localhost:${port}`);
     console.log(`Watching: ${indexSources.map((source) => `${source.harness}:${source.path}`).join(", ")}`);
 

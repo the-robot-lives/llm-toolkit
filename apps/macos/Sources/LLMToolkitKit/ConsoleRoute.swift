@@ -20,6 +20,7 @@ public struct ConsoleRoute: Hashable, Sendable, Codable {
     public static let agents = ConsoleRoute(path: "/agents")
     public static let commands = ConsoleRoute(path: "/commands")
     public static let mcp = ConsoleRoute(path: "/mcp")
+    public static let memories = ConsoleRoute(path: "/memories")
     public static let tags = ConsoleRoute(path: "/tags")
     public static let projects = ConsoleRoute(path: "/projects")
     public static let settings = ConsoleRoute(path: "/settings")
@@ -88,6 +89,7 @@ public struct ConsoleRoute: Hashable, Sendable, Codable {
         .commands,
         ConsoleRoute(path: "/commands/:name"),
         .mcp,
+        .memories,
         ConsoleRoute(path: "/mcp/:name"),
         .tags,
         .projects,
@@ -150,6 +152,8 @@ public struct ConsoleRoute: Hashable, Sendable, Codable {
             return .settings
         case "style-guides":
             return .styleGuide
+        case "memories":
+            return .memories
         case "claude-memory":
             return .claudeMemory
         case "search", "browse", "thread":
@@ -190,8 +194,10 @@ public struct ConsoleRoute: Hashable, Sendable, Codable {
             return "Settings"
         case "style-guides":
             return "Style Guide"
+        case "memories":
+            return "Memories"
         case "claude-memory":
-            return "Claude Memory"
+            return "Claude Memory Files"
         case "thread":
             guard segs.count >= 3 else { return "Thread" }
             switch segs[2] {
@@ -269,6 +275,7 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
     case mcp
     case tags
     case projects
+    case memories
     case claudeMemory
     case settings
     case styleGuide
@@ -287,7 +294,8 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
         case .mcp: return "MCP"
         case .tags: return "Tags"
         case .projects: return "Projects"
-        case .claudeMemory: return "Claude Memory"
+        case .memories: return "Memories"
+        case .claudeMemory: return "Claude Memory Files"
         case .settings: return "Settings"
         case .styleGuide: return "Style Guide"
         }
@@ -305,6 +313,7 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
         case .mcp: return "point.3.connected.trianglepath.dotted"
         case .tags: return "tag"
         case .projects: return "folder"
+        case .memories: return "brain.head.profile"
         case .claudeMemory: return "brain"
         case .settings: return "gearshape"
         case .styleGuide: return "paintpalette"
@@ -323,6 +332,7 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
         case .mcp: return .mcp
         case .tags: return .tags
         case .projects: return .projects
+        case .memories: return .memories
         case .claudeMemory: return .claudeMemory
         case .settings: return .settings
         case .styleGuide: return .styleGuide
@@ -331,6 +341,6 @@ public enum SidebarItem: String, CaseIterable, Identifiable, Sendable {
 
     /// Persistent sidebar groups matching `packages/web/src/components/Layout.tsx`.
     public static let primary: [SidebarItem] = [.explore, .safetyWatch]
-    public static let library: [SidebarItem] = [.skills, .agents, .commands, .mcp, .datasets, .prompts, .tags, .projects, .claudeMemory]
+    public static let library: [SidebarItem] = [.skills, .agents, .commands, .mcp, .datasets, .prompts, .tags, .projects, .memories, .claudeMemory]
     public static let utility: [SidebarItem] = [.settings]
 }

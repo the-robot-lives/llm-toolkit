@@ -24,6 +24,7 @@ final class ConsoleRouteTests: XCTestCase {
             "/commands/:name",
             "/mcp",
             "/mcp/:name",
+            "/memories",
             "/tags",
             "/projects",
             "/projects/:slug",
@@ -71,6 +72,8 @@ final class ConsoleRouteTests: XCTestCase {
         XCTAssertEqual(ConsoleRoute.agents.sidebarItem, .agents)
         XCTAssertEqual(ConsoleRoute.commands.sidebarItem, .commands)
         XCTAssertEqual(ConsoleRoute.mcp.sidebarItem, .mcp)
+        XCTAssertEqual(ConsoleRoute.memories.sidebarItem, .memories)
+        XCTAssertEqual(ConsoleRoute.claudeMemory.sidebarItem, .claudeMemory)
         XCTAssertEqual(ConsoleRoute.styleGuide.sidebarItem, .styleGuide)
     }
 

@@ -29,6 +29,7 @@ struct ConsoleWebView: NSViewRepresentable {
 
         let view = WKWebView(frame: .zero, configuration: config)
         view.navigationDelegate = context.coordinator
+        view.uiDelegate = context.coordinator
         view.setValue(false, forKey: "drawsBackground")
         context.coordinator.webView = view
         if let url = route.url(relativeTo: baseURL) {
@@ -68,7 +69,7 @@ struct ConsoleWebView: NSViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         var onRoute: (ConsoleRoute) -> Void
         var onHarness: (Harness) -> Void
         weak var webView: WKWebView?
@@ -99,6 +100,24 @@ struct ConsoleWebView: NSViewRepresentable {
             default:
                 break
             }
+        }
+
+        // Login stays in the system browser; never inject the host bridge into remote pages.
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
+            if let host = url.host, ["localhost", "127.0.0.1", "::1"].contains(host) {
+                decisionHandler(.allow)
+            } else {
+                if ["https", "http"].contains(url.scheme) { NSWorkspace.shared.open(url) }
+                decisionHandler(.cancel)
+            }
+        }
+
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url, ["https", "http"].contains(url.scheme) {
+                NSWorkspace.shared.open(url)
+            }
+            return nil
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
