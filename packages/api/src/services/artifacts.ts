@@ -14,6 +14,7 @@ import {
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import type {
+  AgentVariantMetadata,
   ArtifactKind,
   SkillDestination,
   SkillInstallStatus,
@@ -73,6 +74,8 @@ const MD_PREVIEW_CHARS = 16_000;
 
 export interface ArtifactItem extends DiscoveredSkill {
   previewKind: "markdown" | "json";
+  parent?: string;
+  variant?: AgentVariantMetadata;
   definition?: McpServerDef;
 }
 
@@ -427,16 +430,19 @@ function listMarkdownItems(root: string, kind: ArtifactKind): ArtifactItem[] {
       const stem = name.slice(0, -3);
       let title: string | undefined;
       let description: string | undefined;
+      let agentMetadata: { parent?: string; variant?: AgentVariantMetadata } = {};
       try {
         const text = readFileSync(path, "utf-8");
         const meta = parseSkillFrontmatter(text);
         title = meta.title || meta.name || titleFromHeading(text) || stem;
         description = meta.description;
+        if (kind === "agents") agentMetadata = { parent: meta.parent, variant: meta.variant };
       } catch {
         title = stem;
       }
       out.push({
         name: stem,
+        ...agentMetadata,
         title,
         description,
         path,
@@ -458,6 +464,7 @@ function listMarkdownItems(root: string, kind: ArtifactKind): ArtifactItem[] {
       out.push({
         name,
         title: meta.title || meta.name || titleFromHeading(text) || name,
+        ...(kind === "agents" ? { parent: meta.parent, variant: meta.variant } : {}),
         description: meta.description,
         path: file,
         sourceRoot: root,

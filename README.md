@@ -113,6 +113,28 @@ The **Skills**, **Agents**, **Commands**, and **MCP** sidebar pages share one ta
 
 Agents/commands use the matching `agents/` and `commands/` folders. MCP writes `~/.claude.json` / `.mcp.json`, Codex/Grok `config.toml`, Gemini `settings.json`, or OpenCode `opencode.json`. Details: [docs/arch/skills.md](docs/arch/skills.md).
 
+Agent model variants can declare a family in their YAML frontmatter. The Agents
+view collapses these under the parent, with an expand button for individual
+variants. Search includes provider, model, tier and account metadata and reveals
+matching variants. Each definition retains its own enable/disable controls.
+
+```yaml
+name: npl-coder-glm-flash
+model: zai/glm-5.3-flash  # Claude Code's execution model stays unchanged
+parent: npl-coder
+variant:
+  provider: zai
+  model: glm-5.3-flash
+  account: zai
+  # tier: sonnet  # optional; use only when the definition declares this tier
+```
+
+`parent` is the parent definition's filename without `.md`. If it isn't present,
+the view creates a family heading. Variant metadata is optional; unannotated
+agents stay independent. `provider` identifies the transport, `model` preserves
+the model ID and any reasoning suffix, and `account` distinguishes actual routed
+accounts such as `zai-alt`. Grouping changes presentation, not execution.
+
 Key console routes: `/` `/search` `/browse` (explore), `/thread/:id` (+ `/edit` non-destructive editor, `/convert` extract agent/skill/command/runbook, `/continue` resume/transfer), `/skills` `/agents` `/commands` `/mcp` (catalog + enable), `/datasets` `/prompts` `/tags` `/projects` (library), `/settings` (index paths, embeddings, LLM).
 
 ## Repo Layout & Docs

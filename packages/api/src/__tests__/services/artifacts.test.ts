@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { disableArtifact, enableArtifact, scanArtifacts } from "../../services/artifacts.ts";
+import { disableArtifact, enableArtifact, scanArtifacts, readArtifactDetail } from "../../services/artifacts.ts";
 
 function writeAgent(root: string, name: string, description: string) {
   writeFileSync(
@@ -69,5 +69,36 @@ describe("mcp catalog", () => {
     const written = JSON.parse(readFileSync(join(project, ".mcp.json"), "utf-8"));
     expect(written.mcpServers["doc-pointers"].url).toBe("http://localhost:4242/mcp");
     rmSync(root, { recursive: true, force: true });
+  });
+});
+
+
+describe("agent family metadata", () => {
+  test("catalog and detail preserve explicit parent/model variant metadata", () => {
+    const root = mkdtempSync(join(tmpdir(), "llm-toolkit-family-"));
+    try {
+      writeFileSync(join(root, "npl-coder-glm-flash.md"), `---
+name: npl-coder-glm-flash
+description: |
+  Code executor.
+  Keep multiline descriptions intact.
+model: zai/glm-5.3-flash
+parent: npl-coder
+variant:
+    provider: zai
+    model: "glm-5.3-flash (sub, high)"
+    tier: sonnet
+    account: zai-alt
+---
+# Model variant
+`);
+      const cfg = { sourceFolders: [root], providers: [], globalEnabled: false };
+      const item = scanArtifacts("agents", cfg).items[0]!;
+      expect(item.parent).toBe("npl-coder");
+      expect(item.variant).toEqual({ provider: "zai", model: "glm-5.3-flash (sub, high)", tier: "sonnet", account: "zai-alt" });
+      expect(item.description).toContain("Keep multiline descriptions intact");
+      expect(readArtifactDetail("agents", cfg, item.name)?.variant).toEqual(item.variant);
+      expect(scanArtifacts("commands", cfg).items[0]?.parent).toBeUndefined();
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

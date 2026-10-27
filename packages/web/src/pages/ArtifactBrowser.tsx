@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../hooks/useApi.js";
+import type { AgentVariantMetadata } from "@llm-toolkit/shared";
+import { groupAgentFamilies } from "./agentFamilies.js";
 import { MarkdownView } from "../components/MarkdownView.js";
 
 type SkillProvider = "claude" | "codex" | "grok" | "gemini" | "opencode";
@@ -79,6 +81,8 @@ interface SkillInstall {
 }
 
 interface SkillRow {
+  parent?: string;
+  variant?: AgentVariantMetadata;
   name: string;
   title?: string;
   description?: string;
@@ -157,6 +161,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<SkillDetail | null>(null);
   const [showSources, setShowSources] = useState(false);
@@ -364,7 +369,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
       .filter((skill): skill is SkillRow => {
         if (!skill) return false;
         if (query) {
-          const hay = `${skill.name} ${skill.title ?? ""} ${skill.description ?? ""}`.toLowerCase();
+          const hay = `${skill.name} ${skill.title ?? ""} ${skill.description ?? ""} ${skill.parent ?? ""} ${Object.values(skill.variant ?? {}).join(" ")}`.toLowerCase();
           if (!hay.includes(query)) return false;
         }
         if (statusFilter === "all") return true;
@@ -407,6 +412,84 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
     }
     return out;
   }, [projectRoots, projects]);
+
+  const families = kind === "agents" ? groupAgentFamilies(catalog?.skills ?? [], visibleSkills) : [];
+  const renderSkill = (skill: SkillRow, child = false, familyToggle?: React.ReactNode) => {
+                const active = selectedName === skill.name;
+                const master = masterState(skill);
+                return (
+                  <li key={skill.name} className={child ? "border-l-2 border-glow/25" : undefined}>
+                    <div
+                      className={`flex items-start gap-3 px-3 py-2.5 transition-colors ${
+                        active ? "bg-glow-bg" : "hover:bg-surface/80"
+                      }`}
+                    >
+                      {familyToggle}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={master === "mixed" ? "mixed" : master === "on"}
+                        aria-label={`${master === "on" ? "Disable" : "Enable"} ${skill.name} for selected targets`}
+                        disabled={destinations.length === 0 || busy?.startsWith(`${skill.name}:`)}
+                        onClick={() => applyTargets(skill, destinations.map((d) => d.id), master !== "on")}
+                        className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors ${
+                          master === "on" ? "bg-glow" : master === "mixed" ? "bg-glow/50" : "bg-surface-active"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-4 w-4 rounded-full bg-void transition-all ${
+                            master === "off" ? "left-0.5" : "left-4"
+                          }`}
+                        />
+                      </button>
+                      <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openSkill(skill.name)}>
+                        <div className="flex items-baseline gap-2">
+                          <span className="truncate text-sm font-medium text-text-bright">
+                            {skill.title || skill.name}
+                          </span>
+                          <span className="truncate font-mono text-[11px] text-text-dim">{skill.name}</span>
+                        </div>
+                        {kind === "agents" && skill.variant && (
+                          <p className="mt-1 flex flex-wrap gap-1 text-[10px] text-glow">
+                            {Object.entries(skill.variant).map(([key, value]) => (
+                              <span key={key} className="rounded bg-glow/10 px-1.5 py-0.5" title={key}>{value}</span>
+                            ))}
+                          </p>
+                        )}
+                        {skill.description && (
+                          <p className="mt-0.5 line-clamp-1 text-xs text-text-muted">{skill.description}</p>
+                        )}
+                      </button>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-1 pt-0.5">
+                        {providers.map((provider) => {
+                          const dests = destsForProvider(provider);
+                          const enabled = dests.filter((d) => installOf(skill, d.id)?.status === "enabled").length;
+                          const on = dests.length > 0 && enabled === dests.length;
+                          const mixed = enabled > 0 && !on;
+                          return (
+                            <button
+                              key={provider}
+                              type="button"
+                              title={`${provider}: ${enabled}/${dests.length || 0}`}
+                              disabled={dests.length === 0}
+                              onClick={() => applyTargets(skill, dests.map((d) => d.id), !on)}
+                              className={`rounded px-1.5 py-0.5 text-[10px] capitalize ${
+                                on
+                                  ? "bg-glow/20 text-glow"
+                                  : mixed
+                                    ? "text-yellow-400"
+                                    : "text-text-dim hover:text-text-muted"
+                              }`}
+                            >
+                              {provider}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </li>
+                );
+  };
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -634,71 +717,40 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
             <p className="text-sm text-text-muted">{meta.emptyHint}</p>
           ) : (
             <ul className="divide-y divide-border-subtle rounded-md border border-border-subtle bg-canvas">
-              {visibleSkills.map((skill) => {
-                const active = selectedName === skill.name;
-                const master = masterState(skill);
+              {kind !== "agents" ? visibleSkills.map((skill) => renderSkill(skill)) : families.map((family) => {
+                if (family.children.length === 0 && family.parent) return renderSkill(family.parent);
+                const key = `${query}|${categoryId}|${statusFilter}|${family.name}`;
+                const expanded = expandedFamilies[key] ?? (Boolean(query) || family.children.some((child) => child.name === selectedName));
+                const childrenId = `agent-family-${encodeURIComponent(family.name)}`;
+                const toggle = (
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-controls={childrenId}
+                    aria-label={`${expanded ? "Collapse" : "Expand"} ${family.name} variants (${family.children.length})`}
+                    onClick={() => setExpandedFamilies((current) => ({ ...current, [key]: !expanded }))}
+                    className="mt-0.5 shrink-0 rounded px-1 text-glow focus-visible:outline focus-visible:outline-2"
+                  >
+                    <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                    <span className="ml-1 text-[10px]">{family.children.length}</span>
+                  </button>
+                );
                 return (
-                  <li key={skill.name}>
-                    <div
-                      className={`flex items-start gap-3 px-3 py-2.5 transition-colors ${
-                        active ? "bg-glow-bg" : "hover:bg-surface/80"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={master === "mixed" ? "mixed" : master === "on"}
-                        aria-label={`${master === "on" ? "Disable" : "Enable"} ${skill.name} for selected targets`}
-                        disabled={destinations.length === 0 || busy?.startsWith(`${skill.name}:`)}
-                        onClick={() => applyTargets(skill, destinations.map((d) => d.id), master !== "on")}
-                        className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors ${
-                          master === "on" ? "bg-glow" : master === "mixed" ? "bg-glow/50" : "bg-surface-active"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 h-4 w-4 rounded-full bg-void transition-all ${
-                            master === "off" ? "left-0.5" : "left-4"
-                          }`}
-                        />
-                      </button>
-                      <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openSkill(skill.name)}>
-                        <div className="flex items-baseline gap-2">
-                          <span className="truncate text-sm font-medium text-text-bright">
-                            {skill.title || skill.name}
-                          </span>
-                          <span className="truncate font-mono text-[11px] text-text-dim">{skill.name}</span>
-                        </div>
-                        {skill.description && (
-                          <p className="mt-0.5 line-clamp-1 text-xs text-text-muted">{skill.description}</p>
-                        )}
-                      </button>
-                      <div className="flex shrink-0 flex-wrap justify-end gap-1 pt-0.5">
-                        {providers.map((provider) => {
-                          const dests = destsForProvider(provider);
-                          const enabled = dests.filter((d) => installOf(skill, d.id)?.status === "enabled").length;
-                          const on = dests.length > 0 && enabled === dests.length;
-                          const mixed = enabled > 0 && !on;
-                          return (
-                            <button
-                              key={provider}
-                              type="button"
-                              title={`${provider}: ${enabled}/${dests.length || 0}`}
-                              disabled={dests.length === 0}
-                              onClick={() => applyTargets(skill, dests.map((d) => d.id), !on)}
-                              className={`rounded px-1.5 py-0.5 text-[10px] capitalize ${
-                                on
-                                  ? "bg-glow/20 text-glow"
-                                  : mixed
-                                    ? "text-yellow-400"
-                                    : "text-text-dim hover:text-text-muted"
-                              }`}
-                            >
-                              {provider}
-                            </button>
-                          );
-                        })}
+                  <li key={family.name}>
+                    {family.parent ? (
+                      <ul>{renderSkill(family.parent, false, toggle)}</ul>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-3">
+                        {toggle}
+                        <span className="font-mono text-sm text-text-bright">{family.name}</span>
+                        <span className="text-xs text-text-dim">Model variants</span>
                       </div>
-                    </div>
+                    )}
+                    {expanded && (
+                      <ul id={childrenId} aria-label={`${family.name} model variants`} className="ml-8 divide-y divide-border-subtle border-t border-border-subtle">
+                        {family.children.map((child) => renderSkill(child, true))}
+                      </ul>
+                    )}
                   </li>
                 );
               })}
@@ -717,6 +769,14 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
                 Close
               </button>
             </div>
+            {kind === "agents" && (selected.parent || selected.variant) && (
+              <dl className="mb-3 space-y-1 text-xs text-text-muted">
+                {selected.parent && <div><dt className="inline text-text-dim">Parent: </dt><dd className="inline">{selected.parent}</dd></div>}
+                {Object.entries(selected.variant ?? {}).map(([key, value]) => (
+                  <div key={key}><dt className="inline capitalize text-text-dim">{key}: </dt><dd className="inline">{value}</dd></div>
+                ))}
+              </dl>
+            )}
             {selected.description && (
               <p className="mb-3 text-xs leading-5 text-text-muted">{selected.description}</p>
             )}
