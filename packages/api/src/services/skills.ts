@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import type {
+  AgentVariantMetadata,
   ArtifactKind,
   SkillDestination,
   SkillDestinationKind,
@@ -295,14 +296,26 @@ export function parseCategoriesYaml(text: string, filePath = "categories.yaml"):
   return { version, path: filePath, categories };
 }
 
-export function parseSkillFrontmatter(text: string): { name?: string; title?: string; description?: string } {
+export function parseSkillFrontmatter(text: string): { name?: string; title?: string; description?: string; parent?: string; variant?: AgentVariantMetadata } {
   const extracted = extractFrontmatter(text);
   if (!extracted) return {};
   const map = parseFlatYamlMap(extracted.yaml);
+  // Read only the optional scalar metadata block. Never interpret prompt prose
+  // or model-name suffixes as a parent relationship.
+  const variantBlock = extracted.yaml.match(/^variant:[ \t]*\r?\n((?:[ \t]+[^\r\n]*(?:\r?\n|$)|\r?\n)*)/m)?.[1];
+  const indent = variantBlock?.match(/^[ \t]+(?=\S)/m)?.[0] ?? "";
+  const fields = variantBlock ? parseFlatYamlMap(variantBlock.split(/\r?\n/).map((line) => line.startsWith(indent) ? line.slice(indent.length) : line).join("\n")) : {};
+  const variant: AgentVariantMetadata = {};
+  for (const key of ["provider", "model", "tier", "account"] as const) {
+    const value = fields[key]?.trim();
+    if (value && value.length <= 512 && !/[\r\n]/.test(value)) variant[key] = value;
+  }
   return {
     name: map.name || undefined,
     title: map.title || undefined,
     description: map.description || undefined,
+    parent: map.parent && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,199}$/.test(map.parent) ? map.parent : undefined,
+    variant: Object.keys(variant).length ? variant : undefined,
   };
 }
 

@@ -315,6 +315,14 @@ export interface ConversionCandidate {
   description: string;
 }
 
+/** Optional frontmatter identifying an agent's routed model variant. */
+export interface AgentVariantMetadata {
+  provider?: string;
+  model?: string;
+  tier?: string;
+  account?: string;
+}
+
 export interface Artifact {
   type: ArtifactType;
   name: string;
