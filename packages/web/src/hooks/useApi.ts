@@ -114,6 +114,7 @@ export function useSearch(query: string, mode: "fts" | "semantic" = "fts", filte
 
 export type LlmProfileProvider =
   | "anthropic"
+  | "alibaba"
   | "openai-compatible"
   | "ollama"
   | "lmstudio"
@@ -147,10 +148,10 @@ export function useLlmProfiles() {
   return useApiQuery<LlmProfilesResponse>("/llm/profiles");
 }
 
-export function testLlmProfile(id: string): Promise<{ ok: boolean; models?: string[]; error?: string }> {
+export function testLlmProfile(profile: LlmProfile): Promise<{ ok: boolean; models?: string[]; error?: string }> {
   return apiFetch("/llm/test-profile", {
     method: "POST",
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ profile }),
   });
 }
 

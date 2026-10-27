@@ -4,7 +4,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 
 interface LlmProvider {
   complete(req: LlmCompletionRequest): Promise<LlmCompletionResponse>;
-  listModels(): Promise<string[]>;
+  listModels(strict?: boolean): Promise<string[]>;
 }
 
 const ANTHROPIC_MODELS = [
@@ -21,6 +21,7 @@ const PROVIDER_DEFAULTS: Record<string, { envKey?: string; baseUrl?: string; mod
   cerebras: { envKey: "CEREBRAS_API_KEY", baseUrl: "https://api.cerebras.ai/v1", model: "llama-3.3-70b", label: "cerebras" },
   deepseek: { envKey: "DEEPSEEK_API_KEY", baseUrl: "https://api.deepseek.com", model: "deepseek-chat", label: "deepseek" },
   zai: { envKey: "ZAI_API_KEY", baseUrl: "https://api.z.ai/api/coding/paas/v4", model: "glm-5.3-flash", label: "zai" },
+  alibaba: { envKey: "ALIBABA_API_KEY", baseUrl: "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1", model: "qwen3.8-flash", label: "alibaba" },
   lmstudio: { baseUrl: "http://localhost:1234/v1", model: "local-model", label: "lmstudio" },
   llamacpp: { baseUrl: "http://localhost:8080/v1", model: "local-model", label: "llamacpp" },
 };
@@ -29,6 +30,7 @@ const PROVIDER_DEFAULTS: Record<string, { envKey?: string; baseUrl?: string; mod
 const PROFILE_ENV_KEYS: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   "openai-compatible": "OPENAI_API_KEY",
+  alibaba: "ALIBABA_API_KEY",
 };
 
 const LOCAL_PROFILE_PROVIDERS = new Set(["ollama", "lmstudio", "llamacpp"]);
@@ -39,7 +41,7 @@ export function profileIsLocal(profile: LlmProfile): boolean {
 
 export function profileToLlmConfig(profile: LlmProfile): LlmConfig {
   const envKey = PROFILE_ENV_KEYS[profile.provider];
-  const envApiKey = envKey && !profile.apiKey ? process.env[envKey] : undefined;
+  const envApiKey = envKey && !profile.apiKey ? (process.env[envKey] || (profile.provider === "alibaba" ? process.env.DASHSCOPE_API_KEY : undefined)) : undefined;
   const cfg: LlmConfig = {
     provider: "custom",
     model: profile.model,
@@ -47,7 +49,9 @@ export function profileToLlmConfig(profile: LlmProfile): LlmConfig {
     baseUrl: profile.baseUrl ?? PROVIDER_DEFAULTS[profile.provider]?.baseUrl,
     apiType: profile.apiType ?? (profile.provider === "anthropic" ? "anthropic" : "openai"),
   };
-  if (profile.provider === "ollama") {
+  if (profile.provider === "alibaba") {
+    cfg.provider = "alibaba";
+  } else if (profile.provider === "ollama") {
     cfg.provider = "ollama";
     cfg.baseUrl = profile.baseUrl ?? process.env.OLLAMA_BASE_URL;
   } else if (profile.provider === "anthropic" && profile.apiType !== "openai") {
@@ -110,12 +114,15 @@ class AnthropicProvider implements LlmProvider {
     };
   }
 
-  async listModels(): Promise<string[]> {
+  async listModels(strict = false): Promise<string[]> {
     try {
       const client = await this.getClient();
-      const page = await client.models.list({ limit: 100 });
-      return page.data.map((m) => m.id).sort();
-    } catch {
+      const page = await client.models.list({ limit: 100 }, { timeout: 10_000, maxRetries: 0 });
+      const models: string[] = [];
+      for await (const model of page) models.push(model.id);
+      return models.sort();
+    } catch (error) {
+      if (strict) throw error;
       return [...ANTHROPIC_MODELS];
     }
   }
@@ -179,16 +186,45 @@ class OpenAICompatibleProvider implements LlmProvider {
     };
   }
 
-  async listModels(): Promise<string[]> {
+  async listModels(strict = false): Promise<string[]> {
     try {
+      // Model Studio documents a native catalog, separate from its OpenAI
+      // completion URL. Token/Coding Plans use the compatible /models path.
+      // Keep the same origin/key so plan credentials never
+      // cross over to a different Alibaba service.
+      const host = this.baseUrl ? new URL(this.baseUrl).hostname : "";
+      const nativeCatalogHost = ["dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com", "cn-hongkong.dashscope.aliyuncs.com"].includes(host) ||
+        (host.endsWith(".maas.aliyuncs.com") && !host.startsWith("token-plan."));
+      if (this.providerLabel === "alibaba" && nativeCatalogHost && this.baseUrl?.replace(/\/$/, "").endsWith("/compatible-mode/v1")) {
+        const root = this.baseUrl.replace(/\/$/, "").replace(/\/compatible-mode\/v1$/, "");
+        const models: string[] = [];
+        const signal = AbortSignal.timeout(10_000);
+        for (let page = 1; page <= 100; page++) {
+          const url = new URL(`${root}/api/v1/models`);
+          url.searchParams.set("page_no", String(page));
+          url.searchParams.set("page_size", "100");
+          url.searchParams.append("capabilities", "TG");
+          url.searchParams.append("capabilities", "Reasoning");
+          const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${this.apiKey}` }, signal,
+          });
+          if (!response.ok) throw Object.assign(new Error("Model discovery failed"), { status: response.status });
+          const body = await response.json() as { success?: boolean; output?: { total?: number; models?: Array<{ model: string }> } };
+          if (body.success === false || !Array.isArray(body.output?.models)) throw new Error("Unexpected model catalog response");
+          models.push(...body.output.models.map((model) => model.model).filter((model) => typeof model === "string"));
+          if (body.output.models.length === 0 || models.length >= (body.output.total ?? models.length)) return [...new Set(models)].sort();
+        }
+        throw new Error("Model catalog pagination limit reached");
+      }
       const client = await this.getClient();
-      const page = await client.models.list();
+      const page = await client.models.list({ timeout: 10_000, maxRetries: 0 });
       const models: string[] = [];
       for await (const model of page) {
         models.push(model.id);
       }
       return models.sort();
-    } catch {
+    } catch (error) {
+      if (strict) throw error;
       // Many OpenAI-compatible providers don't support the models endpoint
       return [];
     }
@@ -248,11 +284,14 @@ class OllamaProvider implements LlmProvider {
     }
   }
 
-  async listModels(): Promise<string[]> {
+  async listModels(strict = false): Promise<string[]> {
     const res = await fetch(`${this.baseUrl}/api/tags`, {
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      if (strict) throw new Error(`Model discovery failed (HTTP ${res.status})`);
+      return [];
+    }
     const data = (await res.json()) as { models?: Array<{ name: string }> };
     return (data.models ?? []).map((m) => m.name).sort();
   }
@@ -340,11 +379,12 @@ export class LlmService {
     return this.provider.complete(req);
   }
 
-  async listModels(): Promise<string[]> {
+  async listModels(strict = false): Promise<string[]> {
     if (!this.provider) return [];
     try {
-      return await this.provider.listModels();
-    } catch {
+      return await this.provider.listModels(strict);
+    } catch (error) {
+      if (strict) throw error;
       return [];
     }
   }

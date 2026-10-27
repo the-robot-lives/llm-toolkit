@@ -135,3 +135,9 @@ pnpm build
 ```
 
 License: MIT.
+
+### LLM profiles in Settings
+
+Choose **Alibaba Cloud (Model Studio)** to configure an Alibaba profile. Select the endpoint preset for your Token Plan, Coding Plan, or standard Model Studio key and region, or edit the base URL. These keys and endpoints are not interchangeable; see [Alibaba's endpoint reference](https://www.alibabacloud.com/help/en/model-studio/base-url).
+
+Enter the key (or set `ALIBABA_API_KEY` / `DASHSCOPE_API_KEY`), then choose **Test & fetch models** before saving. The request uses the current draft fields without saving them or running a completion. Fetched model IDs appear in the Model field's dropdown; you can also enter a model ID manually. Providers that do not expose model discovery return an explicit error rather than a successful empty fallback. Discovery validates access to the model list, not that a completion will succeed for every listed model.
