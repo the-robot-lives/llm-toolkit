@@ -3,6 +3,7 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## 2026-10-27
+- fix(conversations): Escape valid Unicode line separators in Claude JSONL for SDK fork interoperability, expose a lossless formatter repair and verify native get/fork preservation — PR #39 → develop
 - feat(conversations): Add versioned portable sections, native clone/reinsert previews, restorable private archives, block-aware edits, profile-backed compaction and desktop/API/offline CLI validation — PR #38 → develop
 - fix(conversations): Derive Claude clone stop reasons from emitted blocks, preserve verified unchanged native completion state and validate assistant envelopes with sanitized diagnostics — PR #36/#37 → epic.portable-conversations
 - feat(conversations): Add versioned Gemini JSON/JSONL validation, active-history import and registry-aware safe cloning with isolated published-reader proof — PR #33 → epic.portable-conversations
