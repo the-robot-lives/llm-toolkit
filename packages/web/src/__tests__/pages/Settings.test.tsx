@@ -6,6 +6,7 @@ import { Settings } from "../../pages/Settings.tsx";
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo) => {
     const url = String(input);
+    if (url.endsWith("/config/artifact-sources")) return Promise.resolve({ ok: true, json: async () => ({ data: Object.fromEntries(["skills", "agents", "commands"].map(kind => [kind, { configured: [], effective: [`/defaults/${kind}`], defaults: [`/defaults/${kind}`], warnings: [] }])) }) });
     if (url.includes("/skills")) {
       return Promise.resolve({
         ok: true,

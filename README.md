@@ -130,9 +130,28 @@ skills:
 `categories.yaml` supplies category labels and flows. Catalog paths and their
 `SKILL.md` files must resolve inside the source root. Invalid entries are skipped
 with visible warnings; an invalid catalog never falls back to directory guesses.
-Roots without a catalog retain legacy discovery. Enabling a skill installs a
+Roots without a catalog discover nested skill packages with bounded, cycle-safe traversal. Enabling a skill installs a
 flat `<target>/<name>` symlink to its catalog directory, preserving nested assets
 and references. Existing install conflicts still require confirmation and backup.
+
+Settings → **Artifact source folders** configures independent ordered Skills,
+Agents and Commands roots. Add, edit, reorder or remove multiple folders and
+save this section separately. Discovered defaults are shown explicitly; adding
+the first custom folder retains those defaults. An empty custom list returns to
+default discovery. Aliases of the same physical root are deduplicated.
+
+The first configured root wins when names collide. Catalog pages report shadowed
+source paths; reorder roots in Settings to choose another definition. Actions
+include the displayed source identity and reject stale choices after a reorder.
+Removing a root only removes its configuration; its folders and installed links
+remain untouched.
+
+For a saved skill source without a catalog, **Preview catalog** lists nested
+packages, metadata and any containment/duplicate/truncation errors. **Create
+catalog.yaml** is an explicit second action and is disabled until errors are
+resolved. Creation checks the preview again and publishes exclusively; existing
+catalogs, including broken symlinks, are never replaced. Catalog files and skill
+packages must remain inside the configured root.
 
 Agent model variants can declare a family in their YAML frontmatter. The Agents
 view collapses these under the parent, with an expand button for individual

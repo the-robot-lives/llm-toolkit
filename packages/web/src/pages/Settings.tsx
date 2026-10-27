@@ -4,6 +4,7 @@ import { apiFetch, useIndexStatus, rebuildIndex } from "../hooks/useApi.js";
 import type { LlmProfile, LlmIndexingConfig } from "../hooks/useApi.js";
 import { LlmProfileForm, emptyProfile } from "../components/LlmProfileForm.js";
 import { ToborConnection } from "../components/ToborConnection.js";
+import { ArtifactSources } from "../components/ArtifactSources.js";
 import { MemoryConnection } from "../components/MemoryConnection.js";
 
 interface LlmConfig {
@@ -86,9 +87,13 @@ export function Settings() {
     if (!config) return;
     setSaving(true);
     try {
+      const updates: Record<string, unknown> = { ...config };
+      // Sources have their own targeted save flow; stale Settings state must not
+      // overwrite source changes saved independently below.
+      for (const kind of ["skills", "agents", "commands", "mcp"]) delete updates[kind];
       const res = await apiFetch<{ data: AppConfig }>("/config", {
         method: "PATCH",
-        body: JSON.stringify(config),
+        body: JSON.stringify(updates),
       });
       setConfig(res.data);
     } catch {
@@ -552,6 +557,8 @@ export function Settings() {
             </div>
           </details>
         </section>
+
+        <ArtifactSources />
 
         <p className="text-xs text-text-dim">
           Skill, agent, command, and MCP catalogs live on{" "}
