@@ -30,6 +30,15 @@ export function claudeProjectKey(cwd: string): string {
   return `${sanitized.slice(0, 200)}-${Math.abs(hash).toString(36)}`;
 }
 
+/** Escape Unicode line separators accepted by JSON but split by Python SDK fork readers. */
+export function serializeClaudeJsonl(records: readonly unknown[]): string {
+  return records.map(record => {
+    const json = JSON.stringify(record);
+    if (json === undefined) throw new Error("Claude JSONL records must be JSON-serializable values.");
+    return json.replace(/[\u0085\u2028\u2029]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  }).join("\n") + "\n";
+}
+
 function readRecords(jsonl: string): JsonRecord[] {
   const records: JsonRecord[] = [];
   jsonl.split(/\r?\n/).forEach((line, index) => {
@@ -303,7 +312,7 @@ export function renderClaudeConversation(thread: UniversalThread, context: Nativ
     parentUuid = uuid;
   }
   records.push({ type: "custom-title", customTitle: context.title, sessionId: context.sessionId });
-  const jsonl = `${records.map(r => JSON.stringify(r)).join("\n")}\n`;
+  const jsonl = serializeClaudeJsonl(records);
   issues.push(...validateClaudeConversation(jsonl, context).issues);
   return { harness: "claude", sessionId: context.sessionId, relativePath: `${claudeProjectKey(context.cwd)}/${context.sessionId}.jsonl`, records, jsonl, issues, resumeArgs: ["claude", "--resume", context.sessionId] };
 }
@@ -319,11 +328,17 @@ export function validateClaudeConversation(jsonl: string, context?: NativeConver
     const issue = Object.assign({ severity: "error" as const, code: "invalid-jsonl", message }, { path: `/lines/${line}`, repairable: false });
     return Object.assign({ valid: false, issues: [issue] }, { compatibilityVersion, complete: false });
   }
+  const interoperabilityIssues: ConversationCompatibilityIssue[] = [];
+  jsonl.split(/\r?\n/).forEach((line, index) => {
+    if (/[\u0085\u2028\u2029]/.test(line)) interoperabilityIssues.push({ severity: "warning", code: "sdk-fork-unescaped-line-separator", path: `/lines/${index}`, line: index + 1, repairable: true, message: "This is valid native JSONL, but Python Agent SDK 0.2.174 fork parsing may silently drop records containing literal Unicode line separators.", suggestion: "Use Format JSONL for the Claude target to escape U+0085, U+2028 and U+2029 losslessly before using SDK fork_session." });
+  });
   if (!context) {
     const checked = validateExistingClaudeRecords(records);
+    checked.issues.push(...interoperabilityIssues);
     if (jsonl && !jsonl.endsWith("\n")) checked.issues.push(Object.assign({ severity: "warning" as const, code: "missing-final-newline", message: "Append one final newline before continuing this append-only transcript; its last JSON record is otherwise complete." }, { path: "/end-of-file", repairable: true, suggestion: "Append a single newline without changing any JSON record." }));
     return checked;
   }
+  issues.push(...interoperabilityIssues);
   if (jsonl && !jsonl.endsWith("\n")) issues.push(Object.assign({ severity: "error" as const, code: "missing-final-newline", message: "Native clones must end in a newline so the CLI can append safely." }, { path: "/end-of-file", repairable: true, suggestion: "Append a single newline." }));
   const seen = new Set<string>(); const pending = new Set<string>();
   let pendingResponse = "";

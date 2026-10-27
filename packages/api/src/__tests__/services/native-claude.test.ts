@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { validateConversationContent } from "../../services/conversation-validator.ts";
+import { createConversationPortabilityRoutes } from "../../routes/conversation-portability.ts";
+import type { ConversationPortabilityService } from "../../services/conversation-portability.ts";
 import type { NativeConversationContext, UniversalThread } from "@llm-toolkit/shared";
-import { claudeConversationAdapter, claudeConversationChain, claudeProjectKey, importClaudeConversation, renderClaudeConversation, validateClaudeConversation } from "../../services/native/claude.ts";
+import { claudeConversationAdapter, claudeConversationChain, claudeProjectKey, importClaudeConversation, renderClaudeConversation, serializeClaudeJsonl, validateClaudeConversation } from "../../services/native/claude.ts";
 
 const context: NativeConversationContext = { sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/tmp/portable-conversation", title: "Portable test", createdAt: "2026-10-27T08:00:00.000Z", sourceHarness: "claude", cliVersion: "2.1.311" };
 const timestamp = "2026-10-26T08:00:00.000Z";
@@ -26,6 +29,28 @@ function thread(records: Record<string, unknown>[] = [record("u", null, "user", 
 }
 
 describe("Claude native conversation adapter", () => {
+  it("escapes all SDK splitlines separators without changing decoded message or metadata text", async () => {
+    const separators = "before\u0085middle\u2028next\u2029after";
+    const source = thread(); source.messages.forEach(message => { message.content = [{ type: "text", text: separators }]; });
+    const artifact = renderClaudeConversation(source, { ...context, title: separators });
+    expect(artifact.jsonl).not.toMatch(/[\u0085\u2028\u2029]/);
+    for (const code of ["0085", "2028", "2029"]) expect(artifact.jsonl).toContain(`\\u${code}`);
+    const parsed = artifact.jsonl.trimEnd().split("\n").map(line => JSON.parse(line));
+    expect(parsed).toEqual(artifact.records); expect(parsed).toHaveLength(3);
+    expect(importClaudeConversation(artifact.jsonl, "/fixture/escaped").messages.map(m => m.content[0])).toEqual(source.messages.map(m => ({ ...m.content[0], providerType: "text", providerRaw: { type: "text", text: separators } })));
+    expect(validateClaudeConversation(artifact.jsonl, context).issues).toEqual([]);
+    const unescaped = raw(artifact.records);
+    const report = await validateConversationContent(unescaped, "claude");
+    expect(report).toMatchObject({ status: "valid", valid: true, errors: [] });
+    expect(report.warnings).toEqual(expect.arrayContaining([expect.objectContaining({ code: "sdk-fork-unescaped-line-separator", repairable: true, path: "/lines/0" })]));
+    expect(JSON.stringify(report.warnings)).not.toContain(separators);
+    const app = createConversationPortabilityRoutes({} as ConversationPortabilityService);
+    const response = await app.request("/format-jsonl", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: unescaped, target: "claude" }) });
+    expect(response.status).toBe(200); const formatted = (await response.json()).data;
+    expect(formatted.content).toBe(serializeClaudeJsonl(artifact.records));
+    expect(formatted.report).toMatchObject({ status: "valid", warnings: [] });
+  });
+
   it("reconstructs parallel tool branches and excludes unrelated sidechains", () => {
     const records = [...parallelRecords(), record("side", "u", "assistant", [text("Subagent private branch")], { isSidechain: true })];
     const chain = claudeConversationChain(records);
