@@ -12,7 +12,8 @@ export function createProjectRoutes(storage: StorageService, catalog = new Proje
     if (projectPath.startsWith("tobor:")) return c.json({ error: "Project not found" }, 404);
     // Legacy directory links remain readable, even when now included in a scoped project.
     const meta = await storage.getProjectMeta(projectPath);
-    return c.json({ projectPath, title: meta?.title ?? null, displayName: meta?.title ?? deriveProjectName(projectPath), description: meta?.description ?? null, tags: meta?.tags ?? [], conversationCount: await storage.getConversationCount(projectPath), lastActive: null, scope: null, locations: [] });
+    const stats = storage.getDb().prepare("SELECT COUNT(*) as count, MAX(updated_at) as last_active FROM conversations WHERE project_path = ?").get(projectPath) as { count: number; last_active: string | null };
+    return c.json({ projectPath, title: meta?.title ?? null, displayName: meta?.title ?? deriveProjectName(projectPath), description: meta?.description ?? null, tags: meta?.tags ?? [], conversationCount: stats.count, lastActive: stats.last_active, scope: null, locations: [] });
   });
   routes.patch("/:path", async (c) => {
     const projectPath = c.req.param("path");

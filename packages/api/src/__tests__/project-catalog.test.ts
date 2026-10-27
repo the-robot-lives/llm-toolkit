@@ -38,7 +38,7 @@ describe("scoped project catalog", () => {
     const unknown = await (await conversations.request("/?project=tobor%3Arobot%2Funknown")).json();
     expect(unknown.meta.total).toBe(0); expect(unknown.data).toEqual([]);
     const legacy = await createProjectRoutes(storage, catalog).request("/" + encodeURIComponent(tree));
-    expect((await legacy.json()).title).toBe("In-progress feature");
+    expect(await legacy.json()).toMatchObject({ title: "In-progress feature", lastActive: "2026-10-27", conversationCount: 1 });
   });
   test("does not collapse unrelated repos into inherited global or monorepo defaults", async () => {
     await conversation("one", "/one"); await conversation("two", "/two");
