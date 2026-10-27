@@ -3,6 +3,7 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## 2026-10-27
+- Connect Settings and Memories to therobot.is MCP with browser OAuth login, scoped capture/pinning, private token storage and loopback-only API; preserve the local Claude Memory Files editor (PR #22 → develop)
 - Add Alibaba profile endpoint presets and test/fetch model options from unsaved settings, with strict discovery errors and masked-key connection protection (PR #21 → develop)
 - Pin pnpm-managed Node 22.23.4 for local app/API launches to avoid the native SQLite crash with system Node 26 (PR #20 → develop)
 - Restore API/CLI TypeScript builds by rewriting source import extensions, and align artifact/skill config-route test doubles with LLM profiles (PR #19 → develop)

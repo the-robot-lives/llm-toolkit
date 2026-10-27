@@ -18,6 +18,7 @@ const navGroups = [
       { to: "/agents", label: "Agents", icon: "◎" },
       { to: "/commands", label: "Commands", icon: "⌘" },
       { to: "/mcp", label: "MCP", icon: "⬢" },
+      { to: "/memories", label: "Memories", icon: "◌" },
       { to: "/datasets", label: "Datasets", icon: "◈" },
       { to: "/prompts", label: "Prompts", icon: "✦" },
       { to: "/tags", label: "Tags", icon: "⊟" },

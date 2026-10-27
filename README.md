@@ -125,6 +125,12 @@ Full design: [docs/PROJ-ARCH.md](docs/PROJ-ARCH.md) · Tree: [docs/PROJ-LAYOUT.m
 
 ## Development
 
+### Memories connection
+
+Open **Settings → Memories · therobot.is**, or **Memories** in the sidebar, and choose **Connect to therobot.is**. Continue login in your browser, approve access, then return to Toolkit; connection status updates automatically. **Test connection** checks access to your memories. Enable **Allow capturing and editing memories** before connecting to grant write access; read-only connections can browse and search.
+
+The native app keeps the existing local editor under **Claude Memory Files**. Connecting does not upload, move, or delete local files. Disconnect removes this app's local OAuth credentials and preserves your remote memories. Credentials are stored server-side in the Toolkit data directory with owner-only permissions, never in browser storage or Settings responses. The local API listens only on `127.0.0.1`.
+
 ```bash
 pnpm dev:api          # Hono, reload
 pnpm dev:web          # Vite, :5173
