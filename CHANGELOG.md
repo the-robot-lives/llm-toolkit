@@ -3,6 +3,7 @@
 Claude Assist — local dev tool for searching, browsing, editing, and mining Claude Code conversations (pnpm workspace: `api`, `cli`, `shared`, `web`).
 
 ## 2026-10-27
+- Restore API/CLI TypeScript builds by rewriting source import extensions, and align artifact/skill config-route test doubles with LLM profiles (PR #19 → develop)
 - Multi-LLM profiles + two-tier incremental semantic indexing: profile CRUD with masked-key-safe PUT and cloud/local presets in web Settings, plus a content-hash incremental describe/embed → work-items pipeline in the API indexer (#5, merge `f52142c`)
 
 ## 2026-10-21
