@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { basename } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type {
   ConversationCompatibilityIssue, NativeConversationAdapter, NativeConversationArtifact,
   NativeConversationContext, NativeConversationValidation, UniversalContentBlock,
@@ -283,11 +284,18 @@ export function renderClaudeConversation(thread: UniversalThread, context: Nativ
       const rawMessage = isObject(message.providerRaw) ? messageOf(message.providerRaw) : {};
       const sourceId = sameHarness ? string(rawMessage.id) || message.id : message.id;
       if (!assistantIds.has(sourceId)) assistantIds.set(sourceId, `msg_${randomUUID().replaceAll("-", "")}`);
-      const stopReason = content.some(b => b.type === "tool_use") ? "tool_use" : "end_turn";
-      // Stop reasons describe the emitted response, never a foreign provider's
-      // completed/flattened source transaction or a source streaming checkpoint.
+      const sourceContent = typeof rawMessage.content === "string" ? [{ type: "text", text: rawMessage.content }] : rawMessage.content;
+      const unchangedNativeBody = sameHarness && rawMessage.role === "assistant"
+        && rawMessage.stop_reason === message.stopReason && isDeepStrictEqual(sourceContent, content);
+      // Preserve compatible completion metadata only with evidence that the
+      // original native body survived. A server pause is not a completed turn.
+      const safeNativeReason = ["end_turn", "max_tokens", "refusal", "model_context_window_exceeded"].includes(message.stopReason ?? "")
+        || message.stopReason === "stop_sequence" && Boolean(string(rawMessage.stop_sequence));
+      const stopReason = content.some(b => b.type === "tool_use") ? "tool_use"
+        : unchangedNativeBody && safeNativeReason ? message.stopReason! : "end_turn";
+      const stopSequence = stopReason === "stop_sequence" ? rawMessage.stop_sequence : null;
       if (message.stopReason != null && message.stopReason !== stopReason) issue("stop-reason-normalized", "Source stop reason was normalized to match the emitted Claude response blocks.");
-      Object.assign(native, { id: assistantIds.get(sourceId), type: "message", ...(sameHarness && message.model ? { model: message.model } : {}), stop_reason: stopReason, stop_sequence: null });
+      Object.assign(native, { id: assistantIds.get(sourceId), type: "message", ...(sameHarness && message.model ? { model: message.model } : {}), stop_reason: stopReason, stop_sequence: stopSequence });
       if (message.usage && sameHarness) native.usage = structuredClone(message.usage);
       if (!sameHarness && message.model) issue("source-model-not-restored", "Source model metadata remains in the portable archive; the target CLI uses its own model configuration.");
     }

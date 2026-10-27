@@ -107,6 +107,29 @@ describe("Claude native conversation adapter", () => {
     expect(validateClaudeConversation(artifact.jsonl, context).valid).toBe(true);
   });
 
+  it("preserves safe native completion reasons only for unchanged source bodies", () => {
+    for (const reason of ["max_tokens", "refusal", "stop_sequence", "model_context_window_exceeded"]) {
+      const nativeMessage = { id: "msg_fixture", type: "message", role: "assistant", content: [text("Original native answer")], stop_reason: reason, stop_sequence: reason === "stop_sequence" ? "matched sequence" : null };
+      const source = thread([record("u", null, "user", "Question"), record("a", "u", "assistant", nativeMessage.content, { message: nativeMessage })]);
+      const output = (input: UniversalThread) => renderClaudeConversation(input, context);
+      const assistant = (artifact: ReturnType<typeof output>) => artifact.records.find(r => r.type === "assistant")!.message as Record<string, unknown>;
+      const unchanged = output(source);
+      expect(assistant(unchanged)).toMatchObject({ stop_reason: reason, stop_sequence: nativeMessage.stop_sequence });
+      expect(unchanged.issues.some(i => i.code === "stop-reason-normalized")).toBe(false);
+      expect(importClaudeConversation(unchanged.jsonl, "/fixture/clone").messages[1].stopReason).toBe(reason);
+      expect(validateClaudeConversation(unchanged.jsonl, context).valid).toBe(true);
+      const edited = structuredClone(source);
+      edited.messages[1].content = [{ type: "text", text: "Edited answer" }];
+      expect(assistant(output(edited))).toMatchObject({ stop_reason: "end_turn", stop_sequence: null });
+      expect(output(edited).issues.some(i => i.code === "stop-reason-normalized")).toBe(true);
+      const foreign = structuredClone(source);
+      foreign.messages[1].provenance = { harness: "codex", sourcePath: "/fixture/foreign" };
+      expect(assistant(output(foreign))).toMatchObject({ stop_reason: "end_turn", stop_sequence: null });
+    }
+    const incomplete = thread(); incomplete.messages[1].stopReason = "stop_sequence";
+    expect((renderClaudeConversation(incomplete, context).records.find(r => r.type === "assistant")!.message as Record<string, unknown>).stop_reason).toBe("end_turn");
+  });
+
   it("retains unchanged signed native thinking but renders edited or unsigned thinking as history", () => {
     const block = { type: "thinking", thinking: "Original reasoning", signature: "opaque-source-signature" };
     const source = thread([record("u", null, "user", "Question"), record("a", "u", "assistant", [block, text("Answer")])]);
