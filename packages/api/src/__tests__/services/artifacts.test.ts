@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, symlinkSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { disableArtifact, enableArtifact, scanArtifacts, readArtifactDetail } from "../../services/artifacts.ts";
@@ -99,6 +99,35 @@ variant:
       expect(item.description).toContain("Keep multiline descriptions intact");
       expect(readArtifactDetail("agents", cfg, item.name)?.variant).toEqual(item.variant);
       expect(scanArtifacts("commands", cfg).items[0]?.parent).toBeUndefined();
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+});
+
+
+describe("installed Markdown source aliases", () => {
+  test("reads safe file targets with logical identity and preserves canonical sources when toggled", () => {
+    const root = mkdtempSync(join(tmpdir(), "llm-toolkit-agent-alias-"));
+    try {
+      const source = join(root, "installed");
+      const canonical = join(root, "canonical.md");
+      const destination = join(root, "target");
+      mkdirSync(source); mkdirSync(destination);
+      writeFileSync(canonical, "---\nname: npl-tasker-fast\nparent: npl-tasker\nvariant:\n  model: fast\n---\nPrompt remains intact.\n");
+      symlinkSync(canonical, join(source, "npl-tasker-fast.md"));
+      symlinkSync(join(root, "missing.md"), join(source, "broken.md"));
+      symlinkSync(source, join(source, "directory.md"));
+      const secret = join(root, "credentials.txt"); writeFileSync(secret, "not markdown");
+      symlinkSync(secret, join(source, "not-markdown.md"));
+      const config = { sourceFolders: [source], destinations: [{ id: "target", label: "Target", path: destination, kind: "global" as const, provider: "claude" as const }] };
+      const catalog = scanArtifacts("agents", config);
+      expect(catalog.items).toHaveLength(1);
+      expect(catalog.items[0]).toMatchObject({ name: "npl-tasker-fast", path: realpathSync(canonical), parent: "npl-tasker", variant: { model: "fast" } });
+      expect(readArtifactDetail("agents", config, "npl-tasker-fast")?.skillMarkdown).toContain("Prompt remains intact.");
+      expect(enableArtifact("agents", config, "npl-tasker-fast", "target").status).toBe("enabled");
+      expect(realpathSync(join(destination, "npl-tasker-fast.md"))).toBe(realpathSync(canonical));
+      expect(disableArtifact("agents", config, "npl-tasker-fast", "target").status).toBe("disabled");
+      expect(readFileSync(canonical, "utf-8")).toContain("Prompt remains intact.");
+      expect(lstatSync(join(source, "npl-tasker-fast.md")).isSymbolicLink()).toBe(true);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });
