@@ -140,7 +140,31 @@ export class ToborService implements OAuthClientProvider {
     const selected = available.find(item => normalized(item.name) === normalized(tool));
     const fallback = available.find(item => normalized(item.name) === "toolcall");
     if (!selected && !fallback) throw new Error(`The Tobor connection does not expose ${tool}. Enable Projects and Organizations in its consent settings.`);
-    const result = await client.callTool(selected ? { name: selected.name, arguments: args } : { name: fallback!.name, arguments: { tool, arguments: args } });
+    let result = await client.callTool(selected ? { name: selected.name, arguments: args } : { name: fallback!.name, arguments: { tool, arguments: args } });
+    const decode = (response: typeof result): Record<string, unknown> => {
+      if (response.structuredContent) return response.structuredContent as Record<string, unknown>;
+      const text = (response.content as Array<{ type: string; text?: string }>).filter(block => block.type === "text").map(block => block.text ?? "").join("\n");
+      return JSON.parse(text) as Record<string, unknown>;
+    };
+    // Some deployed gateways advertise Project_List but retain a legacy dotted
+    // dispatch alias. Retry this read-only operation only when the SAME grant's
+    // manifest explicitly includes and enables it; never override a real deny.
+    const aliasError = result.isError && (result.content as Array<{ type: string; text?: string }>).some(block => block.type === "text" && /disabled for this API key/i.test(block.text ?? ""));
+    if (aliasError && !selected && fallback && tool === "Project_List") {
+      const manifestTool = available.find(item => normalized(item.name) === "sessionmanifest");
+      let permitted = false;
+      if (manifestTool) {
+        try {
+          const manifestResult = await client.callTool({ name: manifestTool.name, arguments: {} });
+          if (!manifestResult.isError) {
+            const manifest = decode(manifestResult);
+            const entry = Array.isArray(manifest.tools) ? manifest.tools.find(item => item && typeof item.name === "string" && normalized(item.name) === normalized(tool)) : undefined;
+            permitted = entry?.enabled === true && entry.included === true;
+          }
+        } catch { /* A missing/invalid manifest is never permission to retry. */ }
+      }
+      if (permitted) result = await client.callTool({ name: fallback.name, arguments: { tool: "Project.List", arguments: args } });
+    }
     if (result.isError) {
       const message = (result.content as Array<{ type: string; text?: string }>).filter(block => block.type === "text").map(block => block.text ?? "").join(" ");
       if (/disabled for this API key|disabled for this.*client|not allowed.*tool/i.test(message)) {
@@ -149,9 +173,7 @@ export class ToborService implements OAuthClientProvider {
       }
       throw new Error("Tobor rejected the project lookup. Check your organization access.");
     }
-    if (result.structuredContent) return result.structuredContent as Record<string, unknown>;
-    const text = (result.content as Array<{ type: string; text?: string }>).filter(block => block.type === "text").map(block => block.text ?? "").join("\n");
-    return JSON.parse(text) as Record<string, unknown>;
+    return decode(result);
   }
 
   private withClient<T>(action: (client: Client) => Promise<T>) {

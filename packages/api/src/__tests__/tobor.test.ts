@@ -6,7 +6,7 @@ const sdk = vi.hoisted(() => ({ auth: vi.fn(), callTool: vi.fn(), connect: vi.fn
 vi.mock("@modelcontextprotocol/sdk/client/auth.js", () => ({ auth: sdk.auth }));
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({ Client: class {
   connect = sdk.connect;
-  listTools = async () => ({ tools: [{ name: "ToolCall" }] });
+  listTools = async () => ({ tools: [{ name: "ToolCall" }, { name: "Session_Manifest" }] });
   callTool = sdk.callTool;
   close = async () => {};
 } }));
@@ -89,6 +89,24 @@ describe("Tobor projects OAuth", () => {
       expect((await routes.request("/projects")).status).toBe(400);
       expect(sdk.callTool).not.toHaveBeenCalled();
       expect((await service.listOrganizations()).map(org => org.slug)).toEqual(["robot"]);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test.each([{ enabled: true, included: true, retry: true }, { enabled: false, included: true, retry: false }, { enabled: true, included: false, retry: false }])("legacy read alias obeys explicit manifest policy %j", async policy => {
+    const dir = mkdtempSync(join(tmpdir(), "tobor-test-"));
+    try {
+      const service = new ToborService(dir); service.saveTokens({ access_token: "private", token_type: "Bearer" });
+      sdk.callTool.mockImplementation(async ({ name, arguments: input }) => {
+        if (name === "Session_Manifest") return { structuredContent: { tools: [{ name: "Project_List", enabled: policy.enabled, included: policy.included }] } };
+        if (input.tool === "Organization_List") return { structuredContent: { organizations: [{ id: "org-id", slug: "robot" }] } };
+        if (input.tool === "Project_List") return { isError: true, content: [{ type: "text", text: "Tool 'Project_List' is disabled for this API key" }] };
+        expect(input.tool).toBe("Project.List"); expect(input.arguments.organization).toBe("org-id");
+        return { structuredContent: { projects: [{ id: "project-id", slug: "toolkit", name: "Toolkit" }] } };
+      });
+      if (policy.retry) expect(await service.listProjects("robot")).toHaveLength(1);
+      else await expect(service.listProjects("robot")).rejects.toBeInstanceOf(ToborPermissionError);
+      const dotted = sdk.callTool.mock.calls.filter(([input]) => input.arguments?.tool === "Project.List");
+      expect(dotted.length).toBe(policy.retry ? 1 : 0);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 

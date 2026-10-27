@@ -231,5 +231,7 @@ enabled, check the endpoint's effective policy rather than broadening other
 client permissions. The app's **Manage project
 permissions** link opens the exact registered OAuth client. OAuth site approval
 and tool access are separate: a blocked Project_List grant shows an explicit
-permission error. The current service authorizes OAuth automatically and does
-not display a browser consent screen; reconnecting does not change tool access.
+permission error. Reconnecting alone does not necessarily change effective tool
+permissions. A legacy dotted Project.List alias is retried only for this
+read-only operation when the same connection's manifest explicitly includes
+and enables Project_List; explicit exclusions and disables are never retried.
