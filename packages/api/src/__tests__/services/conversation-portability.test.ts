@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { createConversationPortabilityRoutes } from "../../routes/conversation-portability.ts";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
@@ -166,5 +167,44 @@ describe("safe native conversation workflow", () => {
     expect(importCodexConversation(readFileSync(created.sourcePath, "utf8"), created.sourcePath).messages).toHaveLength(1);
     expect((await service.archive("summary-clone")).thread.messages).toEqual(source.messages);
   });
+
+  test.skipIf(spawnSync("codex", ["--version"], { encoding: "utf8" }).status !== 0)("native Claude tool history clones into Codex and resumes in an isolated credential-free app server", async () => {
+    const rich = thread("claude-source", directory, ["Tool request", "Tool answer"]);
+    rich.messages.splice(1, 0,
+      { id: "call", role: "assistant", timestamp: rich.startedAt, provenance: { harness: "claude", sourcePath: "fixture" }, content: [{ type: "tool_use", toolCallId: "c", name: "Read", input: { path: "fixture only" } }] },
+      { id: "result", role: "user", timestamp: rich.startedAt, provenance: { harness: "claude", sourcePath: "fixture" }, content: [{ type: "tool_result", toolCallId: "c", content: "Synthetic reverse tool output" }] });
+    const native = claudeConversationAdapter.render(rich, { sessionId: "123e4567-e89b-42d3-a456-426614174003", cwd: directory, title: "Claude tools", createdAt: rich.startedAt, sourceHarness: "claude" });
+    writeFileSync(paths.get("source")!, native.jsonl); const original = readFileSync(paths.get("source")!, "utf8");
+    const codexHome = join(directory, ".codex"); mkdirSync(codexHome, { recursive: true });
+    writeFileSync(join(codexHome, "config.toml"), 'model_provider="fixture"\nmodel="fixture"\n[model_providers.fixture]\nname="Offline fixture"\nbase_url="http://127.0.0.1:9"\nwire_api="responses"\nrequires_openai_auth=false\nsupports_websockets=false\n');
+    const preview = await service.preview("source", { targetHarness: "codex" }); expect(preview.report.valid).toBe(true);
+    const created = await service.create("source", preview.previewId);
+    const script = `import json,os,subprocess,selectors,time,sys
+p=subprocess.Popen(['codex','app-server','--listen','stdio://'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,env={'PATH':os.environ['PATH'],'CODEX_HOME':sys.argv[1],'TMPDIR':os.environ.get('TMPDIR','/tmp')})
+s=selectors.DefaultSelector();s.register(p.stdout,selectors.EVENT_READ)
+def req(i,m,params):
+ p.stdin.write(json.dumps({'jsonrpc':'2.0','id':i,'method':m,'params':params})+'\\n');p.stdin.flush();end=time.monotonic()+10
+ while time.monotonic()<end:
+  if not s.select(.1):continue
+  line=p.stdout.readline()
+  if not line:raise Exception('server exited')
+  x=json.loads(line)
+  if x.get('id')==i:return x
+ raise Exception('timeout')
+try:
+ req(1,'initialize',{'clientInfo':{'name':'toolkit-fixture','version':'1'},'capabilities':{'experimentalApi':True}})
+ result=req(2,'thread/resume',{'threadId':sys.argv[2],'excludeTurns':False,'modelProvider':'fixture','model':'fixture'})
+ if 'error' in result:print(json.dumps({'valid':False,'errorCode':result['error'].get('code')}))
+ else:print(json.dumps({'valid':True,'id':result['result']['thread']['id'],'turns':result['result']['thread']['turns']}))
+finally:p.terminate();p.wait(timeout=3)
+`;
+    const proof = spawnSync("python3", ["-c", script, codexHome, preview.sessionId], { encoding: "utf8", timeout: 20_000, env: { PATH: process.env.PATH!, TMPDIR: tmpdir() } });
+    expect(proof.status, proof.stderr).toBe(0);
+    const result = JSON.parse(proof.stdout); expect(result.valid).toBe(true); expect(result.id).toBe(preview.sessionId);
+    expect(JSON.stringify(result.turns)).toContain("Synthetic reverse tool output");
+    expect(JSON.stringify(result.turns)).not.toContain('"type":"commandExecution"');
+    expect(readFileSync(paths.get("source")!, "utf8")).toBe(original);
+    expect(readFileSync(created.sourcePath, "utf8")).toContain("Historical");
+  }, 25_000);
 
 });
