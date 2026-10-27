@@ -86,16 +86,7 @@ export function Thread() {
       });
   }, [id]);
 
-  const handleClone = async () => {
-    if (!id) return;
-    try {
-      const res = await apiFetch<{ data: { id: string } }>(`/conversations/${id}/clone`, { method: "POST" });
-      setActionMsg(`Cloned as ${res.data.id}`);
-      setTimeout(() => navigate(`/thread/${res.data.id}`), 1000);
-    } catch (err) {
-      setActionMsg(`Clone failed: ${err instanceof Error ? err.message : "unknown error"}`);
-    }
-  };
+  const handleClone = () => { if (id) navigate(`/thread/${id}/continue`); };
 
   const handleRehome = async () => {
     if (!id) return;
@@ -408,7 +399,7 @@ export function Thread() {
           <button onClick={() => navigate(`/thread/${id}/edit`)} className="btn-action-primary" title="Edit this thread — collapse, remove, reorder, or inject messages (non-destructive)">Edit</button>
           <button onClick={() => navigate(`/thread/${id}/convert`)} className="btn-action-primary" title="Extract a reusable artifact — agent, skill, command, snippet, or runbook">Convert</button>
           <button onClick={() => navigate(`/thread/${id}/memories`)} className="btn-action-primary" title="Scan this conversation and review memories before committing them">Extract memories</button>
-          <button onClick={() => navigate(`/thread/${id}/continue`)} className="btn-action-primary" title="Prepare a continuation or transfer payload from the universal transcript">Continue / Transfer</button>
+          <button onClick={() => navigate(`/thread/${id}/continue`)} className="btn-action-primary" title="Prepare a continuation or transfer payload from the universal transcript">Format / Clone</button>
           <div className="mx-1 h-5 w-px bg-border-subtle" />
           <button onClick={handleClone} className="btn-action" title="Create a duplicate of this conversation with a new ID">Clone</button>
           <button onClick={handleRehome} className="btn-action" title="Move this conversation's JSONL file to a different project directory">Rehome</button>

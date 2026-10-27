@@ -1,10 +1,6 @@
 #!/usr/bin/env tsx
-import { render } from "ink";
-import React from "react";
 import { ensureApi } from "@llm-toolkit/shared";
-import { App } from "./src/app.tsx";
 import { parseInvocation } from "./src/interface-selection.js";
-import { runRecentCommand } from "./src/commands/recent.js";
 
 const rawArgs = process.argv.slice(2);
 const { command, args, warnings } = parseInvocation(rawArgs);
@@ -16,7 +12,13 @@ async function main() {
     console.error(warning);
   }
   if (command === "recent") {
+    const { runRecentCommand } = await import("./src/commands/recent.js");
     process.exitCode = runRecentCommand(args);
+    return;
+  }
+  if (command === "validate" || command === "validate-conversation") {
+    const { runValidateCommand } = await import("./src/commands/validate.js");
+    process.exitCode = await runValidateCommand(args);
     return;
   }
   if (NEEDS_API.has(command)) {
@@ -25,6 +27,7 @@ async function main() {
       console.error("Started API server on http://localhost:3100");
     }
   }
+  const [{ render }, { default: React }, { App }] = await Promise.all([import("ink"), import("react"), import("./src/app.tsx")]);
   render(React.createElement(App, { command, args }));
 }
 

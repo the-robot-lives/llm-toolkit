@@ -8,6 +8,7 @@ const navGroups = [
     label: null,
     items: [
       { to: "/", label: "Explore", icon: "⊘" },
+      { to: "/validate-conversation", label: "Validator", icon: "✓" },
       { to: "/safety-watch", label: "Safety Watch", icon: "◇" },
     ],
   },

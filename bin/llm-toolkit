@@ -108,7 +108,9 @@ Usage:
   llm-toolkit skill <cmd>        Manage provider skills/agents/commands (see below)
   llm-toolkit services           Manage local MCP/daemon services (TUI; --list|--start|--stop|--restart NAME, --all)
   llm-toolkit <cmd> [args]       Conversation CLI: recent, search, list, show,
-                                  index, serve, interactive, help
+                                  index, validate, serve, interactive, help
+  llm-toolkit validate FILE --target claude|codex|gemini|universal [--json]
+                                Read-only offline validation; --api optionally uses the running app
 
 Run 'llm-toolkit skill --help' for the full skill-manage subcommand list.
 Run 'llm-toolkit help' for the conversation CLI's own usage output.

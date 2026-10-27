@@ -625,9 +625,14 @@ export class StorageService {
   async getUniversalMessages(conversationId: string): Promise<StoredUniversalMessage[]> {
     const db = this.getDb();
     const rows = db
-      .prepare("SELECT conversation_id as conversationId, payload FROM universal_messages WHERE conversation_id = ? ORDER BY timestamp, id")
+      .prepare("SELECT conversation_id as conversationId, payload FROM universal_messages WHERE conversation_id = ? ORDER BY rowid")
       .all(conversationId) as Array<{ conversationId: string; payload: string }>;
     return rows.map((row) => ({ ...JSON.parse(row.payload), conversationId }));
+  }
+
+  async getConversationBySourcePath(sourcePath: string) {
+    const row = this.getDb().prepare("SELECT * FROM conversations WHERE source_path = ? ORDER BY rowid DESC LIMIT 1").get(sourcePath) as ConversationRow | undefined;
+    return row ? rowToConversation(row) : null;
   }
 
   async insertRawTranscriptEvents(conversationId: string, events: RawTranscriptEvent[]): Promise<void> {
@@ -648,7 +653,7 @@ export class StorageService {
   async getRawTranscriptEvents(conversationId: string): Promise<RawTranscriptEvent[]> {
     const db = this.getDb();
     const rows = db
-      .prepare("SELECT id, timestamp, harness, event_type as eventType, payload FROM raw_transcript_events WHERE conversation_id = ? ORDER BY timestamp, id")
+      .prepare("SELECT id, timestamp, harness, event_type as eventType, payload FROM raw_transcript_events WHERE conversation_id = ? ORDER BY rowid")
       .all(conversationId) as Array<{ id: string; timestamp: string; harness: AgentHarness; eventType: string; payload: string }>;
     return rows.map((row) => ({
       id: row.id,

@@ -226,6 +226,7 @@ export function Settings() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="mb-6 text-xl font-medium text-text-bright">Settings</h1>
+      <Link className="btn-action mb-6 inline-block" to="/validate-conversation">Validate a conversation</Link>
       <div className="space-y-6">
         <MemoryConnection />
       <ToborConnection />

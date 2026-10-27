@@ -43,6 +43,7 @@ type Overlay =
 export function ThreadPage() {
   const { current, navigate, goBack } = useRouter();
   const id = current.params.id;
+  const [clonePreview, setClonePreview] = useState<{ previewId: string; sourcePath: string; report: { valid: boolean }; issues: Array<{ severity: string }> } | null>(null);
   const { rows } = useTerminalSize();
 
   const { data: metaData, refetch: refetchMeta } = useApiQuery<{ data: ConversationMeta }>(`/conversations/${id}`);
@@ -132,12 +133,16 @@ export function ThreadPage() {
 
   const handleClone = async () => {
     try {
-      const res = await apiFetch<{ data: { id: string } }>(`/conversations/${id}/clone`, { method: "POST" });
-      showAction(`Cloned as ${res.data.id.slice(0, 8)}`);
-    } catch {
-      showAction("Clone failed");
-    }
-    setOverlay(null);
+      if (!clonePreview) {
+        const res = await apiFetch<{ data: { previewId: string; sourcePath: string; report: { valid: boolean }; issues: Array<{ severity: string }> } }>(`/conversations/${id}/clone-preview`, { method: "POST", body: "{}" });
+        if (!res.data.report.valid || res.data.issues.some(issue => issue.severity === "error")) { showAction("Clone validation needs review in desktop Format / Clone"); setOverlay(null); return; }
+        setClonePreview(res.data);
+        return;
+      }
+      const res = await apiFetch<{ data: { id?: string; nativeCreated: boolean } }>(`/conversations/${id}/clone`, { method: "POST", body: JSON.stringify({ previewId: clonePreview.previewId }) });
+      showAction(res.data.nativeCreated ? `Native clone created${res.data.id ? `: ${res.data.id.slice(0, 8)}` : "; refresh index"}` : "Native clone was not created");
+    } catch { showAction("Clone failed; review desktop Format / Clone"); }
+    setClonePreview(null); setOverlay(null);
   };
 
   const handleArchive = async () => {
@@ -271,7 +276,7 @@ export function ThreadPage() {
 
       {/* Overlays */}
       {overlay === "clone" && (
-        <ConfirmDialog message="Clone this conversation?" onConfirm={handleClone} onCancel={() => setOverlay(null)} />
+        <ConfirmDialog message={clonePreview ? `Validated native copy: ${clonePreview.sourcePath}. Create it now?` : "Preview and validate a new native copy? Original remains unchanged."} onConfirm={handleClone} onCancel={() => { setClonePreview(null); setOverlay(null); }} />
       )}
       {overlay === "archive" && (
         <ConfirmDialog message="Archive this conversation?" onConfirm={handleArchive} onCancel={() => setOverlay(null)} />

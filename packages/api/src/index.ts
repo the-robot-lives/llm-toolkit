@@ -11,6 +11,8 @@ import { homedir } from "node:os";
 import type { IndexSource } from "@llm-toolkit/shared";
 import { loadNplPluginConfig } from "@llm-toolkit/shared";
 import { createConversationRoutes } from "./routes/conversations.ts";
+import { createConversationPortabilityRoutes } from "./routes/conversation-portability.ts";
+import { ConversationPortabilityService } from "./services/conversation-portability.ts";
 import { createSearchRoutes } from "./routes/search.ts";
 import { createDatasetRoutes } from "./routes/datasets.ts";
 import { createConfigRoutes, loadConfig } from "./routes/config.ts";
@@ -84,7 +86,8 @@ app.use(
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-app.route("/api/conversations", createConversationRoutes(storage, searchService, indexer, projectCatalog));
+app.route("/api/conversations", createConversationPortabilityRoutes(new ConversationPortabilityService(storage, indexer)));
+app.route("/api/conversations", createConversationRoutes(storage, searchService, indexer, projectCatalog, llmService));
 app.route("/api/search", createSearchRoutes(searchService));
 app.route("/api/datasets", createDatasetRoutes(storage));
 app.route("/api/config", createConfigRoutes(storage, llmService));

@@ -1,3 +1,6 @@
+import { importGeminiConversation } from "./native/gemini.ts";
+import { importClaudeConversation } from "./native/claude.ts";
+import { importCodexConversation } from "./native/codex.ts";
 // 〚📁:4b2c3249-a37a-5486-a806-6fc7634583f1〛 IndexerService :: JSONL scan to raw/universal/flat layers + two-tier LLM enrichment.
 
 import { createHash } from "node:crypto";
@@ -118,6 +121,8 @@ export class IndexerService {
     this.llm = llm ?? null;
     this.indexSources = normalizeIndexSources(indexSources);
   }
+
+  getSources(): IndexSource[] { return this.indexSources.map((source) => ({ ...source })); }
 
   get progress(): IndexProgress {
     return { ...this._progress };
@@ -747,7 +752,10 @@ function parseHarnessFile(harness: AgentHarness, filePath: string): ParsedConver
       return parseClaudeFile(filePath);
     case "codex":
       return parseCodexFile(filePath);
-    case "gemini":
+    case "gemini": {
+      const thread = importGeminiConversation(readFileSync(filePath, "utf-8"), filePath);
+      return { startedAt: thread.startedAt, updatedAt: thread.updatedAt, projectPath: thread.projectPath, title: thread.title, messages: thread.messages.map(universalToSearchMessage), universalMessages: thread.messages, rawEvents: thread.rawEvents ?? [], providerMetadata: thread.providerMetadata };
+    }
     case "opencode":
     case "aider":
     case "other":
@@ -765,89 +773,22 @@ function parsePendingHarnessFile(harness: AgentHarness, _filePath: string): Pars
 }
 
 function parseClaudeFile(filePath: string): ParsedConversation | null {
-  const content = readFileSync(filePath, "utf-8");
-  const allRecords: Array<BaseRecord | CustomTitleRecord> = [];
-  for (const record of parseJsonlFile(content)) {
-    allRecords.push(record);
-  }
-
-  if (allRecords.length === 0) return null;
-
-  const contentRecords = allRecords.filter(
-    (r): r is UserMessage | AssistantMessage =>
-      isUserMessage(r) || isAssistantMessage(r),
-  );
-
-  let customTitle: string | null = null;
-  for (const record of allRecords) {
-    if (isCustomTitle(record) && record.customTitle) {
-      customTitle = record.customTitle;
-    }
-  }
-
-  if (contentRecords.length === 0) return null;
-
-  const firstRecord = contentRecords[0];
-  const lastRecord = contentRecords[contentRecords.length - 1];
-  const firstTimestamp = firstRecord.timestamp ?? new Date().toISOString();
-  const lastTimestamp = lastRecord.timestamp ?? firstTimestamp;
-  const universalMessages = contentRecords.map((record, index) => claudeRecordToUniversalMessage(record, filePath, index));
-
+  const thread = importClaudeConversation(readFileSync(filePath, "utf-8"), filePath);
   return {
-    startedAt: firstTimestamp,
-    updatedAt: lastTimestamp,
-    projectPath: decodeProjectPath(dirname(filePath)),
-    title: customTitle ?? generateTitle(contentRecords),
-    messages: universalMessages.map(universalToSearchMessage),
-    universalMessages,
-    rawEvents: allRecords.map((record, index) => rawEventFromRecord("claude", record, filePath, index)),
+    startedAt: thread.startedAt, updatedAt: thread.updatedAt, projectPath: thread.projectPath || decodeProjectPath(dirname(filePath)), title: thread.title,
+    messages: thread.messages.map(universalToSearchMessage), universalMessages: thread.messages, rawEvents: thread.rawEvents ?? [], providerMetadata: thread.providerMetadata,
   };
 }
 
 function parseCodexFile(filePath: string): ParsedConversation | null {
-  const records = readFileSync(filePath, "utf-8")
-    .split("\n")
-    .filter((line) => line.trim())
-    .map((line) => JSON.parse(line) as CodexRecord);
-
-  if (records.length === 0) return null;
-
-  let sessionId: string | null = null;
-  let projectPath: string | null = null;
-  let title: string | null = null;
-  const universalMessages: UniversalMessage[] = [];
-
-  for (let index = 0; index < records.length; index++) {
-    const record = records[index];
-    if (record.type === "session_meta") {
-      sessionId = stringOrNull(record.payload?.id) ?? sessionId;
-      projectPath = stringOrNull(record.payload?.cwd) ?? projectPath;
-    }
-
-    if (record.type !== "response_item") continue;
-    const payload = record.payload;
-    if (payload?.type !== "message") continue;
-    if (payload.role !== "user" && payload.role !== "assistant") continue;
-
-    const message = codexRecordToUniversalMessage(record, filePath, index);
-    if (message.content.length === 0) continue;
-    universalMessages.push(message);
-  }
-
-  const messages = universalMessages.map(universalToSearchMessage);
-  if (messages.length === 0) return null;
-  if (sessionId) title = loadCodexTitle(filePath, sessionId);
-
+  // Indexing is a cheap physical-file view. Format/clone uses readCodexConversation
+  // to materialize referenced/paginated visible history before exporting it.
+  const thread = importCodexConversation(readFileSync(filePath, "utf-8"), filePath);
+  const sessionId = typeof thread.providerMetadata?.sessionId === "string" ? thread.providerMetadata.sessionId : thread.id.replace(/^codex:/, "");
   return {
-    id: sessionId ? `codex:${sessionId}` : undefined,
-    startedAt: messages[0].timestamp,
-    updatedAt: messages[messages.length - 1].timestamp,
-    projectPath: projectPath ?? dirname(filePath),
-    title: title ?? generateTitleFromMessages(messages),
-    messages,
-    universalMessages,
-    rawEvents: records.map((record, index) => rawEventFromRecord("codex", record, filePath, index)),
-    providerMetadata: sessionId ? { sessionId } : undefined,
+    id: `codex:${sessionId}`, startedAt: thread.startedAt, updatedAt: thread.updatedAt, projectPath: thread.projectPath,
+    title: loadCodexTitle(filePath, sessionId) ?? thread.title,
+    messages: thread.messages.map(universalToSearchMessage), universalMessages: thread.messages, rawEvents: thread.rawEvents ?? [], providerMetadata: thread.providerMetadata,
   };
 }
 

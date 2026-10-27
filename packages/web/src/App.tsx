@@ -31,6 +31,7 @@ export function App() {
         <Route index element={<Explore />} />
         <Route path="search" element={<Explore />} />
         <Route path="browse" element={<Explore />} />
+        <Route path="validate-conversation" element={<ContinueSession />} />
         <Route path="safety-watch" element={<SafetyWatch />} />
         <Route path="thread/:id" element={<Thread />} />
         <Route path="thread/:id/continue" element={<ContinueSession />} />
