@@ -46,6 +46,7 @@ export function App({ command, args }: AppProps) {
             <Text>  <Text color="cyan">search</Text>       {"  "}Search conversations</Text>
             <Text>  <Text color="cyan">list</Text>         {"  "}List conversations</Text>
             <Text>  <Text color="cyan">show</Text>         {"  "}View a conversation</Text>
+            <Text>  <Text color="cyan">validate</Text>     {"  "}Validate native or universal conversation files (--help)</Text>
             <Text>  <Text color="cyan">interactive</Text>  {"  "}Launch full-screen TUI</Text>
             <Text>  <Text color="cyan">serve</Text>        {"  "}Start API + web UI</Text>
             <Text>  <Text color="cyan">index</Text>        {"  "}Rebuild search index</Text>

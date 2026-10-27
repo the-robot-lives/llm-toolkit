@@ -10,10 +10,19 @@ import type { SearchService } from "../services/search.ts";
 import type { IndexerService } from "../services/indexer.ts";
 import type { ProjectCatalog } from "../services/project-catalog.ts";
 import { prepareContinuationPayload } from "../services/session-workflow.ts";
+import type { LlmService } from "../services/llm.ts";
+import { compactConversationDraft } from "../services/conversation-compact.ts";
 
 // <REMOVED UUID HERE> createConversationRoutes :: auto-generated pointer for public function createConversationRoutes
-export function createConversationRoutes(storage: StorageService, searchService?: SearchService, indexer?: IndexerService, projects?: ProjectCatalog): Hono {
+export function createConversationRoutes(storage: StorageService, searchService?: SearchService, indexer?: IndexerService, projects?: ProjectCatalog, llm?: LlmService): Hono {
   const routes = new Hono();
+
+  routes.post("/:id/compact", async (c) => {
+    if (!llm) return c.json({ error: "LLM service is unavailable" }, 503);
+    if (!await storage.getConversation(c.req.param("id"))) return c.json({ error: "Conversation not found" }, 404);
+    try { return c.json({ data: await compactConversationDraft(llm, await c.req.json()) }); }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : "Transformation failed; the draft has not changed" }, 400); }
+  });
 
   routes.post("/:id/analyze", async (c) => {
     const id = c.req.param("id");

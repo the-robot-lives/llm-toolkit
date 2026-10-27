@@ -30,19 +30,8 @@ export class OperationsService {
     });
   }
 
-  async clone(conversationId: string): Promise<string> {
-    const conv = await this.storage.getConversation(conversationId);
-    if (!conv) throw new Error("Conversation not found");
-    const newId = createHash("sha256").update(`${conv.id}:clone:${Date.now()}`).digest("hex").slice(0, 16);
-    await this.storage.upsertConversation({
-      ...convToUpsert(conv),
-      id: newId,
-      title: `${conv.title} (copy)`,
-    });
-    const messages = await this.storage.getMessages(conversationId);
-    const clonedMessages = messages.map((m) => ({ ...m, conversationId: newId }));
-    await this.storage.insertMessages(newId, clonedMessages);
-    return newId;
+  async clone(_conversationId: string): Promise<string> {
+    throw new Error("Use the validated native clone workflow. Database-only aliases cannot be resumed safely.");
   }
 
   async saveEdit(

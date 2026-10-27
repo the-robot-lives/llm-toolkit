@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { apiFetch } from "../hooks/useApi.js";
+import { apiFetch, useLlmProfiles } from "../hooks/useApi.js";
 import { MarkdownView } from "../components/MarkdownView.js";
+import { CloneApproval, type NativeClonePreview } from "../components/ConversationValidation.js";
+import { universalMessageText, type UniversalMessage } from "@llm-toolkit/shared";
 
 interface ContentBlock {
   type: "text" | "tool_use" | "tool_result" | "thinking";
@@ -34,13 +36,15 @@ interface ThreadRecord {
 
 interface DraftMessage {
   originalIndex?: number;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "developer" | "tool";
   content: string;
   injected?: boolean;
   collapsed?: boolean;
   template?: string;
   rawRecord?: unknown;
   rawEdited?: boolean;
+  compactionOriginals?: DraftMessage[];
+  universalMessage?: UniversalMessage;
 }
 
 interface DraftEdit {
@@ -501,7 +505,7 @@ function PreviewModal({
   onApply,
   onCancel,
 }: {
-  action: { type: "compact" | "simplify"; result: DraftMessage[]; simplifyMap: Map<number, string>; loading: boolean; error?: string };
+  action: { type: "compact" | "simplify"; result: DraftMessage[]; simplifyMap: Map<number, string>; loading: boolean; error?: string; warnings?: string[] };
   messages: DraftMessage[];
   selected: Set<number>;
   onApply: () => void;
@@ -531,7 +535,7 @@ function PreviewModal({
             </h2>
             <p className="mt-0.5 text-xs text-text-dim">
               {isCompact
-                ? `${indices.length} messages → ${action.result.length || "?"} compacted (valid user ↔ assistant turns)`
+                ? `${indices.length} messages → ${action.result.length || "?"} generated historical summary note`
                 : `${indices.length} messages rewritten individually`}
             </p>
           </div>
@@ -542,6 +546,7 @@ function PreviewModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {action.warnings?.map((warning) => <p key={warning} className="rounded border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">{warning}</p>)}
           {action.error && (
             <div className="rounded-md border border-red-800/40 bg-red-950/20 px-4 py-3 text-sm text-red-400">
               {action.error}
@@ -661,6 +666,10 @@ function PreviewModal({
 export function Edit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { data: profileData } = useLlmProfiles();
+  const [compactProfileId, setCompactProfileId] = useState("");
+  useEffect(() => { if (!compactProfileId && profileData?.profiles.length) setCompactProfileId(profileData.defaultProfileId || profileData.profiles[0].id); }, [profileData, compactProfileId]);
+  const previewSequence = useRef(0);
   const [meta, setMeta] = useState<ConversationMeta | null>(null);
   const [originalRecords, setOriginalRecords] = useState<ThreadRecord[]>([]);
   const [messages, setMessages] = useState<DraftMessage[]>([]);
@@ -668,6 +677,8 @@ export function Edit() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [nativePreview, setNativePreview] = useState<NativeClonePreview | null>(null);
+  const [saveError, setSaveError] = useState("");
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState({ role: "user" as string, content: "", mode: "rendered" as "rendered" | "json", rawJson: "", rawError: "" });
   const [insertingAt, setInsertingAt] = useState<number | null>(null);
@@ -681,6 +692,9 @@ export function Edit() {
     simplifyMap: Map<number, string>;
     loading: boolean;
     error?: string;
+    warnings?: string[];
+    indices?: number[];
+    snapshot?: string;
   }>(null);
   const lastClickedIdx = useRef<number | null>(null);
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -694,8 +708,9 @@ export function Edit() {
       apiFetch<{ data: ConversationMeta }>(`/conversations/${id}`),
       apiFetch<{ data: ThreadRecord[] }>(`/conversations/${id}/thread`),
       apiFetch<{ data: DraftEdit | null }>(`/conversations/${id}/draft`),
+      apiFetch<{ data: { messages: UniversalMessage[] } }>(`/conversations/${id}/universal`),
     ])
-      .then(([convRes, threadRes, draftRes]) => {
+      .then(([convRes, threadRes, draftRes, universalRes]) => {
         setMeta(convRes.data);
         const records = threadRes.data ?? [];
         setOriginalRecords(records);
@@ -708,8 +723,9 @@ export function Edit() {
         } else {
           const initial: DraftMessage[] = records.map((r, i) => ({
             originalIndex: i,
-            role: detectEffectiveRole(r),
-            content: extractText(r.message.content),
+            role: universalRes.data.messages[i]?.role ?? detectEffectiveRole(r),
+            content: universalRes.data.messages[i] ? universalMessageText(universalRes.data.messages[i]) : extractText(r.message.content),
+            universalMessage: universalRes.data.messages[i],
           }));
           setMessages(initial);
         }
@@ -738,8 +754,10 @@ export function Edit() {
             body: JSON.stringify({ messages: msgs }),
           });
         }
+        return true;
       } catch {
-        // silent
+        setSaveError("Draft autosave failed. Keep this page open and retry saving; original native files are unchanged.");
+        return false;
       }
     },
     [id],
@@ -787,92 +805,36 @@ export function Edit() {
     setEditingIdx(null);
   };
 
-  const handlePreviewCompact = async () => {
-    if (selected.size === 0) return;
+  const requestTransform = async (type: "compact" | "simplify") => {
+    if (!selected.size || !compactProfileId) return;
     const indices = [...selected].sort((a, b) => a - b);
-    const transcript = indices.map((i) => {
-      const m = messages[i];
-      return `[${m.role}]\n${m.content}`;
-    }).join("\n\n---\n\n");
-
-    const inputRoles = new Set(indices.map((i) => messages[i].role));
-    const hasUser = inputRoles.has("user");
-    const hasAssistant = inputRoles.has("assistant");
-
-    setPreviewAction({ type: "compact", result: [], simplifyMap: new Map(), loading: true, error: undefined });
-
-    const systemPrompt = `You are a conversation editor that compacts message sequences.
-
-TASK: Condense the following messages into the fewest possible messages while preserving ALL key information, decisions, code changes, and outcomes.
-
-INPUT ROLES PRESENT: ${[...inputRoles].join(", ")}
-
-CRITICAL RULES:
-1. ONLY use roles that exist in the input. ${!hasUser ? "There are NO user messages — do NOT create any user messages." : ""} ${!hasAssistant ? "There are NO assistant messages — do NOT create any assistant messages." : ""}
-2. ${hasUser && hasAssistant ? "When both roles are present, messages MUST alternate: user → assistant → user → assistant. Never two consecutive messages with the same role." : `All output messages must have role "${[...inputRoles][0]}".`}
-3. Tool calls (e.g. "[Tool: Bash]") and tool outputs (e.g. "[Tool Output]") belong to the assistant turn — fold them into the assistant message as a summary of what was done and what resulted.
-4. System messages should be folded into the nearest user message as context.
-5. Produce the MINIMUM number of messages needed.
-6. The first output message role must match the first input message role ("${messages[indices[0]]?.role}").
-
-OUTPUT FORMAT: Return ONLY a JSON array of message objects. No markdown fences, no commentary.
-Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..."},{"role":"assistant","content":"..."}]`;
-
+    const source = structuredClone(messages);
+    const snapshot = JSON.stringify(source);
+    const sequence = ++previewSequence.current;
+    setPreviewAction({ type, result: [], simplifyMap: new Map(), loading: true, indices, snapshot });
     try {
-      const res = await apiFetch<{ data: { content: string } }>("/llm/complete", {
+      const response = await apiFetch<{ data: { messages: DraftMessage[]; simplifications: { index: number; content: string }[]; warnings: string[] } }>(`/conversations/${id}/compact`, {
         method: "POST",
-        body: JSON.stringify({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: transcript },
-          ],
-          maxTokens: 4096,
-        }),
+        body: JSON.stringify({ profileId: compactProfileId, mode: type, indices, messages: source.map(({ role, content }) => ({ role, content })) }),
       });
-
-      let parsed: Array<{ role: string; content: string }>;
-      const raw = res.data.content.trim();
-      const jsonMatch = raw.match(/\[[\s\S]*\]/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
-
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        throw new Error("LLM returned invalid format — expected a JSON array of messages.");
-      }
-
-      // Strip messages with roles not in the input
-      parsed = parsed.filter((m) => inputRoles.has(m.role === "user" ? "user" : "assistant"));
-
-      if (parsed.length === 0) {
-        throw new Error("LLM returned no valid messages matching the input roles.");
-      }
-
-      // Merge consecutive same-role messages
-      for (let i = 1; i < parsed.length; i++) {
-        if (parsed[i].role === parsed[i - 1].role) {
-          parsed[i - 1].content += "\n\n" + parsed[i].content;
-          parsed.splice(i, 1);
-          i--;
-        }
-      }
-
-      const result: DraftMessage[] = parsed.map((m) => ({
-        role: (m.role === "user" ? "user" : "assistant") as DraftMessage["role"],
-        content: m.content,
-        collapsed: true,
-      }));
-
-      setPreviewAction({ type: "compact", result, simplifyMap: new Map(), loading: false });
-    } catch (err) {
-      setPreviewAction({ type: "compact", result: [], simplifyMap: new Map(), loading: false, error: err instanceof Error ? err.message : "LLM request failed." });
+      if (sequence !== previewSequence.current) return;
+      const result = response.data.messages.map((message) => ({ ...message, collapsed: true, compactionOriginals: indices.map((index) => source[index]) }));
+      setPreviewAction({ type, result, simplifyMap: new Map(response.data.simplifications.map((item) => [item.index, item.content])), loading: false, warnings: response.data.warnings, indices, snapshot });
+    } catch (error) {
+      if (sequence !== previewSequence.current) return;
+      setPreviewAction({ type, result: [], simplifyMap: new Map(), loading: false, error: error instanceof Error ? error.message : "Transformation failed; your draft is unchanged.", indices, snapshot });
     }
   };
+  const handlePreviewCompact = () => requestTransform("compact");
 
   const handleApplyCompact = () => {
     if (!previewAction || previewAction.type !== "compact" || previewAction.result.length === 0) return;
+    if (previewAction.snapshot !== JSON.stringify(messages)) { setPreviewAction({ ...previewAction, error: "The draft changed. Generate a new preview before applying.", result: [] }); return; }
+    const selection = new Set(previewAction.indices);
     const newMessages: DraftMessage[] = [];
     let inserted = false;
     messages.forEach((msg, i) => {
-      if (!selected.has(i)) {
+      if (!selection.has(i)) {
         newMessages.push(msg);
       } else if (!inserted) {
         newMessages.push(...previewAction.result);
@@ -885,43 +847,11 @@ Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..
     setPreviewAction(null);
   };
 
-  const handlePreviewSimplify = async () => {
-    if (selected.size === 0) return;
-    const indices = [...selected];
-    setPreviewAction({ type: "simplify", result: [], simplifyMap: new Map(), loading: true, error: undefined });
-    const smap = new Map<number, string>();
-    let anyFailed = false;
-
-    for (const idx of indices) {
-      const msg = messages[idx];
-      if (!msg.content.trim()) continue;
-      try {
-        const res = await apiFetch<{ data: { content: string } }>("/llm/complete", {
-          method: "POST",
-          body: JSON.stringify({
-            messages: [
-              { role: "system", content: "You are an editor. Simplify and distill the following message to its essential content. Remove verbose tool output, redundant explanations, and boilerplate. Preserve key information, decisions, code snippets, and outcomes. Return only the simplified text, no commentary." },
-              { role: "user", content: msg.content },
-            ],
-            maxTokens: 2048,
-          }),
-        });
-        smap.set(idx, res.data.content);
-        setPreviewAction({ type: "simplify", result: [], simplifyMap: new Map(smap), loading: idx !== indices[indices.length - 1] });
-      } catch (err) {
-        anyFailed = true;
-        if (smap.size === 0) {
-          setPreviewAction({ type: "simplify", result: [], simplifyMap: new Map(), loading: false, error: err instanceof Error ? err.message : "LLM request failed — check Settings > LLM Inference configuration." });
-          return;
-        }
-        break;
-      }
-    }
-    setPreviewAction({ type: "simplify", result: [], simplifyMap: smap, loading: false, error: anyFailed ? "Some messages failed to simplify and were skipped." : undefined });
-  };
+  const handlePreviewSimplify = () => requestTransform("simplify");
 
   const handleApplySimplify = () => {
     if (!previewAction || previewAction.type !== "simplify") return;
+    if (previewAction.snapshot !== JSON.stringify(messages)) { setPreviewAction({ ...previewAction, error: "The draft changed. Generate a new preview before applying.", simplifyMap: new Map() }); return; }
     const updated = [...messages];
     for (const [idx, content] of previewAction.simplifyMap) {
       updated[idx] = { ...updated[idx], content };
@@ -1008,48 +938,30 @@ Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..
     setInsertTemplate(null);
   };
 
-  const handleSaveEdit = async (mode: "new" | "overwrite") => {
+  const handleSaveEdit = async (_mode: "new" | "overwrite") => {
     if (!id) return;
-    setSaving(true);
+    setSaving(true); setSaveError("");
     try {
-      if (saveTimeout.current) {
-        clearTimeout(saveTimeout.current);
-      }
-
-      const defaultTitle = mode === "new" ? `${meta?.title ?? "Thread"} (edited)` : meta?.title ?? "Thread edit";
-      const desc = prompt(
-        mode === "new"
-          ? "Title for the new conversation:"
-          : "Update title (or leave as-is):",
-        defaultTitle,
-      );
-      if (desc === null) { setSaving(false); return; }
-
-      if (mode === "overwrite" && !confirm("This will overwrite the original JSONL file on disk. Continue?")) {
-        setSaving(false);
-        return;
-      }
-
-      const res = await apiFetch<{ data: { id: string; sourcePath: string } }>(`/conversations/${id}/save-edit`, {
-        method: "POST",
-        body: JSON.stringify({
-          messages,
-          mode,
-          description: desc || defaultTitle,
-        }),
-      });
-
-      // Clean up draft
-      if (draftIdRef.current) {
-        await apiFetch(`/conversations/${id}/draft`, { method: "DELETE" }).catch(() => {});
-      }
-
-      navigate(`/thread/${res.data.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
-      setSaving(false);
-    }
+      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+      if (!await persistDraft(messages)) throw new Error("Could not save the review draft; retry before cloning");
+      const description = prompt("Title for the new validated conversation:", `${meta?.title ?? "Thread"} (edited)`);
+      if (description === null) return;
+      const { data } = await apiFetch<{ data: NativeClonePreview }>(`/conversations/${id}/save-edit`, { method: "POST", body: JSON.stringify({ messages, mode: "new", description }) });
+      setNativePreview(data);
+    } catch (error) { setSaveError(error instanceof Error ? error.message : "Could not prepare the edited copy"); }
+    finally { setSaving(false); }
   };
+  const createEditedClone = async () => {
+    if (!id || !nativePreview) return;
+    setSaving(true); setSaveError("");
+    try {
+      const { data } = await apiFetch<{ data: { id?: string; sourcePath: string; resumeCommand: string } }>(`/conversations/${id}/clone`, { method: "POST", body: JSON.stringify({ previewId: nativePreview.previewId }) });
+      if (data.id) { await apiFetch(`/conversations/${id}/draft`, { method: "DELETE" }); navigate(`/thread/${data.id}`); }
+      else { setNativePreview(null); setSaveError(`Native copy created at ${data.sourcePath}. Refresh the index to open it in Toolkit. Resume with: ${data.resumeCommand}`); }
+    } catch (error) { setSaveError(error instanceof Error ? error.message : "Could not create the edited copy"); }
+    finally { setSaving(false); }
+  };
+  const formatEditedDraft = async () => { if (!id) return; if (saveTimeout.current) clearTimeout(saveTimeout.current); if (!await persistDraft(messages)) return; navigate(`/thread/${id}/continue?draft=1`); };
 
   const handleRevert = async () => {
     if (!id) return;
@@ -1097,10 +1009,20 @@ Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..
           <button onClick={() => navigate(`/thread/${id}`)} className="btn-action text-xs">Cancel</button>
         </div>
         <p className="mt-1 text-xs text-text-dim">
-          {messages.length} messages{dirty ? " · draft auto-saved" : ""}
+          {messages.length} messages{dirty ? " · editing draft (autosave)" : ""}
         </p>
       </div>
 
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
+        <label className="text-text-muted">Editing profile <select aria-label="Editing profile" className="ml-2 rounded border border-border-subtle bg-surface p-1.5" value={compactProfileId} onChange={(event) => setCompactProfileId(event.target.value)}>
+          <option value="">Choose a configured profile</option>
+          {profileData?.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name} · {profile.model}</option>)}
+        </select></label>
+        {!profileData?.profiles.length && <button className="text-glow" onClick={() => navigate("/settings")}>Configure an LLM profile in Settings</button>}
+        <span className="text-text-dim">Compact a contiguous selection; originals can be restored from each summary.</span>
+      </div>
+      {saveError && <p role="alert" className="mb-3 rounded border border-red-500/30 p-3 text-sm text-red-300">{saveError}</p>}
+      {nativePreview && <div role="dialog" aria-modal="true" aria-label="Create edited native conversation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onKeyDown={(event) => { if (event.key === "Escape" && !saving) setNativePreview(null); }}><div className="max-h-[90vh] w-full max-w-4xl overflow-auto"><CloneApproval preview={nativePreview} busy={saving} onCreate={createEditedClone} onCancel={() => setNativePreview(null)} /></div></div>}
       {/* Bulk toolbar */}
       <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-md border border-border-subtle bg-canvas/95 backdrop-blur px-4 py-2.5 mb-2">
         <button
@@ -1123,7 +1045,7 @@ Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..
 
         <button
           onClick={handlePreviewCompact}
-          disabled={selected.size === 0 || (previewAction?.loading ?? false)}
+          disabled={!compactProfileId || selected.size === 0 || (previewAction?.loading ?? false)}
           className="rounded bg-surface-active px-3 py-1 text-xs text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           title="Use LLM to summarize selected messages into a single compact message. Preview before applying."
         >
@@ -1132,7 +1054,7 @@ Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..
 
         <button
           onClick={handlePreviewSimplify}
-          disabled={selected.size === 0 || (previewAction?.loading ?? false)}
+          disabled={!compactProfileId || selected.size === 0 || (previewAction?.loading ?? false)}
           className="rounded bg-purple-900/30 px-3 py-1 text-xs text-purple-400 hover:bg-purple-900/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           title="Use LLM to distill each selected message individually — removes boilerplate and verbose output. Preview before applying."
         >
@@ -1151,11 +1073,15 @@ Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..
         <PreviewModal
           action={previewAction}
           messages={messages}
-          selected={selected}
+          selected={new Set(previewAction.indices ?? [])}
           onApply={previewAction.type === "compact" ? handleApplyCompact : handleApplySimplify}
-          onCancel={() => setPreviewAction(null)}
+          onCancel={() => { previewSequence.current++; setPreviewAction(null); }}
         />
       )}
+
+      {messages.some((message) => message.compactionOriginals?.length) && <div className="mb-3 space-y-2 rounded border border-border-subtle p-3 text-xs">
+        {messages.map((message, index) => message.compactionOriginals?.length ? <button key={index} className="btn-action mr-2" onClick={() => { const next = [...messages]; next.splice(index, 1, ...structuredClone(message.compactionOriginals!)); updateMessages(next); setSelected(new Set()); }}>Restore {message.compactionOriginals.length} originals from summary {index + 1}</button> : null)}
+      </div>}
 
       {/* Insert at top */}
       {insertingAt === 0 && insertTemplate ? (
@@ -1402,7 +1328,7 @@ Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..
       <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-border-strong bg-canvas/95 backdrop-blur px-4 py-3">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           <span className="text-xs text-text-dim">{messages.length} messages</span>
-          {dirty && <span className="text-xs text-glow">● draft saved</span>}
+          {dirty && <span className="text-xs text-glow">● draft changes</span>}
           <div className="flex-1" />
           <button
             onClick={handleRevert}
@@ -1420,12 +1346,12 @@ Example: [{"role":"assistant","content":"..."}] or [{"role":"user","content":"..
             {saving ? "Saving..." : "Save as New"}
           </button>
           <button
-            onClick={() => handleSaveEdit("overwrite")}
+            onClick={formatEditedDraft}
             disabled={saving || !dirty}
             className="rounded bg-glow px-4 py-1.5 text-sm font-medium text-void hover:bg-glow/90 disabled:opacity-50"
-            title="Overwrite the original JSONL file on disk with the edited messages."
+            title="Preview provider-aware formatting and clone the edited draft. Native originals remain unchanged."
           >
-            {saving ? "Saving..." : "Save to Original"}
+            Format / Clone…
           </button>
         </div>
       </div>
