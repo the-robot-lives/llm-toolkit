@@ -21,6 +21,10 @@ export interface ConversationCompatibilityIssue {
   message: string;
   messageId?: string;
   blockIndex?: number;
+  path?: string;
+  repairable?: boolean;
+  line?: number;
+  suggestion?: string;
 }
 
 /** Native renderers are pure: storage, indexes and configured destination roots are owned by the caller. */
@@ -49,10 +53,13 @@ export interface NativeConversationArtifact {
 export interface NativeConversationValidation {
   valid: boolean;
   issues: ConversationCompatibilityIssue[];
+  compatibilityVersion?: string;
+  complete?: boolean;
 }
 
 export interface NativeConversationAdapter {
   harness: NativeConversationHarness;
+  compatibilityVersion?: string;
   render(thread: UniversalThread, context: NativeConversationContext): NativeConversationArtifact;
   validate(jsonl: string, context?: NativeConversationContext): NativeConversationValidation;
 }

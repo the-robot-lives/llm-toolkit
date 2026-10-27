@@ -304,6 +304,8 @@ export interface EditedMessage {
   template?: string;
   rawRecord?: unknown;
   rawEdited?: boolean;
+  compactionOriginals?: EditedMessage[];
+  universalMessage?: UniversalMessage;
 }
 
 // Conversion artifacts
