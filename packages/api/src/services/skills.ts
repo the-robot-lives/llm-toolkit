@@ -2,6 +2,11 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  linkSync,
+  openSync,
+  closeSync,
+  writeFileSync,
+  fsyncSync,
   readdirSync,
   readFileSync,
   readlinkSync,
@@ -12,7 +17,8 @@ import {
   symlinkSync,
   unlinkSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
+import { normalizeSourceRoots, pathEntryExists, sourceRootIdentity } from "./source-roots.ts";
+import { createHash, randomBytes } from "node:crypto";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import type {
@@ -51,6 +57,7 @@ export function migrateSkillsConfig(raw: Partial<SkillsConfig> | undefined): Ski
   const sourceFolders = raw?.sourceFolders ?? [];
   if (raw?.providers?.length) {
     return {
+      ...raw,
       sourceFolders,
       providers: uniqueProviders(raw.providers),
       globalEnabled: raw.globalEnabled ?? true,
@@ -69,13 +76,14 @@ export function migrateSkillsConfig(raw: Partial<SkillsConfig> | undefined): Ski
       else if (inferred.projectRoot) projectRoots.add(inferred.projectRoot);
     }
     return {
+      ...raw,
       sourceFolders,
       providers: providers.size ? uniqueProviders([...providers]) : ["claude"],
       globalEnabled,
       projectRoots: [...projectRoots],
     };
   }
-  return { ...defaultSkillsConfig(), sourceFolders };
+  return { ...defaultSkillsConfig(), ...raw, sourceFolders };
 }
 
 export function expandDestinations(config: SkillsConfig, home = homedir(), kind: ArtifactKind = "skills"): SkillDestination[] {
@@ -208,6 +216,7 @@ export interface DiscoveredSkill {
   installs: SkillInstall[];
   catalogFile?: string;
   tags?: string[];
+  alternatives?: { path: string; sourceRoot: string }[];
 }
 
 export interface SkillSourceInfo {
@@ -375,10 +384,7 @@ const SKILL_MD_PREVIEW_CHARS = 16_000;
 export function scanSkills(config: SkillsConfig): SkillsCatalog {
   const migrated = migrateSkillsConfig(config);
   const discoveredFolders = discoverSourceFolders();
-  const sourceFolders = (migrated.sourceFolders.length > 0
-    ? migrated.sourceFolders.map(expandPath)
-    : discoveredFolders
-  ).filter((p) => existsSync(p));
+  const sourceFolders = normalizeSourceRoots(migrated.sourceFolders.length > 0 ? migrated.sourceFolders : discoveredFolders).paths;
 
   const rawDests = config.destinations?.length && !config.providers?.length
     ? config.destinations
@@ -415,10 +421,17 @@ export function scanSkills(config: SkillsConfig): SkillsCatalog {
       }
     }
 
-    const listed = catalogFile ? readCatalogSkills(root, catalogFile) : { skills: listSkillDirs(root), warnings: [] };
+    const listed = catalogFile ? readCatalogSkills(root, catalogFile) : discoverNestedSkills(root);
     for (const skill of listed.skills) {
       count += 1;
-      if (skillsByName.has(skill.name)) continue;
+      const existing = skillsByName.get(skill.name);
+      if (existing) {
+        if (!samePath(existing.path, skill.path)) {
+          existing.alternatives = [...(existing.alternatives ?? []), { path: skill.path, sourceRoot: root }];
+          listed.warnings.push(`${skill.name} also exists at ${skill.path}; first source wins: ${existing.path}. Reorder sources to choose another definition.`);
+        }
+        continue;
+      }
       skillsByName.set(skill.name, skill);
       if (catalogFile) skillToCategory.set(skill.name, skill.categoryId);
       if (catalogFile && skill.categoryId !== "uncategorized" && !categoriesById.has(skill.categoryId)) {
@@ -621,46 +634,106 @@ export class SkillActionError extends Error {
   }
 }
 
-function listSkillDirs(root: string): DiscoveredSkill[] {
-  const out: DiscoveredSkill[] = [];
-  let entries: string[] = [];
+/** Contained, cycle-safe discovery for configured legacy roots and catalog preview. */
+export function discoverNestedSkills(root: string): { skills: DiscoveredSkill[]; warnings: string[] } {
+  const skills: DiscoveredSkill[] = [], warnings: string[] = [];
+  const seen = new Set<string>();
+  let examined = 0, limited = false;
+  let canonicalRoot: string;
+  try { canonicalRoot = realpathSync(root); if (!statSync(canonicalRoot).isDirectory()) throw new Error(); }
+  catch { return { skills, warnings: [`Source is currently unavailable: ${root}. Installed links are unchanged.`] }; }
+  const visit = (logical: string, depth: number) => {
+    if (limited) return;
+    if (depth > 32 || seen.size >= 10_000 || ++examined > 20_000) {
+      limited = true; warnings.push(`Discovery limit reached at ${logical}. Results are incomplete; choose a more specific source root.`); return;
+    }
+    let path: string;
+    try { path = realpathSync(logical); if (!statSync(path).isDirectory()) return; }
+    catch { warnings.push(`Unreadable or broken source entry: ${logical}`); return; }
+    if (path !== canonicalRoot && !path.startsWith(`${canonicalRoot}/`)) { warnings.push(`Outside-root directory link skipped: ${logical}`); return; }
+    if (seen.has(path)) return;
+    seen.add(path);
+    const entry = join(path, "SKILL.md");
+    if (pathEntryExists(entry)) {
+      try {
+        const file = realpathSync(entry);
+        if (!file.startsWith(`${canonicalRoot}/`) || !statSync(file).isFile()) throw new Error();
+        const name = basename(path);
+        assertSkillName(name);
+        const text = readFileSync(file, "utf-8");
+        const meta = parseSkillFrontmatter(text);
+        skills.push({ name, title: meta.title || titleFromHeading(text), description: meta.description, path, sourceRoot: root, categoryId: "uncategorized", installs: [] });
+      } catch { warnings.push(`Invalid or outside-root SKILL.md skipped: ${entry}`); }
+      return; // references/assets inside a skill package are not independent skills
+    }
+    let entries: string[];
+    try { entries = readdirSync(path).sort(); } catch { warnings.push(`Could not read source folder: ${path}`); return; }
+    for (const name of entries) {
+      if (limited) break;
+      if (name.startsWith(".") || name === "node_modules") continue;
+      visit(join(path, name), depth + 1);
+    }
+  };
+  visit(canonicalRoot, 0);
+  return { skills, warnings };
+}
+
+export interface SkillCatalogPreview {
+  root: string;
+  catalogFile: string;
+  token: string;
+  yaml: string;
+  entries: { name: string; path: string; title?: string; description?: string; category?: string }[];
+  errors: string[];
+}
+
+export function previewSkillCatalog(root: string): SkillCatalogPreview {
+  const canonical = sourceRootIdentity(root);
+  if (!statSync(canonical).isDirectory()) throw new SkillActionError("Choose an available source folder.", 400);
+  const files = CATALOG_FILES.map(name => join(canonical, name));
+  if (files.some(pathEntryExists)) throw new SkillActionError("A catalog already exists at this source root. Existing catalogs are never replaced.", 409);
+  const found = discoverNestedSkills(canonical);
+  const errors = [...found.warnings];
+  const names = new Set<string>();
+  const categories = findCategoriesFile(canonical);
+  let membership = new Map<string, string>();
+  if (categories) {
+    try { for (const cat of parseCategoriesYaml(readFileSync(categories, "utf-8")).categories) for (const name of cat.skills) if (!membership.has(name)) membership.set(name, cat.id); }
+    catch { errors.push("Existing categories metadata could not be read."); }
+  }
+  const entries = found.skills.map(skill => {
+    if (names.has(skill.name)) errors.push(`Duplicate skill name: ${skill.name}. Rename a package or maintain an explicit catalog before generating.`);
+    names.add(skill.name);
+    if (skill.path === canonical) errors.push("The source root is itself a skill package. Choose its parent folder to generate a collection catalog.");
+    return { name: skill.name, path: skill.path.slice(canonical.length + 1), title: skill.title, description: skill.description, category: membership.get(skill.name) };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+  if (!entries.length) errors.push("No skill packages containing SKILL.md were found.");
+  const yaml = "version: 1\nskills:\n" + entries.map(entry => `  ${entry.name}:\n    path: ${JSON.stringify(entry.path)}\n` + (entry.title ? `    title: ${JSON.stringify(entry.title)}\n` : "") + (entry.description ? `    description: ${JSON.stringify(entry.description)}\n` : "") + (entry.category ? `    category: ${JSON.stringify(entry.category)}\n` : "")).join("");
+  // Ensure the serializer's output is understood by the same parser as discovery.
+  const parsed = asRecord(parseYamlLite(yaml));
+  if (Object.keys(asRecord(parsed.skills)).length !== entries.length) errors.push("The generated catalog could not be validated.");
+  return { root: canonical, catalogFile: files[0]!, entries, errors, yaml, token: createHash("sha256").update(canonical + "\0" + yaml + "\0" + JSON.stringify(errors)).digest("hex") };
+}
+
+export function createSkillCatalog(root: string, token: string): SkillCatalogPreview {
+  const preview = previewSkillCatalog(root);
+  if (preview.token !== token) throw new SkillActionError("Source contents changed. Preview the catalog again before creating it.", 409);
+  if (preview.errors.length) throw new SkillActionError("Resolve the catalog preview errors before creating it.", 400);
+  const temp = join(preview.root, `.catalog-${randomBytes(12).toString("hex")}.tmp`);
+  let descriptor: number | undefined;
   try {
-    entries = readdirSync(root);
-  } catch {
-    return out;
+    descriptor = openSync(temp, "wx", 0o600);
+    writeFileSync(descriptor, preview.yaml); fsyncSync(descriptor); closeSync(descriptor); descriptor = undefined;
+    // Hard-link publication is atomic and exclusive: EEXIST includes broken symlinks.
+    linkSync(temp, preview.catalogFile);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new SkillActionError("A catalog appeared after preview. It was not overwritten.", 409);
+    throw error;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (pathEntryExists(temp)) unlinkSync(temp);
   }
-  for (const name of entries) {
-    if (name.startsWith(".") || SKIP_DIRS.has(name)) continue;
-    const path = join(root, name);
-    let st;
-    try {
-      st = lstatSync(path);
-    } catch {
-      continue;
-    }
-    if (!st.isDirectory() || st.isSymbolicLink()) continue;
-    const skillMd = join(path, "SKILL.md");
-    if (!existsSync(skillMd)) continue;
-    let title: string | undefined;
-    let description: string | undefined;
-    try {
-      const meta = parseSkillFrontmatter(readFileSync(skillMd, "utf-8"));
-      title = meta.title || titleFromHeading(readFileSync(skillMd, "utf-8")) || undefined;
-      description = meta.description;
-    } catch {
-      // ignore
-    }
-    out.push({
-      name,
-      title,
-      description,
-      path,
-      sourceRoot: root,
-      categoryId: "uncategorized",
-      installs: [],
-    });
-  }
-  return out;
+  return preview;
 }
 
 function classifyInstall(dest: SkillDestination & { exists?: boolean }, skill: DiscoveredSkill): SkillInstall {
@@ -889,6 +962,7 @@ function parseScalar(raw: string): YamlValue {
     if (token.trim()) values.push(token);
     return values.map(value => parseScalar(value.trim()));
   }
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) return unquote(trimmed);
   const value = unquote(raw);
   if (value === "null" || value === "~") return null;
   if (value === "true") return true;
@@ -900,9 +974,11 @@ function parseScalar(raw: string): YamlValue {
 
 function unquote(raw: string): string {
   const trimmed = raw.trim();
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try { const value = JSON.parse(trimmed); if (typeof value === "string") return value; } catch { /* valid YAML may use non-JSON escapes */ }
     return trimmed.slice(1, -1);
   }
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1).replaceAll("''", "'");
   return trimmed;
 }
 

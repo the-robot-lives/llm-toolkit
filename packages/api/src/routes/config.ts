@@ -5,8 +5,9 @@ import { homedir } from "node:os";
 import type { AppConfig, ArtifactKind, SkillsConfig, LlmProfile } from "@llm-toolkit/shared";
 import type { StorageService } from "../services/storage.ts";
 import type { LlmService } from "../services/llm.ts";
-import { defaultSkillsConfig, migrateSkillsConfig } from "../services/skills.ts";
-import { resolveKindConfig } from "../services/artifacts.ts";
+import { defaultSkillsConfig, findSkillCatalog, migrateSkillsConfig } from "../services/skills.ts";
+import { normalizeSourceRoots } from "../services/source-roots.ts";
+import { discoverArtifactFolders, resolveKindConfig } from "../services/artifacts.ts";
 
 const CONFIG_KEY = "app_config";
 
@@ -247,9 +248,44 @@ function persistConfig(storage: StorageService, current: AppConfig): void {
   storage.setSetting(CONFIG_KEY, JSON.stringify(toStore));
 }
 
+const SOURCE_KINDS = ["skills", "agents", "commands"] as const;
+
+export function artifactSourceSettings(storage: StorageService, discover: typeof discoverArtifactFolders = discoverArtifactFolders) {
+  const config = loadConfig(storage);
+  return Object.fromEntries(SOURCE_KINDS.map(kind => {
+    const configured = normalizeSourceRoots(config[kind]?.sourceFolders ?? []);
+    const defaults = normalizeSourceRoots(discover(kind));
+    const effective = configured.paths.length ? configured.paths : defaults.paths;
+    return [kind, { configured: configured.paths, effective, defaults: defaults.paths, warnings: configured.paths.length ? configured.warnings : defaults.warnings, ...(kind === "skills" ? { catalogs: effective.map(root => ({ root, catalogFile: findSkillCatalog(root) ?? null })) } : {}) }];
+  }));
+}
+
 // <REMOVED UUID HERE> createConfigRoutes :: auto-generated pointer for public function createConfigRoutes
-export function createConfigRoutes(storage: StorageService, llmService: LlmService): Hono {
+export function createConfigRoutes(storage: StorageService, llmService: LlmService, sourceDiscovery = discoverArtifactFolders): Hono {
   const routes = new Hono();
+
+  routes.get("/artifact-sources", c => c.json({ data: artifactSourceSettings(storage, sourceDiscovery) }));
+  routes.patch("/artifact-sources", async c => {
+    const url = new URL(c.req.url);
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) return c.json({ error: "Source settings are available only on this computer." }, 403);
+    if (![url.origin, "http://localhost:5173", "http://127.0.0.1:5173"].includes(c.req.header("Origin") ?? "")) return c.json({ error: "Untrusted request origin" }, 403);
+    const updates = await c.req.json().catch(() => null) as Record<string, unknown> | null;
+    if (!updates || Array.isArray(updates) || Object.keys(updates).some(key => !SOURCE_KINDS.includes(key as typeof SOURCE_KINDS[number]))) return c.json({ error: "Provide Skills, Agents, or Commands source arrays only." }, 400);
+    try {
+      // Source-only persistence intentionally does not round-trip normalized or
+      // masked LLM settings, credentials, unknown config keys or OAuth files.
+      const saved = storage.getSetting(CONFIG_KEY);
+      const raw = saved ? JSON.parse(saved) : migrateLegacyConfig(storage);
+      const defaults = loadConfig(storage);
+      for (const kind of SOURCE_KINDS) if (updates[kind] !== undefined) {
+        if (!Array.isArray(updates[kind]) || (updates[kind] as unknown[]).length > 100) throw new Error("Use at most 100 source folders per kind.");
+        const normalized = normalizeSourceRoots(updates[kind], true);
+        raw[kind] = { ...(raw[kind] ?? defaults[kind]), sourceFolders: normalized.paths };
+      }
+      storage.setSetting(CONFIG_KEY, JSON.stringify(raw));
+      return c.json({ data: artifactSourceSettings(storage, sourceDiscovery) });
+    } catch (error) { return c.json({ error: error instanceof Error ? error.message : "Could not save source folders." }, 400); }
+  });
 
   routes.get("/", (c) => {
     const config = loadConfig(storage);
@@ -259,6 +295,15 @@ export function createConfigRoutes(storage: StorageService, llmService: LlmServi
   routes.patch("/", async (c) => {
     const current = loadConfig(storage);
     const updates = await c.req.json() as Partial<AppConfig>;
+    // Old general Settings snapshots may include independently saved artifact
+    // source lists. Preserve authoritative current lists on mixed global saves;
+    // legacy artifact-only PATCH requests still update their source folders.
+    const mixedGlobalSave = Object.keys(updates).some(key => !["skills", "agents", "commands", "mcp"].includes(key));
+    const sourceSafePatch = (kind: ArtifactKind) => {
+      const patch = { ...updates[kind] };
+      if (mixedGlobalSave) delete patch.sourceFolders;
+      return patch;
+    };
 
     if (updates.indexPaths) current.indexPaths = updates.indexPaths;
     if (updates.indexSources) current.indexSources = updates.indexSources;
@@ -292,16 +337,16 @@ export function createConfigRoutes(storage: StorageService, llmService: LlmServi
     if (updates.defaultLocalProfileId !== undefined) current.defaultLocalProfileId = updates.defaultLocalProfileId;
     if (updates.indexing) current.indexing = { ...current.indexing, ...updates.indexing };
     if (updates.skills) {
-      current.skills = migrateSkillsConfig({ ...current.skills, ...updates.skills });
+      current.skills = migrateSkillsConfig({ ...current.skills, ...sourceSafePatch("skills") });
     }
     if (updates.agents) {
-      current.agents = migrateSkillsConfig({ ...current.agents, ...updates.agents });
+      current.agents = migrateSkillsConfig({ ...current.agents, ...sourceSafePatch("agents") });
     }
     if (updates.commands) {
-      current.commands = migrateSkillsConfig({ ...current.commands, ...updates.commands });
+      current.commands = migrateSkillsConfig({ ...current.commands, ...sourceSafePatch("commands") });
     }
     if (updates.mcp) {
-      current.mcp = migrateSkillsConfig({ ...current.mcp, ...updates.mcp });
+      current.mcp = migrateSkillsConfig({ ...current.mcp, ...sourceSafePatch("mcp") });
     }
 
     persistConfig(storage, current);

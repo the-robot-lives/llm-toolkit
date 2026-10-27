@@ -14,6 +14,7 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
+import { normalizeSourceRoots } from "./source-roots.ts";
 import type {
   AgentVariantMetadata,
   ArtifactKind,
@@ -167,10 +168,7 @@ export function scanArtifacts(kind: ArtifactKind, config: SkillsConfig, home = h
 
   const migrated = migrateSkillsConfig(config);
   const discoveredFolders = discoverArtifactFolders(kind);
-  const sourceFolders = (migrated.sourceFolders.length > 0
-    ? migrated.sourceFolders.map(expandPath)
-    : discoveredFolders
-  ).filter((path) => existsSync(path));
+  const sourceFolders = normalizeSourceRoots(migrated.sourceFolders.length > 0 ? migrated.sourceFolders : discoveredFolders).paths;
 
   const rawDests = config.destinations?.length && !config.providers?.length
     ? config.destinations
@@ -188,6 +186,7 @@ export function scanArtifacts(kind: ArtifactKind, config: SkillsConfig, home = h
   for (const root of sourceFolders) {
     const categoriesFile = findCategoriesFile(root);
     let count = 0;
+    const warnings: string[] = [];
     if (categoriesFile) {
       try {
         const parsed = parseCategoriesYaml(readFileSync(categoriesFile, "utf-8"), categoriesFile);
@@ -208,10 +207,17 @@ export function scanArtifacts(kind: ArtifactKind, config: SkillsConfig, home = h
     const listed = kind === "mcp" ? listMcpSources(root) : listMarkdownItems(root, kind);
     count = listed.length;
     for (const item of listed) {
-      if (itemsByName.has(item.name)) continue;
+      const existing = itemsByName.get(item.name);
+      if (existing) {
+        if (!samePath(existing.path, item.path)) {
+          existing.alternatives = [...(existing.alternatives ?? []), { path: item.path, sourceRoot: root }];
+          warnings.push(`${item.name} also exists at ${item.path}; first source wins: ${existing.path}. Reorder sources to choose another definition.`);
+        }
+        continue;
+      }
       itemsByName.set(item.name, item);
     }
-    sources.push({ path: root, categoriesFile, skillCount: count });
+    sources.push({ path: root, categoriesFile, skillCount: count, warnings });
   }
 
   if (kind === "mcp") {
