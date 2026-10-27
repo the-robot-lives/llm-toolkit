@@ -563,3 +563,36 @@ export interface LlmCompletionResponse {
   };
   finishReason: string;
 }
+
+/** Explicit Tobor identity shared by repositories and their worktrees. */
+export interface ProjectLocation {
+  path: string;
+  repositoryRoot: string | null;
+  canonicalRoot: string | null;
+  remote: string | null;
+  isWorktree: boolean;
+  conversationCount: number;
+  lastActive: string | null;
+  title: string | null;
+  description: string | null;
+  tags: string[];
+}
+export interface ProjectEntry {
+  projectPath: string;
+  title: string | null;
+  displayName: string;
+  description: string | null;
+  tags: string[];
+  conversationCount: number;
+  lastActive: string | null;
+  scope: { organization: string; project: string } | null;
+  locations: ProjectLocation[];
+}
+export interface ToborProject {
+  id: string;
+  slug: string;
+  name: string;
+  organizationId: string;
+  organizationSlug: string;
+  status: string;
+}

@@ -427,6 +427,7 @@ export class StorageService {
     groupBy?: string;
     harness?: AgentHarness;
     project?: string;
+    projects?: string[];
   }): Promise<Conversation[]> {
     const db = this.getDb();
     const sort = options?.sort ?? "updated_at";
@@ -453,7 +454,10 @@ export class StorageService {
       params.push(options.harness);
     }
 
-    if (options?.project) {
+    if (options?.projects !== undefined) {
+      wheres.push(options.projects.length ? `c.project_path IN (${options.projects.map(() => "?").join(",")})` : "0");
+      params.push(...options.projects);
+    } else if (options?.project) {
       wheres.push("c.project_path = ?");
       params.push(options.project);
     }
@@ -469,11 +473,14 @@ export class StorageService {
     return rows.map(rowToConversation);
   }
 
-  async getConversationCount(project?: string, harness?: AgentHarness): Promise<number> {
+  async getConversationCount(project?: string | string[], harness?: AgentHarness): Promise<number> {
     const db = this.getDb();
     const wheres: string[] = [];
     const params: unknown[] = [];
-    if (project) {
+    if (Array.isArray(project)) {
+      wheres.push(project.length ? `project_path IN (${project.map(() => "?").join(",")})` : "0");
+      params.push(...project);
+    } else if (project) {
       wheres.push("project_path = ?");
       params.push(project);
     }

@@ -16,6 +16,7 @@ import { createDatasetRoutes } from "./routes/datasets.ts";
 import { createConfigRoutes, loadConfig } from "./routes/config.ts";
 import { createIndexRoutes } from "./routes/index-routes.ts";
 import { createPromptRoutes } from "./routes/prompts.ts";
+import { ProjectCatalog } from "./services/project-catalog.ts";
 import { createProjectRoutes } from "./routes/projects.ts";
 import { createTagRoutes } from "./routes/tags.ts";
 import { createLlmRoutes } from "./routes/llm.ts";
@@ -23,6 +24,7 @@ import { createSkillRoutes } from "./routes/skills.ts";
 import { createArtifactRoutes } from "./routes/artifacts.ts";
 import { createServiceRoutes } from "./routes/services.ts";
 import { createMemoryRoutes } from "./routes/memory.ts";
+import { createToborRoutes } from "./routes/tobor.ts";
 import { createRemoteMemoryRoutes } from "./routes/remote-memory.ts";
 import { createMemoryExtractionRoutes } from "./routes/memory-extraction.ts";
 import { MemoryExtractionService } from "./services/memory-extraction.ts";
@@ -51,6 +53,7 @@ const storage = new StorageService(dbPath);
 const llmService = new LlmService();
 const indexer = new IndexerService(storage, indexSources, embeddings, llmService);
 const searchService = new SearchService(storage, embeddings);
+const projectCatalog = new ProjectCatalog(storage);
 
 const projectRoot = process.env.LLM_TOOLKIT_PROJECT_ROOT ?? null;
 const supervisor = new ServiceSupervisor({
@@ -62,7 +65,7 @@ const supervisor = new ServiceSupervisor({
 const app = new Hono();
 
 // OAuth authorization codes must never enter request logs.
-app.use("*", (c, next) => c.req.path === "/api/remote-memory/oauth/callback" ? next() : logger()(c, next));
+app.use("*", (c, next) => ["/api/remote-memory/oauth/callback", "/api/tobor/oauth/callback"].includes(c.req.path) ? next() : logger()(c, next));
 app.use(
   "*",
   cors({
@@ -81,13 +84,13 @@ app.use(
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-app.route("/api/conversations", createConversationRoutes(storage, searchService, indexer));
+app.route("/api/conversations", createConversationRoutes(storage, searchService, indexer, projectCatalog));
 app.route("/api/search", createSearchRoutes(searchService));
 app.route("/api/datasets", createDatasetRoutes(storage));
 app.route("/api/config", createConfigRoutes(storage, llmService));
 app.route("/api/index", createIndexRoutes(indexer));
 app.route("/api/prompts", createPromptRoutes(storage));
-app.route("/api/projects", createProjectRoutes(storage));
+app.route("/api/projects", createProjectRoutes(storage, projectCatalog));
 app.route("/api/tags", createTagRoutes(storage));
 app.route("/api/llm", createLlmRoutes(llmService, storage));
 app.route("/api/skills", createSkillRoutes(storage));
@@ -99,6 +102,7 @@ app.route("/api/memory", createMemoryRoutes());
 const remoteMemory = new RemoteMemoryService(dataDir);
 app.route("/api/remote-memory", createRemoteMemoryRoutes(remoteMemory));
 app.route("/api/memory-extraction", createMemoryExtractionRoutes(new MemoryExtractionService(storage, llmService, remoteMemory)));
+app.route("/api/tobor", createToborRoutes(undefined, projectCatalog));
 
 const webDist = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "web", "dist");
 if (existsSync(join(webDist, "index.html"))) {

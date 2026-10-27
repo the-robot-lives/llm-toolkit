@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { apiFetch, useIndexStatus, rebuildIndex } from "../hooks/useApi.js";
 import type { LlmProfile, LlmIndexingConfig } from "../hooks/useApi.js";
 import { LlmProfileForm, emptyProfile } from "../components/LlmProfileForm.js";
+import { ToborConnection } from "../components/ToborConnection.js";
 import { MemoryConnection } from "../components/MemoryConnection.js";
 
 interface LlmConfig {
@@ -222,6 +223,7 @@ export function Settings() {
       <h1 className="mb-6 text-xl font-medium text-text-bright">Settings</h1>
       <div className="space-y-6">
         <MemoryConnection />
+      <ToborConnection />
         {/* Index Configuration */}
         <section className="rounded-md border border-border-subtle bg-surface p-6 space-y-5">
           <div>

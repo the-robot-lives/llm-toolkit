@@ -1,16 +1,9 @@
+import type { ProjectEntry } from "@llm-toolkit/shared";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../hooks/useApi.js";
 
-interface ProjectEntry {
-  projectPath: string;
-  title: string | null;
-  description: string | null;
-  tags: string[];
-  conversationCount: number;
-  lastActive: string | null;
-  displayName?: string;
-}
+
 
 interface Conversation {
   id: string;
@@ -150,6 +143,8 @@ export function ProjectDetail() {
           <AddTagInline onAdd={(tag) => handlePatch({ tags: [...(project?.tags ?? []), tag] })} />
         </div>
 
+        {project?.scope && <p className="text-sm text-glow">{project.scope.organization} / {project.scope.project}</p>}
+        {!!project?.locations.length && <section aria-label="Project repositories and worktrees" className="space-y-2"><h2 className="text-sm font-medium">Repositories and worktrees</h2>{project.locations.map(location => <div key={location.path} className="rounded border border-border-subtle p-2"><p className="font-mono text-xs break-all">{location.path}</p><p className="text-xs text-text-muted">{location.isWorktree ? "Worktree" : "Repository"} · {location.conversationCount} conversations</p>{location.title && <p className="text-sm">{location.title}</p>}{location.description && <p className="text-xs text-text-muted">{location.description}</p>}{!!location.tags.length && <p className="text-xs text-text-muted">{location.tags.join(", ")}</p>}</div>)}</section>}
         <button onClick={() => navigate("/projects")} className="btn-action text-xs">Back to Projects</button>
       </div>
 
