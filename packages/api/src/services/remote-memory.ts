@@ -118,8 +118,9 @@ export class RemoteMemoryService implements OAuthClientProvider {
     });
   }
 
-  call(tool: "graph_subgraph" | "recall_preview" | "remember" | "memory_set", args: Record<string, unknown>) {
+  call(tool: "graph_subgraph" | "recall_preview" | "remember" | "memory_set", args: Record<string, unknown>, expectedConnectionId?: string) {
     return this.exclusive(async () => {
+      if (expectedConnectionId && this.saved.connectionId !== expectedConnectionId) throw new Error("Memory connection changed");
       if (!this.saved.tokens) throw new Error("Sign in to therobot.is to access your memories.");
       if (!["graph_subgraph", "recall_preview"].includes(tool) && !this.status().writeEnabled) throw new Error("Reconnect with memory editing enabled to make changes.");
       const client = new Client({ name: "llm-toolkit", version: "0.1.0" });

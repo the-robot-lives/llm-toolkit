@@ -11,7 +11,7 @@ interface Candidate {
   memoryId?: string; error?: string;
 }
 interface Draft {
-  id: string; conversationId: string; title: string; profileId: string; createdAt: string;
+  id: string; conversationId: string; title: string; profileId: string; createdAt: string; targetConnectionId?: string;
   coverage: { includedMessages: number; totalMessages: number; includedCharacters: number; totalCharacters: number; partial: boolean };
   candidates: Candidate[];
 }
@@ -58,7 +58,10 @@ export function MemoryReview() {
   useEffect(() => { if (profiles.data && !profiles.data.profiles.some((profile) => profile.id === profileId)) setProfileId(profiles.data.defaultProfileId || profiles.data.profiles[0]?.id || ""); }, [profiles.data, profileId]);
 
   const scan = async () => {
-    if (!id || !profileId || (draft && !window.confirm("Replace this memory review with a new scan? Your current edits and selections will be replaced only after the new scan succeeds. Memories already committed remain in the store."))) return;
+    const confirmation = draft?.targetConnectionId && draft.targetConnectionId !== connection?.connectionId
+      ? "Start a new review for this memory connection? Current edits and selections will be replaced only after a successful scan. Memories committed through the previous connection remain in that store."
+      : "Replace this memory review with a new scan? Your current edits and selections will be replaced only after the new scan succeeds. Memories already committed remain in the store.";
+    if (!id || !profileId || (draft && !window.confirm(confirmation))) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await apiFetch<{ data: Draft }>(`/memory-extraction/${encodeURIComponent(id)}/scan`, { method: "POST", body: JSON.stringify({ profileId, replaceDraftId: draft?.id }) });
@@ -74,9 +77,10 @@ export function MemoryReview() {
     if (draft) updateDraft({ ...draft, candidates: draft.candidates.map((candidate) => candidate.status === "committed" ? candidate : { ...candidate, enabled }) });
   };
   const selected = draft?.candidates.filter((candidate) => candidate.enabled && candidate.status !== "committed") ?? [];
-  const invalid = draft?.candidates.some((candidate) => candidate.status !== "committed" && (!candidate.content.trim() || candidate.content.length > 8_000 || candidate.context.length > 6_000 || candidate.summary.length > 500 || !Number.isFinite(candidate.arousal) || candidate.arousal < 0 || candidate.arousal > 1 || !Number.isFinite(candidate.valence) || candidate.valence < -1 || candidate.valence > 1 || !Number.isFinite(candidate.dominance) || candidate.dominance < 0 || candidate.dominance > 1));
+  const invalid = draft?.candidates.some((candidate) => candidate.enabled && candidate.status !== "committed" && (!candidate.content.trim() || candidate.content.length > 8_000 || candidate.context.length > 6_000 || candidate.summary.length > 500 || !Number.isFinite(candidate.arousal) || candidate.arousal < 0 || candidate.arousal > 1 || !Number.isFinite(candidate.valence) || candidate.valence < -1 || candidate.valence > 1 || !Number.isFinite(candidate.dominance) || candidate.dominance < 0 || candidate.dominance > 1));
+  const connectionChanged = !!draft?.targetConnectionId && draft.targetConnectionId !== connection?.connectionId;
   const commit = async () => {
-    if (!id || !draft || !selected.length || busy || invalid) return;
+    if (!id || !draft || !selected.length || busy || invalid || connectionChanged) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await apiFetch<{ data: Draft }>(`/memory-extraction/${encodeURIComponent(id)}/commit`, { method: "POST", body: JSON.stringify({ draftId: draft.id, candidates: draft.candidates }) });
@@ -94,9 +98,9 @@ export function MemoryReview() {
       <p className="text-xs text-text-muted">Scanning sends user and assistant text to the selected model. Tool output and private reasoning are excluded. Nothing is added to memory until you commit.</p>
       {!profiles.loading && !profiles.data?.profiles.length && <p className="text-sm text-text-muted">Add a model profile in <Link className="text-glow" to="/settings">Settings</Link> first.</p>}
       {profiles.error && <p role="alert">{profiles.error}</p>}
-      <button onClick={scan} disabled={loading || busy || !profileId} className="btn-action-primary disabled:opacity-50">{busy ? "Working…" : draft ? "Scan again" : "Scan conversation"}</button>
+      <button onClick={scan} disabled={loading || busy || !profileId} className="btn-action-primary disabled:opacity-50">{busy ? "Working…" : connectionChanged ? "Start new review for this connection" : draft ? "Scan again" : "Scan conversation"}</button>
     </section>
-    <MemoryConnection onChange={setConnection} />
+    <fieldset disabled={busy} className="min-w-0"><MemoryConnection onChange={setConnection} /></fieldset>
     {loading && <p role="status">Loading review…</p>}
     {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
     {notice && <p role="status" className="text-sm text-text-muted">{notice}</p>}
@@ -115,7 +119,7 @@ export function MemoryReview() {
         <details><summary className="cursor-pointer text-sm text-glow">Source context ({candidate.evidence.length} messages)</summary>{candidate.evidence.map((evidence) => <blockquote key={evidence.messageId} className="mt-2 border-l-2 border-border-subtle pl-3 text-xs text-text-muted"><p className="break-all font-mono">{evidence.messageId}</p><p className="mt-1 whitespace-pre-wrap">{evidence.excerpt}</p></blockquote>)}</details>
         {candidate.error && <p role="alert" className="text-sm text-amber-300">{candidate.error}</p>}
       </article>)}
-      <section className="sticky bottom-3 flex flex-wrap items-center gap-3 rounded border border-border-strong bg-surface-raised p-4 shadow-xl"><p className="mr-auto text-sm">{selected.length} selected for memory</p><button onClick={commit} disabled={busy || !selected.length || invalid || !connection?.connected || !connection.writeEnabled} className="btn-action-primary disabled:opacity-50">{busy ? "Working…" : "Commit to memory"}</button>{invalid && <p className="w-full text-xs text-amber-300">Check memory text and emotional value ranges before committing.</p>}{(!connection?.connected || !connection.writeEnabled) && <p className="w-full text-xs text-text-muted">Connect above with editing enabled to commit. You can scan and review while disconnected.</p>}</section>
+      <section className="sticky bottom-3 flex flex-wrap items-center gap-3 rounded border border-border-strong bg-surface-raised p-4 shadow-xl"><p className="mr-auto text-sm">{selected.length} selected for memory</p><button onClick={commit} disabled={busy || !selected.length || invalid || connectionChanged || !connection?.connected || !connection.writeEnabled} className="btn-action-primary disabled:opacity-50">{busy ? "Working…" : "Commit to memory"}</button>{invalid && <p className="w-full text-xs text-amber-300">Check selected memory text and emotional value ranges before committing.</p>}{connectionChanged && <p role="alert" className="w-full text-xs text-amber-300">This review belongs to the memory connection used for its first commit. The connection has changed; scan a new review before sending to a new connection.</p>}{(!connection?.connected || !connection.writeEnabled) && <p className="w-full text-xs text-text-muted">Connect above with editing enabled to commit. You can scan and review while disconnected.</p>}</section>
     </>}
   </div>;
 }

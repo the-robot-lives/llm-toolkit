@@ -91,6 +91,15 @@ describe("Remote memory OAuth", () => {
       expect(sdk.callTool).not.toHaveBeenCalled();
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+  test("checks the expected connection inside the serialized operation before using its grant", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "memory-oauth-"));
+    try {
+      const service = new RemoteMemoryService(dir);
+      service.saveTokens({ access_token: "private-token", token_type: "Bearer", scope: "mcp:read mcp:write" });
+      await expect(service.call("remember", { content: "reviewed memory" }, "another-connection")).rejects.toThrow("Memory connection changed");
+      expect(sdk.callTool).not.toHaveBeenCalled();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
 });
 
 describe("Remote memory browser boundaries", () => {

@@ -39,6 +39,9 @@ describe("Memory bulk review", () => {
     fireEvent.click(screen.getByRole("button", { name: "Select none" }));
     expect(screen.getByRole("button", { name: "Commit to memory" })).toBeDisabled();
     fireEvent.click(screen.getByLabelText("Include memory 1"));
+    fireEvent.change(screen.getByLabelText("Memory 2"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("arousal 2"), { target: { value: "2" } });
+    expect(screen.getByRole("button", { name: "Commit to memory" })).not.toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Commit to memory" }));
     await screen.findByText("Committed ✓");
     const [, request] = apiFetch.mock.calls.find((call) => String(call[0]).endsWith("/commit"))!;
@@ -74,5 +77,16 @@ describe("Memory bulk review", () => {
     expect(screen.getByLabelText("Memory 1")).toBeDisabled();
     expect(screen.getByLabelText("Memory 2")).not.toBeDisabled();
     expect(screen.getByText(/1 selected memories still need attention/)).toBeInTheDocument();
+  });
+  test("offers an explicit confirmed new review after changing the memory connection", async () => {
+    apiFetch.mockResolvedValue({ data: { ...initial, targetConnectionId: "previous-connection" } });
+    view();
+    await screen.findByText("Review 2 extracted memories");
+    expect(screen.getByRole("button", { name: "Commit to memory" })).toBeDisabled();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(screen.getByRole("button", { name: "Start new review for this connection" }));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("previous connection remain in that store"));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    confirm.mockRestore();
   });
 });

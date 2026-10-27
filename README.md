@@ -180,7 +180,7 @@ Open a conversation and choose **Extract memories**. Select a saved LLM profile 
 
 Review each candidate's content, context, source message excerpts, and estimated emotional values. Edit arousal and dominance between 0 and 1, or valence between −1 and 1. Select or disable candidates individually, or use **Select all / Select none**. Edits survive navigation locally, and the extracted draft is retained in the Toolkit database. A successful rescan replaces a review only after confirmation.
 
-Choose **Commit to memory** when ready. This requires a therobot.is connection with editing enabled and sends only selected candidates. Successful entries are locked with a receipt; failed or quarantined entries remain editable. Retrying uses stable import references to avoid storing the same candidate twice. Committed memories remain in the store if you later replace a review.
+Choose **Commit to memory** when ready. This requires a therobot.is connection with editing enabled and sends only selected candidates. Successful entries are locked with a receipt; failed or quarantined entries remain editable. Retrying uses stable import references to avoid storing the same candidate twice. A review binds to the connection used for its first commit; reconnecting requires a new review, so a batch never silently switches accounts. Committed memories remain in the store if you later replace a review.
 
 ```bash
 pnpm dev:api          # Hono, reload

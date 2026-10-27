@@ -24,6 +24,7 @@ export interface MemoryDraft {
   title: string;
   profileId: string;
   createdAt: string;
+  targetConnectionId?: string;
   coverage: { includedMessages: number; totalMessages: number; includedCharacters: number; totalCharacters: number; partial: boolean };
   candidates: MemoryCandidate[];
 }
@@ -40,10 +41,10 @@ function number(value: unknown, min: number, max: number): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) throw new Error("Invalid emotional value");
   return value;
 }
-function fields(item: Record<string, unknown>) {
+function fields(item: Record<string, unknown>, enabled = true) {
   return {
-    content: text(item.content, 8_000, true), summary: text(item.summary ?? "", 500), context: text(item.context ?? "", 6_000),
-    valence: number(item.valence, -1, 1), arousal: number(item.arousal, 0, 1), dominance: number(item.dominance, 0, 1),
+    content: text(item.content, 8_000, enabled), summary: text(item.summary ?? "", 500), context: text(item.context ?? "", 6_000),
+    valence: number(item.valence, enabled ? -1 : -Infinity, enabled ? 1 : Infinity), arousal: number(item.arousal, enabled ? 0 : -Infinity, enabled ? 1 : Infinity), dominance: number(item.dominance, enabled ? 0 : -Infinity, enabled ? 1 : Infinity),
   };
 }
 
@@ -110,9 +111,11 @@ export class MemoryExtractionService {
   }
   commit(id: string, draftId: string, edits: unknown) {
     return this.exclusive(id, async () => {
-      if (!this.memory.status().connected || !this.memory.status().writeEnabled) throw new Error("Connect to therobot.is with memory editing enabled before committing");
+      const connection = this.memory.status();
+      if (!connection.connected || !connection.writeEnabled || !connection.connectionId) throw new Error("Connect to therobot.is with memory editing enabled before committing");
       const draft = this.get(id);
       if (!draft || draft.id !== draftId) throw new Error("This review draft has changed. Reload before committing.");
+      if (draft.targetConnectionId && draft.targetConnectionId !== connection.connectionId) throw new Error("This review belongs to another memory connection. Start a new review before committing to a different connection.");
       if (!Array.isArray(edits) || edits.length !== draft.candidates.length) throw new Error("Invalid review draft");
       const seen = new Set<string>();
       const next = edits.map((raw: unknown) => {
@@ -122,25 +125,30 @@ export class MemoryExtractionService {
         seen.add(item.id);
         const original = draft.candidates.find((c) => c.id === item.id);
         if (!original) throw new Error("Unknown memory candidate");
-        return original.status === "committed" ? original : { ...original, ...fields(item), enabled: item.enabled };
+        return original.status === "committed" ? original : { ...original, ...fields(item, item.enabled), enabled: item.enabled };
       });
+      draft.targetConnectionId = connection.connectionId;
       draft.candidates = next; this.save(draft);
       for (const candidate of draft.candidates.filter((c) => c.enabled && c.status !== "committed")) {
+        if (this.memory.status().connectionId !== draft.targetConnectionId) break;
         try {
           const result = await this.memory.call("remember", {
             content: candidate.content, summary: candidate.summary, context: candidate.context,
             valence: candidate.valence, arousal: candidate.arousal, dominance: candidate.dominance,
             source_ref: `llm-toolkit:conversation:${id}:draft:${draft.id}:candidate:${candidate.id}`,
             metadata: JSON.stringify({ source: "llm-toolkit", conversation_id: id, title: draft.title, message_ids: candidate.evidence.map((e) => e.messageId), extraction_profile: draft.profileId, reviewed: true }),
-          }) as { id?: string; status?: string };
-          if (result.status === "quarantined" || !result.id) {
+          }, draft.targetConnectionId) as { id?: string; status?: string };
+          if (result.status === "quarantined" || typeof result.id !== "string" || !result.id.trim()) {
             candidate.status = result.status === "quarantined" ? "quarantined" : "failed";
             candidate.error = result.status === "quarantined" ? "Held for review by the memory service. Draft retained." : "The service did not confirm storage. Draft retained.";
           } else {
             candidate.status = "committed"; candidate.memoryId = result.id; delete candidate.error;
           }
         } catch {
-          candidate.status = "failed"; candidate.error = "Could not commit this memory. Your draft is retained; retry uses the same deduplication key.";
+          candidate.status = "failed";
+          candidate.error = this.memory.status().connectionId !== draft.targetConnectionId
+            ? "Memory connection changed. No further memories will be sent from this review."
+            : "Could not commit this memory. Your draft is retained; retry uses the same deduplication key.";
         }
         this.save(draft);
       }

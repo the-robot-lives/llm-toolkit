@@ -18,7 +18,7 @@ function setup() {
   const settings = new Map<string, string>();
   const complete = vi.fn().mockResolvedValue({ content: JSON.stringify({ memories }) });
   const call = vi.fn().mockResolvedValue({ id: "remote-id", status: "ok" });
-  const status = vi.fn().mockReturnValue({ connected: true, writeEnabled: true });
+  const status = vi.fn().mockReturnValue({ connected: true, writeEnabled: true, connectionId: "connection-1" });
   const storage = { getSetting: (key: string) => settings.get(key) ?? null, setSetting: (key: string, value: string) => settings.set(key, value), getConversation: async () => ({ title: "Release conversation" }), getUniversalMessages: async () => messages } as unknown as StorageService;
   const llm = { getProfile: (id: string) => id === "profile" ? { id } : null, resolveProvider: async () => ({ complete }) } as unknown as LlmService;
   const remote = { call, status } as unknown as RemoteMemoryService;
@@ -81,6 +81,35 @@ describe("Conversation memory review", () => {
     status.mockReturnValue({ connected: true, writeEnabled: false });
     await expect(service.commit("conversation", draft.id, draft.candidates)).rejects.toThrow("editing enabled");
     expect(call).not.toHaveBeenCalled();
+  });
+  test("disabled empty or out-of-range drafts do not block approved memories", async () => {
+    const { service, call } = setup();
+    const draft = await service.scan("conversation", "profile");
+    draft.candidates[1].enabled = false; draft.candidates[1].content = ""; draft.candidates[1].arousal = 2;
+    const result = await service.commit("conversation", draft.id, draft.candidates);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(result.candidates[1]).toMatchObject({ enabled: false, content: "", arousal: 2, status: "draft" });
+  });
+  test("binds receipts to a connection and stops a bulk commit if that connection changes", async () => {
+    const { service, call, status } = setup();
+    const draft = await service.scan("conversation", "profile");
+    call.mockImplementationOnce(async () => {
+      status.mockReturnValue({ connected: true, writeEnabled: true, connectionId: "connection-2" });
+      return { id: "stored-on-first-connection", status: "ok" };
+    });
+    const result = await service.commit("conversation", draft.id, draft.candidates);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(call.mock.calls[0][2]).toBe("connection-1");
+    expect(result.targetConnectionId).toBe("connection-1");
+    expect(result.candidates.map((c) => c.status)).toEqual(["committed", "draft"]);
+    await expect(service.commit("conversation", draft.id, result.candidates)).rejects.toThrow("another memory connection");
+  });
+  test("does not claim a malformed storage receipt as committed", async () => {
+    const { service, call } = setup();
+    const draft = await service.scan("conversation", "profile"); draft.candidates[1].enabled = false;
+    call.mockResolvedValue({ id: { invalid: true }, status: "ok" });
+    const result = await service.commit("conversation", draft.id, draft.candidates);
+    expect(result.candidates[0].status).toBe("failed");
   });
   test("serializes conversation operations to prevent double commits", async () => {
     const { service, call } = setup();

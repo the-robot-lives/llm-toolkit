@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { MemoryExtractionService } from "../services/memory-extraction.ts";
 
-const safeErrors = ["An operation is already running", "Review draft already exists", "Conversation not found", "Choose a configured", "No conversational text", "Connect to therobot.is", "This review draft has changed", "Invalid review draft", "Invalid memory", "Invalid emotional", "Invalid candidate", "Unknown memory"];
+const safeErrors = ["An operation is already running", "Review draft already exists", "Conversation not found", "Choose a configured", "No conversational text", "Connect to therobot.is", "This review draft has changed", "This review belongs", "Invalid review draft", "Invalid memory", "Invalid emotional", "Invalid candidate", "Unknown memory"];
 export function createMemoryExtractionRoutes(service: MemoryExtractionService) {
   const routes = new Hono();
   routes.use("*", async (c, next) => {
