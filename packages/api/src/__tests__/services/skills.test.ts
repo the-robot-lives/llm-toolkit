@@ -1,9 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync, readFileSync, readlinkSync, existsSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   disableSkill,
+  discoverSourceFolders,
+  readSkillDetail,
   enableSkill,
   expandDestinations,
   inferProviderFromPath,
@@ -211,5 +213,75 @@ describe("foreign symlink", () => {
     });
     expect(catalog.skills[0]?.installs[0]?.status).toBe("foreign");
     rmSync(root, { recursive: true, force: true });
+  });
+});
+
+
+describe("catalog-driven nested skills", () => {
+  test("catalog is authoritative, nested paths drive flat target symlinks, and metadata/categories survive", () => {
+    const root = mkdtempSync(join(tmpdir(), "llm-toolkit-skill-catalog-"));
+    try {
+      const source = join(root, "source"); mkdirSync(source);
+      writeSkill(join(source, "skills", "engineering"), "nested", "Nested skill");
+      writeSkill(join(source, "skills", "run-plans", "deep"), "nrp-demo", "Deep plan");
+      writeSkill(source, "not-in-catalog", "Must not be guessed");
+      writeFileSync(join(source, "categories.yaml"), "version: 1\ncategories:\n  wrong:\n    title: Old category\n    skills:\n      - nested\n  engineering:\n    title: Engineering\n");
+      writeFileSync(join(source, "catalog.yaml"), "version: 1\nskills:\n  nested:\n    path: skills/engineering/nested\n    category: engineering\n    tags: [code, tools]\n  nrp-demo:\n    path: skills/run-plans/deep/nrp-demo\n    category: plans\n");
+      const destination = join(root, "target");
+      const cfg = { sourceFolders: [source], destinations: [{ id: "test", label: "Test", path: destination, kind: "global" as const, provider: "claude" as const }] };
+      const catalog = scanSkills(cfg);
+      expect(catalog.skills.map(skill => skill.name)).toEqual(["nested", "nrp-demo"]);
+      expect(catalog.skills[0]).toMatchObject({ categoryId: "engineering", tags: ["code", "tools"], catalogFile: join(source, "catalog.yaml") });
+      expect(catalog.categories.find(category => category.id === "wrong")?.skills).toEqual([]);
+      expect(catalog.categories.find(category => category.id === "engineering")?.skills).toEqual(["nested"]);
+      expect(readSkillDetail(cfg, "nrp-demo")?.skillMarkdown).toContain("Deep plan");
+      expect(enableSkill(cfg, "nrp-demo", "test").status).toBe("enabled");
+      expect(readlinkSync(join(destination, "nrp-demo"))).toBe(realpathSync(join(source, "skills", "run-plans", "deep", "nrp-demo")));
+      expect(existsSync(join(destination, "nrp-demo", "SKILL.md"))).toBe(true);
+      expect(disableSkill(cfg, "nrp-demo", "test").status).toBe("disabled");
+      expect(readFileSync(join(source, "skills", "run-plans", "deep", "nrp-demo", "SKILL.md"), "utf-8")).toContain("Deep plan");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  test("catalog-only roots discover, while escapes, missing paths and malformed catalogs never fall back", () => {
+    const root = mkdtempSync(join(tmpdir(), "llm-toolkit-skill-catalog-invalid-"));
+    try {
+      const source = join(root, "source"); mkdirSync(source);
+      writeSkill(source, "unlisted", "Do not include");
+      writeSkill(root, "outside", "Outside content");
+      symlinkSync(join(root, "outside"), join(source, "escaped"));
+      mkdirSync(join(source, "escaped-file"));
+      symlinkSync(join(root, "outside", "SKILL.md"), join(source, "escaped-file", "SKILL.md"));
+      writeFileSync(join(source, "catalog.yaml"), `version: 1
+skills:
+  parent-escape:
+    path: ../outside
+  absolute:
+    path: ${join(root, "outside")}
+  symlink-escape:
+    path: escaped
+  missing:
+    category: nope
+  escaped-file:
+    path: escaped-file
+`);
+      expect(discoverSourceFolders([source])).toContain(source);
+      const catalog = scanSkills({ sourceFolders: [source], providers: [], globalEnabled: false });
+      expect(catalog.skills).toEqual([]);
+      expect(catalog.sources[0]?.warnings).toHaveLength(5);
+      writeFileSync(join(source, "catalog.yaml"), "version: 99\nskills: nope\n");
+      const malformed = scanSkills({ sourceFolders: [source], providers: [], globalEnabled: false });
+      expect(malformed.skills).toEqual([]);
+      expect(malformed.sources[0]?.warnings?.[0]).toContain("no directory fallback");
+      expect(() => disableSkill({ sourceFolders: [source] }, "../outside", "test")).toThrow(/Invalid skill name/);
+      const destination = join(root, "target"); mkdirSync(destination);
+      symlinkSync(join(root, "outside"), join(destination, "unknown-foreign"));
+      expect(() => disableSkill({ sourceFolders: [source], destinations: [{ id: "test", path: destination, label: "Test", kind: "global", provider: "claude" }] }, "unknown-foreign", "test")).toThrow(/outside sources/);
+      expect(existsSync(join(destination, "unknown-foreign"))).toBe(true);
+      rmSync(join(source, "catalog.yaml"));
+      symlinkSync(join(root, "outside", "SKILL.md"), join(source, "catalog.yaml"));
+      const escapedCatalog = scanSkills({ sourceFolders: [source], providers: [], globalEnabled: false });
+      expect(escapedCatalog.skills).toEqual([]);
+      expect(escapedCatalog.sources[0]?.warnings?.[0]).toContain("no directory fallback");
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

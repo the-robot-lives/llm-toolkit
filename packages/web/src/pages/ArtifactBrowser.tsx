@@ -28,8 +28,8 @@ const KIND_META: Record<ArtifactKind, {
     title: "Skills",
     singular: "skill",
     itemLabel: "SKILL.md packages",
-    emptyHint: "No skills match. Add a source folder with categories.yaml or SKILL.md packages.",
-    sourceHint: "Trees that contain categories.yaml / categories.yml and SKILL.md packages.",
+    emptyHint: "No skills match. Add a source folder with catalog.yaml or SKILL.md packages.",
+    sourceHint: "Catalog roots with catalog.yaml (nested paths), or legacy folders of SKILL.md packages.",
   },
   agents: {
     title: "Agents",
@@ -89,11 +89,13 @@ interface SkillRow {
   path: string;
   sourceRoot: string;
   categoryId: string;
+  catalogFile?: string;
+  tags?: string[];
   installs: SkillInstall[];
 }
 
 interface SkillsCatalog {
-  sources: Array<{ path: string; categoriesFile?: string; skillCount: number }>;
+  sources: Array<{ path: string; categoriesFile?: string; catalogFile?: string; warnings?: string[]; skillCount: number }>;
   destinations: SkillDestination[];
   categories: SkillCategory[];
   skills: SkillRow[];
@@ -369,7 +371,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
       .filter((skill): skill is SkillRow => {
         if (!skill) return false;
         if (query) {
-          const hay = `${skill.name} ${skill.title ?? ""} ${skill.description ?? ""} ${skill.parent ?? ""} ${Object.values(skill.variant ?? {}).join(" ")}`.toLowerCase();
+          const hay = `${skill.name} ${skill.title ?? ""} ${skill.description ?? ""} ${skill.parent ?? ""} ${Object.values(skill.variant ?? {}).join(" ")} ${(skill.tags ?? []).join(" ")}`.toLowerCase();
           if (!hay.includes(query)) return false;
         }
         if (statusFilter === "all") return true;
@@ -633,6 +635,17 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
         </div>
       )}
 
+      {kind === "skills" && catalog?.sources.some(source => source.catalogFile || source.warnings?.length) && (
+        <section aria-label="Skill catalogs" className="space-y-2 rounded-md border border-border-subtle bg-canvas p-3 text-xs">
+          {catalog.sources.filter(source => source.catalogFile || source.warnings?.length).map(source => (
+            <div key={source.path}>
+              <p className="text-text-muted">{source.skillCount} skills from <code className="break-all">{source.catalogFile}</code></p>
+              {source.warnings?.map(warning => <p key={warning} role="alert" className="mt-1 text-yellow-400">{warning}</p>)}
+            </div>
+          ))}
+        </section>
+      )}
+
       {showSources && (
         <SourcesPanel
           sourceHint={meta.sourceHint}
@@ -802,6 +815,7 @@ export function ArtifactBrowser({ kind }: { kind: ArtifactKind }) {
                 <p className="text-[11px] italic text-text-dim">Turn on Global or pick a project to choose destinations.</p>
               )}
             </div>
+            {selected.catalogFile && <p className="mb-2 break-all text-[10px] text-text-dim">Catalog: {selected.catalogFile}</p>}
             <code className="mb-2 block break-all font-mono text-[10px] text-text-dim">{selected.path}</code>
             {selected.files.length > 0 && (
               <p className="mb-3 text-[11px] text-text-dim">{selected.files.join(" · ")}</p>
